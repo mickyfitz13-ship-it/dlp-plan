@@ -51,7 +51,7 @@
             MapIcon: '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line>',
             Crosshair: '<circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line>',
             Hourglass: '<path d="M5 22h14"></path><path d="M5 2h14"></path><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"></path><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"></path>',
-            Footprints: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"></path><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"></path>',
+            Footprints: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"></path><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"></path><circle cx="12" cy="10" r="3"></circle>',
             MapPin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle>',
             Target: '<circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle>',
             ShieldAlert: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
@@ -65,7 +65,8 @@
             Cpu: '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line>',
             BarChart: '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
             Zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>',
-            Info: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>'
+            Info: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>',
+            User: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>'
         };
 
         // --- PROCEDURAL AI ANALYZER ---
@@ -76,7 +77,12 @@
             let type = "Standard Ride";
             let env = "Mixed Architecture";
 
-            if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana")) {
+            if (ride.isSingleRider) {
+                brief = "Solo operative queuing protocol. Designed to backfill empty seats in standard ride vehicles.";
+                intel = "Throughput is highly volatile and depends entirely on odd-numbered standby groups. Use only if separated.";
+                type = "Auxiliary Queue";
+                env = "Bypass Corridor";
+            } else if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana")) {
                 brief = "High-velocity kinetic experience. Endorphin spike expected. Secure all loose equipment prior to launch.";
                 intel = "High-value tactical target. Traffic surges rapidly after park opening. Strike early or late.";
                 type = "Thrill / High-G";
@@ -103,7 +109,6 @@
                 env = "General Architecture";
             }
 
-            // Pseudo-random duration based on ID for consistency
             const duration = ((ride.id % 6) + 2) + " mins"; 
 
             return { brief, intel, type, env, duration };
@@ -180,16 +185,14 @@
             const [lastSync, setLastSync] = useState(null);
             const [showPrimer, setShowPrimer] = useState(false);
             
-            // Expanded Ride State (UI)
             const [expandedRideId, setExpandedRideId] = useState(null);
 
-            // Persistent Storage Layers
             const [completedTargets, setCompletedTargets] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v6') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v8') || '[]'));
             });
             
             const [activatedMinors, setActivatedMinors] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v6') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v8') || '[]'));
             });
 
             const [logs, setLogs] = useState([]);
@@ -202,11 +205,11 @@
             }, [lastSync]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_completed_v6', JSON.stringify(Array.from(completedTargets)));
+                localStorage.setItem('dlp_completed_v8', JSON.stringify(Array.from(completedTargets)));
             }, [completedTargets]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_activated_v6', JSON.stringify(Array.from(activatedMinors)));
+                localStorage.setItem('dlp_activated_v8', JSON.stringify(Array.from(activatedMinors)));
             }, [activatedMinors]);
 
             const toggleExpand = (id) => {
@@ -214,7 +217,7 @@
             };
 
             const toggleRide = (e, rideId) => {
-                e.stopPropagation(); // Prevent row click
+                e.stopPropagation(); 
                 setCompletedTargets(prev => {
                     const next = new Set(prev);
                     if (next.has(rideId)) {
@@ -229,7 +232,7 @@
             };
 
             const toggleMinor = (e, rideId) => {
-                e.stopPropagation(); // Prevent row click
+                e.stopPropagation(); 
                 setActivatedMinors(prev => {
                     const next = new Set(prev);
                     if (next.has(rideId)) {
@@ -291,14 +294,17 @@
                             const processed = data.lands.flatMap(land => 
                                 land.rides.map(r => {
                                     ridesFound++;
-                                    const isPriority = PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
+                                    const isSingleRider = r.name.toLowerCase().includes('single rider');
+                                    const isPriority = !isSingleRider && PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
+                                    
                                     return {
                                         ...r, 
                                         parkName: park.name, 
                                         parkId: park.id, 
                                         landName: land.name,
                                         isPriority: isPriority,
-                                        isMinor: !isPriority
+                                        isSingleRider: isSingleRider,
+                                        isMinor: !isPriority && !isSingleRider
                                     };
                                 })
                             );
@@ -332,7 +338,7 @@
             }, []);
 
             const memoizedData = useMemo(() => {
-                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0 } };
+                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], singleRiderSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0 } };
 
                 const parisTimeStr = new Date().toLocaleString("en-US", {timeZone: "Europe/Paris"});
                 const now = new Date(parisTimeStr);
@@ -341,44 +347,16 @@
                 if (t > 720) t = 720; 
                 const R = 200 + 200 * Math.sin((t * Math.PI) / 720); 
 
-                const completedSequence = [];
-                const minorSequence = [];
-                const closedSequence = [];
-                const activePool = [];
-
-                rides.forEach(r => {
-                    const matchPark = activePark === 'all' || r.parkId === parseInt(activePark);
-                    if (!matchPark) return;
-
-                    if (completedTargets.has(r.id)) {
-                        completedSequence.push(r);
-                    } else if (!r.is_open) {
-                        closedSequence.push(r);
-                    } else if (r.isMinor && !activatedMinors.has(r.id)) {
-                        minorSequence.push(r);
-                    } else {
-                        activePool.push(r);
-                    }
-                });
-
-                minorSequence.sort((a, b) => a.name.localeCompare(b.name));
-                completedSequence.sort((a, b) => a.name.localeCompare(b.name));
-                closedSequence.sort((a, b) => a.name.localeCompare(b.name));
-
-                const grouped = {};
-                activePool.forEach(ride => {
-                    const zoneKey = `${ride.parkName} - ${ride.landName}`;
-                    if (!grouped[zoneKey]) {
-                        grouped[zoneKey] = {
-                            zoneKey, parkId: ride.parkId, parkName: ride.parkName, landName: ride.landName, rides: [], avgScore: 0
-                        };
-                    }
-                    
+                // Pre-calculate math for all rides so deep scan panels work universally
+                rides.forEach(ride => {
                     let mu_base = 20; 
                     const rideNameLower = ride.name.toLowerCase();
                     if (rideNameLower.includes('phantom manor') || rideNameLower.includes('pirates') || rideNameLower.includes('buzz') || rideNameLower.includes('star tours') || rideNameLower.includes('small world')) mu_base = 33; 
                     else if (rideNameLower.includes('crush') || rideNameLower.includes('peter pan') || rideNameLower.includes('parachutes') || rideNameLower.includes('rc racer')) mu_base = 13; 
                     else if (rideNameLower.includes('thunder') || rideNameLower.includes('hyperspace') || rideNameLower.includes('avengers')) mu_base = 25; 
+
+                    // Simulate drastically lower physical capacity for single rider funnels
+                    if (ride.isSingleRider) mu_base = Math.max(4, mu_base * 0.25);
 
                     const Ar = Object.keys(UPTIME_STATS).find(key => rideNameLower.includes(key)) 
                                ? UPTIME_STATS[Object.keys(UPTIME_STATS).find(key => rideNameLower.includes(key))] : 0.98;
@@ -386,7 +364,7 @@
                     const mu_standby_raw = ride.isPriority ? mu_base * 0.6 : mu_base; 
                     const mu_eff = mu_standby_raw * Ar;
                     
-                    const baseAttraction = ride.isPriority ? 0.08 : 0.04;
+                    const baseAttraction = ride.isPriority ? 0.08 : (ride.isSingleRider ? 0.02 : 0.04);
                     const repulsion = baseAttraction / 150; 
                     const lambda = Math.max(0, R * (baseAttraction - (repulsion * ride.wait_time))); 
                     
@@ -404,7 +382,45 @@
                     ride.rho = rho;
                     ride.uptime = Ar; 
                     ride.aiIntel = generateTacticalIntelligence(ride);
+                });
 
+                const completedSequence = [];
+                const minorSequence = [];
+                const closedSequence = [];
+                const singleRiderSequence = [];
+                const activePool = [];
+
+                rides.forEach(r => {
+                    const matchPark = activePark === 'all' || r.parkId === parseInt(activePark);
+                    if (!matchPark) return;
+
+                    if (completedTargets.has(r.id)) {
+                        completedSequence.push(r);
+                    } else if (!r.is_open) {
+                        closedSequence.push(r);
+                    } else if (r.isSingleRider) {
+                        singleRiderSequence.push(r);
+                    } else if (r.isMinor && !activatedMinors.has(r.id)) {
+                        minorSequence.push(r);
+                    } else {
+                        activePool.push(r);
+                    }
+                });
+
+                minorSequence.sort((a, b) => a.name.localeCompare(b.name));
+                completedSequence.sort((a, b) => a.name.localeCompare(b.name));
+                closedSequence.sort((a, b) => a.name.localeCompare(b.name));
+                singleRiderSequence.sort((a, b) => a.name.localeCompare(b.name));
+
+                // GROUPING & TSP ALGORITHM FOR ACTIVE POOL
+                const grouped = {};
+                activePool.forEach(ride => {
+                    const zoneKey = `${ride.parkName} - ${ride.landName}`;
+                    if (!grouped[zoneKey]) {
+                        grouped[zoneKey] = {
+                            zoneKey, parkId: ride.parkId, parkName: ride.parkName, landName: ride.landName, rides: [], avgScore: 0
+                        };
+                    }
                     grouped[zoneKey].rides.push(ride);
                 });
 
@@ -478,16 +494,16 @@
                     completedSequence,
                     minorSequence,
                     closedSequence,
+                    singleRiderSequence,
                     metrics: { queueEvasionSaved, walkSaved, totalSavedMins }
                 };
             }, [rides, activePark, completedTargets, activatedMinors]);
 
-            const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
+            const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, singleRiderSequence, metrics } = memoizedData;
 
-            // --- REUSABLE RIDE CARD COMPONENT WITH EXPANSION ---
-            const RideCard = ({ ride, isCompleted, isMinor, isClosed, globalStep }) => {
+            const RideCard = ({ ride, isCompleted, isMinor, isClosed, isSingleRiderSection, globalStep }) => {
                 const isExpanded = expandedRideId === ride.id;
-                const intel = ride.aiIntel || generateTacticalIntelligence(ride);
+                const intel = ride.aiIntel;
 
                 return (
                     <div className="relative group mb-3">
@@ -495,13 +511,14 @@
                             onClick={() => toggleExpand(ride.id)}
                             className={`flex items-center p-3 rounded-xl transition-all cursor-pointer border ${
                                 isClosed ? 'bg-[#080b12] border-rose-900/30' :
+                                isSingleRiderSection ? 'bg-[#080b12] border-blue-900/30 hover:bg-[#0c111a]' :
                                 isCompleted ? 'bg-[#080b12] border-slate-800 hover:bg-[#0c111a]' :
                                 isMinor ? 'bg-[#080b12] border-slate-800 hover:bg-[#0c111a]' :
                                 ride.isPriority ? 'bg-emerald-900/10 border-emerald-500/20 hover:border-emerald-500/50' : 
                                 'bg-[#0c111a] border-slate-800 hover:border-slate-600'
                             } ${isExpanded ? 'rounded-b-none border-b-0' : ''}`}
                         >
-                            {!isMinor && !isCompleted && !isClosed && (
+                            {!isMinor && !isCompleted && !isClosed && !isSingleRiderSection && (
                                 <>
                                     <div className="absolute -left-8 top-1/2 w-8 h-[2px] bg-slate-800 group-hover:bg-emerald-500/50 transition-colors z-0 hidden md:block"></div>
                                     <div className={`absolute -left-[45px] top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-lg transition-all z-10 hidden md:flex ${
@@ -516,6 +533,10 @@
                                 {isClosed ? (
                                     <div className="w-5 h-5 rounded border border-rose-900/50 flex items-center justify-center bg-rose-950/20">
                                         <Icon path={I.X} size={12} className="text-rose-500/50" />
+                                    </div>
+                                ) : isSingleRiderSection ? (
+                                    <div className="w-5 h-5 rounded border border-blue-900/50 flex items-center justify-center bg-blue-950/20">
+                                        <Icon path={I.User} size={12} className="text-blue-400" />
                                     </div>
                                 ) : (
                                     <input 
@@ -533,23 +554,24 @@
                                     <h4 className={`text-sm font-bold leading-tight ${
                                         isCompleted ? 'text-slate-500 line-through decoration-slate-600' : 
                                         isClosed ? 'text-slate-400' :
+                                        isSingleRiderSection ? 'text-blue-300' :
                                         ride.isPriority ? 'text-emerald-50' : 'text-slate-200 group-hover:text-white'
                                     }`}>
                                         {ride.name}
                                     </h4>
                                 </div>
                                 
-                                {ride.isPriority && !isCompleted && !isClosed && (
+                                {ride.isPriority && !isCompleted && !isClosed && !isSingleRiderSection && (
                                     <span className="inline-flex items-center gap-1 mt-1 text-[8px] font-black bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded uppercase tracking-wider">
                                         <Icon path={I.Target} size={8} /> Priority Target
                                     </span>
                                 )}
                                 
-                                {(isCompleted || isMinor || isClosed) && (
+                                {(isCompleted || isMinor || isClosed || isSingleRiderSection) && (
                                     <p className="text-[9px] font-mono text-slate-600 uppercase mt-1">{ride.parkName} - {ride.landName}</p>
                                 )}
                                 
-                                {!isCompleted && !isMinor && !isClosed && (
+                                {!isCompleted && !isMinor && !isClosed && !isSingleRiderSection && (
                                     <div className="flex flex-col gap-1 mt-2">
                                         <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[8px] font-mono text-slate-500 bg-[#05070a] px-2 py-1.5 rounded border border-slate-800/50 w-fit shadow-inner">
                                             <span title="Arrival Rate (People joining per min)">λ: {ride.lambda.toFixed(1)}/m</span>
@@ -570,13 +592,13 @@
                                 ) : (
                                     <>
                                         <div className="flex items-center gap-1 text-right mb-0.5">
-                                            <div className={`font-black text-lg flex items-center gap-1 ${isCompleted ? 'text-slate-500' : ride.wait_time <= 30 ? 'text-emerald-400' : ride.wait_time <= 60 ? 'text-amber-400' : 'text-rose-500'}`}>
+                                            <div className={`font-black text-lg flex items-center gap-1 ${isCompleted ? 'text-slate-500' : isSingleRiderSection ? 'text-blue-400' : ride.wait_time <= 30 ? 'text-emerald-400' : ride.wait_time <= 60 ? 'text-amber-400' : 'text-rose-500'}`}>
                                                 <Icon path={I.Timer} size={14} /> {ride.wait_time}
                                             </div>
                                             <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter w-4">MIN</span>
                                         </div>
                                         
-                                        {!isCompleted && !isMinor && (
+                                        {!isCompleted && !isMinor && !isSingleRiderSection && (
                                             <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.velocity > 0.1 ? 'text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-400' : 'text-slate-400'}`}>
                                                 {ride.velocity > 0.1 ? <Icon path={I.TrendingUp} size={10} /> : ride.velocity < -0.1 ? <Icon path={I.TrendingDown} size={10} /> : <Icon path={I.Minus} size={10} />}
                                                 PRED: {ride.predictedWait}m
@@ -590,14 +612,12 @@
                         {/* EXPANDED AI DEEP-SCAN PANEL */}
                         {isExpanded && (
                             <div className={`p-4 bg-[#05070a] border border-t-0 rounded-b-xl animate-in slide-in-from-top-2 ${
-                                isClosed ? 'border-rose-900/30' : ride.isPriority ? 'border-emerald-500/20' : 'border-slate-800'
+                                isClosed ? 'border-rose-900/30' : isSingleRiderSection ? 'border-blue-900/30' : ride.isPriority ? 'border-emerald-500/20' : 'border-slate-800'
                             }`}>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    
-                                    {/* AI Tactical Brief */}
                                     <div className="space-y-3">
                                         <div>
-                                            <h5 className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
+                                            <h5 className={`text-[10px] ${isSingleRiderSection ? 'text-blue-400' : 'text-emerald-500'} font-bold uppercase tracking-widest flex items-center gap-1 mb-1`}>
                                                 <Icon path={I.Info} size={10} /> Tactical Briefing
                                             </h5>
                                             <p className="text-xs text-slate-300 leading-relaxed bg-[#0c111a] p-2 rounded border border-slate-800">
@@ -605,7 +625,7 @@
                                             </p>
                                         </div>
                                         <div>
-                                            <h5 className="text-[10px] text-blue-400 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
+                                            <h5 className="text-[10px] text-amber-400 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
                                                 <Icon path={I.Cpu} size={10} /> Operational Intel
                                             </h5>
                                             <p className="text-xs text-slate-400 leading-relaxed bg-[#0c111a] p-2 rounded border border-slate-800">
@@ -619,7 +639,6 @@
                                         </div>
                                     </div>
 
-                                    {/* System Diagnostics */}
                                     <div className="space-y-3 bg-[#0c111a] p-3 rounded-lg border border-slate-800/50 shadow-inner">
                                         <h5 className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1 mb-2 border-b border-slate-800 pb-1">
                                             <Icon path={I.BarChart} size={10} /> System Diagnostics
@@ -627,7 +646,6 @@
                                         
                                         {!isClosed && ride.velocity !== undefined ? (
                                             <>
-                                                {/* Wait Time Forecast Bar */}
                                                 <div>
                                                     <div className="flex justify-between text-[10px] font-mono mb-1">
                                                         <span className="text-slate-400">Current Vector</span>
@@ -636,9 +654,7 @@
                                                         </span>
                                                     </div>
                                                     <div className="h-1.5 w-full bg-[#05070a] rounded-full overflow-hidden relative border border-slate-800">
-                                                        {/* Base wait bar */}
                                                         <div className="absolute top-0 left-0 h-full bg-slate-500" style={{ width: `${Math.min(100, (ride.wait_time / 120) * 100)}%` }}></div>
-                                                        {/* Predicted expansion (red) or shrinkage (green outline) */}
                                                         {ride.velocity > 0 && (
                                                             <div className="absolute top-0 h-full bg-rose-500/50" style={{ left: `${(ride.wait_time / 120) * 100}%`, width: `${Math.min(100, ((ride.predictedWait - ride.wait_time) / 120) * 100)}%` }}></div>
                                                         )}
@@ -649,19 +665,19 @@
                                                     <div className="bg-[#05070a] p-2 rounded border border-slate-800/50">
                                                         <span className="text-[8px] text-slate-500 uppercase block mb-1">Throughput (μ)</span>
                                                         <span className="text-xs text-slate-300 font-mono">{ride.mu.toFixed(1)} riders/min</span>
-                                                        <p className="text-[8px] text-slate-600 mt-1 leading-tight">Physical vehicle loading capacity.</p>
+                                                        <p className="text-[8px] text-slate-600 mt-1 leading-tight">{isSingleRiderSection ? 'Available single seats per minute.' : 'Physical vehicle loading capacity.'}</p>
                                                     </div>
                                                     <div className="bg-[#05070a] p-2 rounded border border-slate-800/50">
                                                         <span className="text-[8px] text-slate-500 uppercase block mb-1">Traffic (ρ)</span>
                                                         <span className={`text-xs font-mono font-bold ${ride.rho > 1 ? 'text-rose-400' : 'text-emerald-400'}`}>{ride.rho.toFixed(2)}</span>
-                                                        <p className="text-[8px] text-slate-600 mt-1 leading-tight">{ride.rho > 1 ? 'Queue is expanding faster than it loads.' : 'System handling volume efficiently.'}</p>
+                                                        <p className="text-[8px] text-slate-600 mt-1 leading-tight">{ride.rho > 1 ? 'Queue expanding faster than capacity.' : 'System handling volume efficiently.'}</p>
                                                     </div>
                                                 </div>
                                                 
                                                 {ride.uptime < 0.95 && (
                                                     <div className="mt-2 flex items-center gap-2 text-[9px] font-mono text-amber-500 bg-amber-500/10 px-2 py-1.5 rounded border border-amber-500/20">
                                                         <Icon path={I.ShieldAlert} size={12} /> 
-                                                        <span><strong>WARNING:</strong> {(ride.uptime * 100).toFixed(0)}% Historical Uptime. Elevated risk of mid-queue mechanical failure.</span>
+                                                        <span><strong>WARNING:</strong> {(ride.uptime * 100).toFixed(0)}% Historical Uptime. Elevated risk of mechanical failure.</span>
                                                     </div>
                                                 )}
                                             </>
@@ -678,7 +694,6 @@
                 );
             };
 
-            // ... (TacticalMap component remains exactly the same)
             const TacticalMap = () => {
                 if (activePark === 'all') {
                     return (
@@ -741,7 +756,6 @@
                 <div className="min-h-screen bg-[#05070a] text-slate-300 font-sans p-4 md:p-8 flex flex-col items-center pb-32">
                     <div className="w-full max-w-6xl">
                         
-                        {/* HEADER */}
                         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-l-4 border-emerald-500 pl-6 py-2 bg-emerald-500/5 rounded-r-xl">
                             <div>
                                 <h1 className="text-3xl font-black text-white tracking-tighter flex items-center gap-2">
@@ -774,7 +788,6 @@
                             </div>
                         </header>
 
-                        {/* PRIMER */}
                         {showPrimer && (
                             <div className="mb-6 bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
                                 <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
@@ -812,8 +825,6 @@
                         )}
 
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                            
-                            {/* LEFT SIDEBAR (MAP & ZONE) */}
                             <div className="lg:col-span-1 space-y-4">
                                 <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-5 shadow-xl">
                                     <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
@@ -847,7 +858,6 @@
                                 </div>
                             </div>
 
-                            {/* MAIN ROUTING UI */}
                             <div className="lg:col-span-3 space-y-6">
                                 {loading ? (
                                     <div className="flex flex-col items-center justify-center py-24 bg-[#0c111a] border border-slate-800 rounded-3xl">
@@ -893,7 +903,6 @@
                                             <span className="text-xs font-mono text-emerald-500">{masterSequence.length} OBJECTIVES</span>
                                         </div>
 
-                                        {/* ACTIVE ROUTE */}
                                         {masterSequence.length === 0 ? (
                                             <div className="p-8 bg-[#0c111a] border border-dashed border-slate-800 rounded-2xl text-center text-slate-500 text-sm flex flex-col items-center my-8">
                                                  <Icon path={I.Activity} size={32} className="text-emerald-500 mb-3 opacity-50" />
@@ -964,6 +973,22 @@
                                                 </div>
                                                 <div className="px-2 opacity-80">
                                                     {minorSequence.map((ride) => <RideCard key={ride.id} ride={ride} isMinor={true} />)}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* SINGLE RIDER ZONE */}
+                                        {singleRiderSequence.length > 0 && (
+                                            <div className="mt-8 border-t border-slate-800 pt-6">
+                                                <div className="flex items-center gap-2 mb-4 px-2">
+                                                    <Icon path={I.User} size={18} className="text-blue-400" />
+                                                    <h2 className="text-sm font-black text-blue-400 uppercase tracking-widest">Single Rider Network</h2>
+                                                    <span className="text-xs font-mono text-blue-400/70 bg-[#05070a] px-2 py-0.5 rounded border border-blue-500/20 ml-auto">
+                                                        {singleRiderSequence.length} ACTIVE
+                                                    </span>
+                                                </div>
+                                                <div className="px-2 opacity-80">
+                                                    {singleRiderSequence.map((ride) => <RideCard key={ride.id} ride={ride} isSingleRiderSection={true} />)}
                                                 </div>
                                             </div>
                                         )}
