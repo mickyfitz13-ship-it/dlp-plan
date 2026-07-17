@@ -113,22 +113,20 @@
             "hyperspace mountain", "big thunder mountain", "tower of terror", "spider-man", "flight force", "ratatouille", "crush's coaster", "pirates of the caribbean", "indiana jones", "phantom manor", "peter pan", "buzz lightyear", "rise of the resistance", "smugglers run", "tron", "seven dwarfs mine train", "space mountain", "guardians of the galaxy", "slinky dog dash", "avatar flight of passage", "expedition everest", "test track", "soarin", "mickey & minnie", "radiator springs racers", "incredicoaster", "journey to the center of the earth", "beauty and the beast", "mystic manor", "iron man experience", "roaring rapids", "zootopia", "toy story mania"
         ];
 
-        // Specific Paris Map Data
+        // Specific Global Map Data Vectors
         const TACTICAL_COORDS = {
-            4: [
-                { match: "main street", x: 50, y: 85, label: "Main St.", lat: 48.8716, lng: 2.7779 },
-                { match: "fantasy", x: 50, y: 20, label: "Fantasyland", lat: 48.8741, lng: 2.7758 },
-                { match: "discovery", x: 85, y: 50, label: "Discoveryland", lat: 48.8735, lng: 2.7788 },
-                { match: "adventure", x: 25, y: 35, label: "Adventureland", lat: 48.8732, lng: 2.7738 },
-                { match: "frontier", x: 15, y: 65, label: "Frontierland", lat: 48.8717, lng: 2.7744 }
-            ],
-            28: [
-                { match: "front lot", x: 50, y: 85, label: "Front Lot", lat: 48.8681, lng: 2.7808 },
-                { match: "production", x: 30, y: 60, label: "Prod. Courtyard", lat: 48.8685, lng: 2.7797 },
-                { match: "toon", x: 70, y: 60, label: "Toon Studio", lat: 48.8683, lng: 2.7813 },
-                { match: "pixar", x: 80, y: 25, label: "Worlds of Pixar", lat: 48.8672, lng: 2.7806 },
-                { match: "avengers", x: 20, y: 30, label: "Avengers Campus", lat: 48.8678, lng: 2.7783 }
-            ]
+            4: [{match:"main street",x:50,y:85,label:"Main St."},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"discovery",x:85,y:50,label:"Discovery"},{match:"adventure",x:25,y:35,label:"Adventure"},{match:"frontier",x:15,y:65,label:"Frontier"}],
+            28: [{match:"front lot",x:50,y:85,label:"Front Lot"},{match:"production",x:30,y:60,label:"Prod."},{match:"toon",x:70,y:60,label:"Toon"},{match:"pixar",x:80,y:25,label:"Pixar"},{match:"avengers",x:20,y:30,label:"Avengers"}],
+            6: [{match:"main street",x:50,y:85,label:"Main St."},{match:"adventure",x:25,y:60,label:"Adventure"},{match:"frontier",x:15,y:40,label:"Frontier"},{match:"liberty",x:35,y:35,label:"Liberty"},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"tomorrow",x:85,y:50,label:"Tomorrow"}],
+            5: [{match:"celebration",x:50,y:75,label:"Celebration"},{match:"discovery",x:75,y:60,label:"Discovery"},{match:"nature",x:25,y:60,label:"Nature"},{match:"showcase",x:50,y:20,label:"Showcase"}],
+            7: [{match:"hollywood",x:50,y:85,label:"Hollywood"},{match:"echo",x:25,y:60,label:"Echo"},{match:"grand",x:15,y:30,label:"Grand"},{match:"star wars",x:15,y:15,label:"Galaxy's Edge"},{match:"toy story",x:50,y:15,label:"Toy Story"},{match:"animation",x:75,y:40,label:"Animation"},{match:"sunset",x:85,y:60,label:"Sunset"}],
+            8: [{match:"oasis",x:50,y:85,label:"Oasis"},{match:"discovery",x:50,y:60,label:"Discovery"},{match:"pandora",x:20,y:50,label:"Pandora"},{match:"africa",x:30,y:20,label:"Africa"},{match:"asia",x:70,y:25,label:"Asia"},{match:"dinoland",x:80,y:60,label:"Dinoland"}],
+            16: [{match:"main street",x:50,y:85,label:"Main St."},{match:"adventure",x:30,y:60,label:"Adventure"},{match:"new orleans",x:15,y:40,label:"New Orleans"},{match:"critter",x:10,y:30,label:"Critter"},{match:"frontier",x:35,y:35,label:"Frontier"},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"toontown",x:50,y:5,label:"Toontown"},{match:"tomorrow",x:80,y:50,label:"Tomorrow"},{match:"star wars",x:15,y:15,label:"Galaxy's Edge"}],
+            17: [{match:"buena",x:50,y:85,label:"Buena Vista"},{match:"hollywood",x:20,y:60,label:"Hollywood"},{match:"avengers",x:20,y:40,label:"Avengers"},{match:"cars",x:30,y:20,label:"Cars"},{match:"pacific",x:60,y:40,label:"Pacific"},{match:"san fransokyo",x:60,y:40,label:"San Fransokyo"},{match:"pixar",x:75,y:20,label:"Pixar"},{match:"grizzly",x:60,y:60,label:"Grizzly"}],
+            274: [{match:"bazaar",x:50,y:85,label:"Bazaar"},{match:"adventure",x:25,y:60,label:"Adventure"},{match:"western",x:15,y:40,label:"Western"},{match:"critter",x:25,y:20,label:"Critter"},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"toontown",x:75,y:15,label:"Toontown"},{match:"tomorrow",x:85,y:50,label:"Tomorrow"}],
+            275: [{match:"mediterranean",x:50,y:80,label:"Mediterranean"},{match:"american",x:25,y:60,label:"American"},{match:"discovery",x:15,y:30,label:"Discovery"},{match:"lost river",x:50,y:15,label:"Lost River"},{match:"arabian",x:75,y:20,label:"Arabian"},{match:"mermaid",x:85,y:40,label:"Mermaid"},{match:"mysterious",x:50,y:45,label:"Mysterious"}],
+            31: [{match:"main street",x:50,y:85,label:"Main St."},{match:"adventure",x:25,y:60,label:"Adventure"},{match:"fantasy",x:50,y:30,label:"Fantasy"},{match:"tomorrow",x:80,y:50,label:"Tomorrow"},{match:"toy story",x:15,y:40,label:"Toy Story"},{match:"mystic",x:20,y:20,label:"Mystic"},{match:"grizzly",x:35,y:15,label:"Grizzly"},{match:"frozen",x:75,y:15,label:"Frozen"}],
+            30: [{match:"mickey",x:50,y:85,label:"Mickey Ave"},{match:"imagination",x:50,y:60,label:"Imagination"},{match:"fantasy",x:50,y:30,label:"Fantasy"},{match:"treasure",x:80,y:40,label:"Treasure Cove"},{match:"adventure",x:80,y:60,label:"Adventure"},{match:"tomorrow",x:20,y:50,label:"Tomorrow"},{match:"toy story",x:25,y:30,label:"Toy Story"},{match:"zootopia",x:40,y:15,label:"Zootopia"}]
         };
 
         const getCoords = (parkId, landName) => {
@@ -206,6 +204,7 @@
         const App = () => {
             const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v2') || "Disneyland Paris");
             const [activePark, setActivePark] = useState(() => localStorage.getItem('global_park_v2') || 'all'); 
+            const [closeTime, setCloseTime] = useState(() => localStorage.getItem('global_close_time') || "22:00");
             
             const [rides, setRides] = useState([]);
             const [loading, setLoading] = useState(true);
@@ -268,6 +267,7 @@
 
             useEffect(() => localStorage.setItem('dlp_completed_v17', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
             useEffect(() => localStorage.setItem('dlp_activated_v17', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
+            useEffect(() => localStorage.setItem('global_close_time', closeTime), [closeTime]);
 
             const handleRegionChange = (newRegion) => {
                 setActiveRegion(newRegion);
@@ -373,6 +373,12 @@
                     const totalWait = openRides.reduce((sum, r) => sum + r.wait_time, 0);
                     const liveResortLoadFactor = openRides.length > 0 ? (totalWait / openRides.length) : 15;
 
+                    // Closing Time Logic
+                    const [cHour, cMin] = closeTime.split(':').map(Number);
+                    const closeDateObj = new Date(now);
+                    closeDateObj.setHours(cHour, cMin, 0, 0);
+                    const minsToClose = (closeDateObj.getTime() - now) / 60000;
+
                     const computedRides = allFetchedRides.map(ride => {
                         let mu_base = ride.isPriority ? 25 : 15;
                         const n = ride.name.toLowerCase();
@@ -399,7 +405,16 @@
                         }
 
                         newHistory[ride.id] = { wait: ride.wait_time, timestamp: now };
-                        const predictedWait = Math.max(0, ride.wait_time + (velocity * 60));
+                        
+                        // Apply Realistic Friction Floor to prevent 0m (unless ride wait is already tiny)
+                        const rawPred = Math.round(ride.wait_time + (velocity * 60));
+                        const frictionFloor = Math.min(ride.wait_time, ride.isPriority ? 10 : 5);
+                        let finalPred = Math.max(frictionFloor, rawPred);
+
+                        // Closing Time Override
+                        let predDisplay = finalPred;
+                        if (minsToClose <= 60 && minsToClose > 0) predDisplay = "CLOSING";
+                        else if (minsToClose <= 0 && minsToClose > -720) predDisplay = "CLOSED"; // Avoid midnight wrap-around bugs
 
                         return {
                             ...ride,
@@ -407,8 +422,8 @@
                             lambda: Number(lambda.toFixed(1)),
                             rho: Number(rho.toFixed(2)),
                             velocity: Number(velocity.toFixed(2)),
-                            predictedWait: Math.round(predictedWait),
-                            routingScore: ride.wait_time - (predictedWait - ride.wait_time),
+                            predictedWait: predDisplay,
+                            routingScore: ride.wait_time - ((typeof predDisplay === 'number' ? predDisplay : 0) - ride.wait_time),
                             aiIntel: generateTacticalIntelligence(ride)
                         };
                     });
@@ -429,7 +444,7 @@
                 bootSystem();
                 const syncInterval = setInterval(() => bootSystem(true), 300000); 
                 return () => clearInterval(syncInterval);
-            }, [activeRegion]);
+            }, [activeRegion, closeTime]); // Re-sync if close time is adjusted
 
             const memoizedData = useMemo(() => {
                 if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0, totalQueueTimeMins: 0 } };
@@ -520,7 +535,9 @@
                     zone.rides.forEach(ride => {
                         sequence.push({ ...ride, globalStep: counter++, zoneInfo: zone });
                         totalQueueTimeMins += Math.round(ride.wait_time);
-                        if (ride.velocity > 0) queueEvasionSaved += Math.round(ride.predictedWait - ride.wait_time);
+                        if (ride.velocity > 0 && typeof ride.predictedWait === 'number') {
+                            queueEvasionSaved += Math.round(ride.predictedWait - ride.wait_time);
+                        }
                     });
                 });
 
@@ -626,7 +643,7 @@
                                         {!isCompleted && !isMinor && (
                                             <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.velocity > 0.1 ? 'text-rose-500 dark:text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
                                                 {ride.velocity > 0.1 ? <Icon path={I.TrendingUp} size={10} /> : ride.velocity < -0.1 ? <Icon path={I.TrendingDown} size={10} /> : <Icon path={I.Minus} size={10} />}
-                                                PRED: {Math.round(ride.predictedWait)}m
+                                                PRED: {typeof ride.predictedWait === 'number' ? `${ride.predictedWait}m` : ride.predictedWait}
                                             </div>
                                         )}
                                     </>
@@ -659,7 +676,7 @@
                                         <div className="flex gap-2 text-[9px] font-mono text-slate-500 uppercase tracking-wider mt-2">
                                             <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">TYPE: {intel.type}</span>
                                             <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">ENV: {intel.env}</span>
-                                            <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">EST: {intel.duration}</span>
+                                            <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">EST: {ride.duration} MIN</span>
                                         </div>
                                     </div>
 
@@ -673,12 +690,12 @@
                                                     <div className="flex justify-between text-[10px] font-mono mb-1">
                                                         <span className="text-slate-500 dark:text-slate-400">Current Vector</span>
                                                         <span className={ride.velocity > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
-                                                            60m Forecast: {Math.round(ride.predictedWait)}m
+                                                            60m Forecast: {typeof ride.predictedWait === 'number' ? `${ride.predictedWait}m` : ride.predictedWait}
                                                         </span>
                                                     </div>
                                                     <div className="h-1.5 w-full bg-slate-100 dark:bg-[#05070a] rounded-full overflow-hidden relative border border-slate-200 dark:border-slate-800">
                                                         <div className="absolute top-0 left-0 h-full bg-slate-400 dark:bg-slate-500" style={{ width: `${Math.min(100, (ride.wait_time / 120) * 100)}%` }}></div>
-                                                        {ride.velocity > 0 && (
+                                                        {ride.velocity > 0 && typeof ride.predictedWait === 'number' && (
                                                             <div className="absolute top-0 h-full bg-rose-400/50 dark:bg-rose-500/50" style={{ left: `${(ride.wait_time / 120) * 100}%`, width: `${Math.min(100, ((ride.predictedWait - ride.wait_time) / 120) * 100)}%` }}></div>
                                                         )}
                                                     </div>
@@ -885,6 +902,16 @@
                                             </button>
                                         ))}
                                     </div>
+
+                                    <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 mt-6 flex items-center gap-2">
+                                        <Icon path={I.Timer} size={12} /> Target Park Close
+                                    </h2>
+                                    <input 
+                                        type="time" 
+                                        value={closeTime}
+                                        onChange={(e) => setCloseTime(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl p-3 mb-2 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-inner transition-colors"
+                                    />
                                 </div>
                                 <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-3 hidden md:block">
                                     <TacticalMap />
