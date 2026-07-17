@@ -78,7 +78,8 @@
             User: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>',
             Sun: '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>',
             Moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
-            Monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>'
+            Monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>',
+            CheckSquare: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>'
         };
 
         // --- PROCEDURAL AI ANALYZER ---
@@ -195,15 +196,16 @@
             const [error, setError] = useState(null);
             const [activePark, setActivePark] = useState('4'); 
             const [lastSync, setLastSync] = useState(null);
-            const [showPrimer, setShowPrimer] = useState(false);
             
+            // UI States
+            const [showPrimer, setShowPrimer] = useState(false);
             const [expandedRideId, setExpandedRideId] = useState(null);
 
             // Theme Management
-            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v9') || 'system');
+            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v10') || 'system');
 
             useEffect(() => {
-                localStorage.setItem('dlp_theme_v9', theme);
+                localStorage.setItem('dlp_theme_v10', theme);
                 const root = window.document.documentElement;
                 
                 if (theme === 'dark') {
@@ -249,11 +251,11 @@
 
             // Persistent Storage
             const [completedTargets, setCompletedTargets] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v9') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v10') || '[]'));
             });
             
             const [activatedMinors, setActivatedMinors] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v9') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v10') || '[]'));
             });
 
             const [logs, setLogs] = useState([]);
@@ -266,11 +268,11 @@
             }, [lastSync]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_completed_v9', JSON.stringify(Array.from(completedTargets)));
+                localStorage.setItem('dlp_completed_v10', JSON.stringify(Array.from(completedTargets)));
             }, [completedTargets]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_activated_v9', JSON.stringify(Array.from(activatedMinors)));
+                localStorage.setItem('dlp_activated_v10', JSON.stringify(Array.from(activatedMinors)));
             }, [activatedMinors]);
 
             const toggleExpand = (id) => {
@@ -823,7 +825,7 @@
                                     onClick={() => setShowPrimer(!showPrimer)}
                                     className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs transition-all border border-slate-300 dark:border-slate-700"
                                 >
-                                    <Icon path={I.BookOpen} size={14} /> {showPrimer ? 'HIDE' : 'PRIMER'}
+                                    <Icon path={I.BookOpen} size={14} /> {showPrimer ? 'HIDE MANUAL' : 'FIELD MANUAL'}
                                 </button>
                                 <button 
                                     onClick={() => bootSystem(true)}
@@ -840,37 +842,61 @@
                             </div>
                         </header>
 
+                        {/* EXPANDED OPERATIONAL FIELD MANUAL */}
                         {showPrimer && (
                             <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
-                                <div className="flex justify-between items-center mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">
-                                     <h2 className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
-                                         <Icon path={I.Database} size={16} /> Reading the HUD Analytics
+                                <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">
+                                     <h2 className="text-lg font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                                         <Icon path={I.BookOpen} size={20} /> Operational Field Manual
                                      </h2>
-                                     <button onClick={() => setShowPrimer(false)} className="text-slate-400 hover:text-slate-800 dark:text-slate-500 dark:hover:text-white"><Icon path={I.X} size={16} /></button>
+                                     <button onClick={() => setShowPrimer(false)} className="text-slate-400 hover:text-slate-800 dark:text-slate-500 dark:hover:text-white transition-colors">
+                                        <Icon path={I.X} size={20} />
+                                    </button>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
-                                    <div className="space-y-4">
-                                        <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
-                                            The system maps the <strong>velocity</strong> of lines to calculate <em>Opportunity Cost</em>. It logically groups rides by land to minimize your physical walking exhaustion across the park.
-                                        </p>
-                                        <div className="bg-slate-50 dark:bg-[#05070a] p-3 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-[10px] space-y-2">
-                                            <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">λ (Lambda)</span><span className="text-slate-800 dark:text-white">People joining queue per min</span></div>
-                                            <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">Ar (Availability)</span><span className="text-slate-800 dark:text-white">Historical uptime %</span></div>
-                                            <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">μ (Mu)</span><span className="text-slate-800 dark:text-white">Effective hardware capacity/min</span></div>
-                                            <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">ρ (Rho)</span><span className="text-slate-800 dark:text-white">Ratio of λ / μ (Danger metric)</span></div>
-                                            <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">PRED</span><span className="text-slate-800 dark:text-white">Velocity Forecast in 60 mins</span></div>
+                                
+                                <div className="space-y-8 text-sm text-slate-600 dark:text-slate-300">
+                                    <p className="leading-relaxed text-base">
+                                        Welcome to the Unified Queue Logistics Engine. This system is explicitly built to outmaneuver standard theme park traffic. By calculating real-time queue velocity against physical walking distances, it eliminates the need for paid skip-the-line passes. Here is how you, Emma, and Ruby should execute your day.
+                                    </p>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        {/* Core Execution Steps */}
+                                        <div className="space-y-4">
+                                            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">I. Squad Deployment & Routing</h3>
+                                            <ul className="space-y-3">
+                                                <li className="flex items-start gap-2">
+                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                                                    <span><strong>Follow the Master Sequence:</strong> The system automatically sorts the absolute best ride order. It looks at current wait times, predicts 60-minute surges, and maps the shortest physical walking distance to group rides by land.</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                                                    <span><strong>Log Completed Targets:</strong> Once you enter a queue (or finish a ride), <strong>check the box</strong>. The system will log it to the archive, set your current location as the new <em>Dynamic Origin</em>, and instantly recalculate the optimal route to your next objective.</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                                                    <span><strong>Add Custom Rides:</strong> Want to see a show or ride a minor attraction? Scroll down to the <em>"All Other Attractions"</em> bank and <strong>un-check</strong> the box. The engine will instantly rip it out of the background and inject it into your live Master Sequence.</span>
+                                                </li>
+                                            </ul>
                                         </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500">How to read ρ (Traffic Intensity)</h3>
-                                        <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
-                                            <li><span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">ρ &lt; 1.0</span> <strong>Green:</strong> Queue shrinking. Safe to delay.</li>
-                                            <li><span className="text-rose-500 dark:text-rose-400 font-bold font-mono">ρ &gt; 1.0</span> <strong>Red:</strong> Queue expanding. Explosion imminent.</li>
-                                        </ul>
-                                        <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-t border-slate-200 dark:border-slate-800 pt-3">Deep-Scan Modules</h3>
-                                        <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
-                                            <li className="flex items-center gap-2"><Icon path={I.Zap} size={14} className="text-emerald-600 dark:text-emerald-400" /> Tap any ride row to expand its AI Tactical Brief and visualize its physical loading capacity constraints.</li>
-                                        </ul>
+
+                                        {/* Telemetry Guide */}
+                                        <div className="space-y-4">
+                                            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">II. HUD Diagnostics</h3>
+                                            <p className="text-xs">Tap anywhere on a ride's card (except the checkbox) to run an AI Deep-Scan, revealing tactical briefings and throughput charts based on these core variables:</p>
+                                            
+                                            <div className="bg-slate-50 dark:bg-[#05070a] p-3 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-[10px] space-y-2">
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">λ (Lambda)</span><span className="text-slate-800 dark:text-white">People joining queue per min</span></div>
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">Ar (Availability)</span><span className="text-slate-800 dark:text-white">Historical uptime %</span></div>
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">μ (Mu)</span><span className="text-slate-800 dark:text-white">Effective hardware capacity/min</span></div>
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">ρ (Rho)</span><span className="text-slate-800 dark:text-white">Ratio of λ / μ (Danger metric)</span></div>
+                                                <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">PRED</span><span className="text-slate-800 dark:text-white">Velocity Forecast in 60 mins</span></div>
+                                            </div>
+                                            
+                                            <div className="text-xs space-y-2 pt-2">
+                                                <p><span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">ρ &lt; 1.0 (Green):</span> The physical ride is loading people faster than they are arriving. The queue is shrinking. Safe to delay riding.</p>
+                                                <p><span className="text-rose-500 dark:text-rose-400 font-bold font-mono">ρ &gt; 1.0 (Red):</span> People are flooding the queue faster than the ride can load them. Wait time is exploding. Route here immediately.</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
