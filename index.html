@@ -52,7 +52,7 @@
             MapIcon: '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line>',
             Crosshair: '<circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line>',
             Hourglass: '<path d="M5 22h14"></path><path d="M5 2h14"></path><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"></path><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"></path>',
-            Footprints: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"></path><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"></path><path d="M16 17h4"></path><path d="M4 13h4"></path>',
+            Footprints: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"></path><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"></path><circle cx="12" cy="10" r="3"></circle>',
             MapPin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle>',
             Target: '<circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle>',
             ShieldAlert: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
@@ -65,7 +65,7 @@
             List: '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>'
         };
 
-        // --- DATA LOGISTICS ---
+        // --- ELITE TARGET REPOSITORY ---
         const PARK_IDS = [
             { id: 4, name: "Disneyland Park", slug: "disneyland-park" },
             { id: 28, name: "Disney Adventure World", slug: "walt-disney-studios" }
@@ -76,16 +76,6 @@
             "Spider-Man W.E.B. Adventure", "Avengers Assemble: Flight Force", "Ratatouille: The Adventure",
             "Crush's Coaster", "Pirates of the Caribbean", "Indiana Jones and the Temple of Peril",
             "Phantom Manor", "Star Tours: The Adventures Continue", "Peter Pan's Flight", "Buzz Lightyear Laser Blast"
-        ];
-
-        // Minor attractions are no longer excluded, just flagged as "Minor" and hidden by default.
-        const MINOR_KEYWORDS = [
-            'meet', 'character', 'show', 'vehicles', 'sing-along', 'greeting', 'spectacular', 'parade', 
-            'cavalcade', 'fireworks', 'exhibition', 'play area', 'playground', 'band', 'orchestra', 
-            'chorus', 'stage', 'theater', 'theatre', 'walkthrough', 'gallery', 'trolley', 'omnibus',
-            'fire engine', 'horse-drawn', 'street car', 'railroad', 'passage', 'labyrinth', 'cabane', 
-            'arcade', 'nautilus', 'galleon', 'isle', 'dragon', 'bois dormant', 'academy', 'riverboat', 
-            'village', 'galerie', 'single rider', 'single riders', 'stitch live'
         ];
 
         const UPTIME_STATS = {
@@ -146,17 +136,15 @@
             const [lastSync, setLastSync] = useState(null);
             const [showPrimer, setShowPrimer] = useState(false);
             
-            // Persistent Memory States
+            // Persistent Storage Layers
             const [completedTargets, setCompletedTargets] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v3') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v4') || '[]'));
             });
             
-            // Tracks minor rides that the user has UNTICKED to add to the main planner
             const [activatedMinors, setActivatedMinors] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v3') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v4') || '[]'));
             });
 
-            // Terminal System States
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(false);
             const logsEndRef = useRef(null);
@@ -166,13 +154,12 @@
                 return `BUILD ${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
             }, [lastSync]);
 
-            // Save states to local storage
             useEffect(() => {
-                localStorage.setItem('dlp_completed_v3', JSON.stringify(Array.from(completedTargets)));
+                localStorage.setItem('dlp_completed_v4', JSON.stringify(Array.from(completedTargets)));
             }, [completedTargets]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_activated_v3', JSON.stringify(Array.from(activatedMinors)));
+                localStorage.setItem('dlp_activated_v4', JSON.stringify(Array.from(activatedMinors)));
             }, [activatedMinors]);
 
             const toggleRide = (rideId) => {
@@ -180,10 +167,10 @@
                     const next = new Set(prev);
                     if (next.has(rideId)) {
                         next.delete(rideId);
-                        addLog(`[SYS] Objective restored to routing sequence.`, 'success');
+                        addLog(`[SYS] Objective restored to active tracking sequence.`, 'success');
                     } else {
                         next.add(rideId);
-                        addLog(`[SYS] Objective completed. Recalculating Dynamic Origin.`, 'info');
+                        addLog(`[SYS] Objective complete. Updating Dynamic Origin vector.`, 'info');
                     }
                     return next;
                 });
@@ -194,10 +181,10 @@
                     const next = new Set(prev);
                     if (next.has(rideId)) {
                         next.delete(rideId);
-                        addLog(`[SYS] Optional objective ignored. Removed from routing.`, 'info');
+                        addLog(`[SYS] Demoting attraction back to the background repository.`, 'info');
                     } else {
                         next.add(rideId);
-                        addLog(`[SYS] Optional objective activated. Adding to routing sequence.`, 'success');
+                        addLog(`[SYS] Promoting attraction into active routing matrix.`, 'success');
                     }
                     return next;
                 });
@@ -216,7 +203,6 @@
 
             const fetchWithCascade = async (targetUrl, description) => {
                 addLog(`[NET] Fetching telemetry block for ${description}`, 'info');
-                let lastError;
                 
                 for (const proxy of PROXIES) {
                     try {
@@ -228,7 +214,6 @@
                         }
                         throw new Error("Payload corrupt: Missing 'lands' array.");
                     } catch (err) { 
-                        lastError = err; 
                         addLog(`[WARN] Node failure (${proxy.name}): ${err.message}`, 'warn');
                     }
                 }
@@ -256,18 +241,18 @@
                             const processed = data.lands.flatMap(land => 
                                 land.rides.map(r => {
                                     ridesFound++;
-                                    const isMinor = MINOR_KEYWORDS.some(kw => r.name.toLowerCase().includes(kw)) || !r.is_open;
+                                    const isPriority = PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
                                     return {
                                         ...r, 
                                         parkName: park.name, 
                                         parkId: park.id, 
                                         landName: land.name,
-                                        isPriority: PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase())),
-                                        isMinor: isMinor
+                                        isPriority: isPriority,
+                                        isMinor: !isPriority // STRICT MODE: If it's not explicitly elite, it's a minor attraction
                                     };
                                 })
                             );
-                            addLog(`[SYS] Parsed ${ridesFound} total objectives from ${park.name}`, 'info');
+                            addLog(`[SYS] Parsed ${ridesFound} total data layers from ${park.name}`, 'info');
                             allFetchedRides.push(...processed);
                         } catch (e) { 
                             addLog(`[ERR] ${park.name} completely isolated. Connection blocked.`, 'error');
@@ -290,7 +275,6 @@
                 }
             };
 
-            // Setup Auto-Link timer for 5 Minutes
             useEffect(() => {
                 bootSystem();
                 const syncInterval = setInterval(() => bootSystem(true), 300000); 
@@ -307,7 +291,6 @@
                 if (t > 720) t = 720; 
                 const R = 200 + 200 * Math.sin((t * Math.PI) / 720); 
 
-                // Isolate completed and minor rides
                 const completedSequence = [];
                 const minorSequence = [];
                 const activePool = [];
@@ -325,7 +308,6 @@
                     }
                 });
 
-                // Sort lists for display
                 minorSequence.sort((a, b) => a.name.localeCompare(b.name));
                 completedSequence.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -384,19 +366,19 @@
                    parkGroups[z.parkId].push(z);
                 });
 
-                // DYNAMIC ORIGIN TSP ROUTING
+                // DYNAMIC ORIGIN MATRIX CALCULATOR
                 Object.keys(parkGroups).forEach(pId => {
                    let unvisited = parkGroups[pId];
-                   let currentPos = { x: 50, y: 95 }; // Default entrance position
+                   let currentPos = { x: 50, y: 95 }; // Baseline entry gates
                    
-                   // Dynamic Origin: Find the most recently completed ride in THIS park and start routing from there.
+                   // Scans back in time to lock location to the last ride you checked off
                    const completedArray = Array.from(completedTargets);
                    for (let i = completedArray.length - 1; i >= 0; i--) {
                        const lastId = completedArray[i];
                        const lastRide = rides.find(r => r.id === lastId);
                        if (lastRide && lastRide.parkId.toString() === pId) {
                            currentPos = getCoords(pId, lastRide.landName);
-                           break; // Origin found
+                           break; 
                        }
                    }
 
@@ -415,7 +397,7 @@
                       const nextZone = unvisited.shift();
                       
                       tspSortedLands.push(nextZone);
-                      currentPos = nextZone.coords; // Move current position
+                      currentPos = nextZone.coords; 
                    }
                 });
 
@@ -662,7 +644,7 @@
                                             <div className="p-8 bg-[#0c111a] border border-dashed border-slate-800 rounded-2xl text-center text-slate-500 text-sm flex flex-col items-center my-8">
                                                  <Icon path={I.Activity} size={32} className="text-emerald-500 mb-3 opacity-50" />
                                                  <p className="font-bold text-white mb-1">Queue Empty</p>
-                                                 <p>All active objectives have been completed.<br/>Untick items below to route to new targets.</p>
+                                                 <p>All active elite objectives have been logged.<br/>Untick items in the optional bank below to route secondary targets.</p>
                                              </div>
                                         ) : (
                                             <div className="relative border-l-2 border-slate-800 ml-6 space-y-6 pb-8 mt-4">
