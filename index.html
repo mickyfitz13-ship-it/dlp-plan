@@ -9,6 +9,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: { extend: { colors: { emerald: { 400: '#34d399', 500: '#10b981', 600: '#059669' } } } }
       }
     </script>
@@ -19,12 +20,20 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        body { background-color: #05070a; color: #cbd5e1; -webkit-font-smoothing: antialiased; }
+        body { -webkit-font-smoothing: antialiased; background-color: #f1f5f9; }
+        .dark body { background-color: #05070a; }
+        
         .route-path-animation { stroke-dasharray: 6 6; animation: dash 3s linear infinite; }
         @keyframes dash { to { stroke-dashoffset: -24; } }
+        
         .terminal-scroll::-webkit-scrollbar { width: 6px; }
-        .terminal-scroll::-webkit-scrollbar-track { background: #05070a; }
-        .terminal-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        .terminal-scroll::-webkit-scrollbar-track { background: transparent; }
+        .terminal-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .dark .terminal-scroll::-webkit-scrollbar-thumb { background: #1e293b; }
+
+        /* Dynamic Map Grid Variables */
+        :root { --grid-color: #e2e8f0; }
+        .dark { --grid-color: #1e293b; }
     </style>
 </head>
 <body>
@@ -66,7 +75,10 @@
             BarChart: '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
             Zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>',
             Info: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>',
-            User: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>'
+            User: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>',
+            Sun: '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>',
+            Moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
+            Monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>'
         };
 
         // --- PROCEDURAL AI ANALYZER ---
@@ -187,12 +199,61 @@
             
             const [expandedRideId, setExpandedRideId] = useState(null);
 
+            // Theme Management
+            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v9') || 'system');
+
+            useEffect(() => {
+                localStorage.setItem('dlp_theme_v9', theme);
+                const root = window.document.documentElement;
+                
+                if (theme === 'dark') {
+                    root.classList.add('dark');
+                } else if (theme === 'light') {
+                    root.classList.remove('dark');
+                } else {
+                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                        root.classList.add('dark');
+                    } else {
+                        root.classList.remove('dark');
+                    }
+                }
+            }, [theme]);
+
+            useEffect(() => {
+                const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+                const handleChange = () => {
+                    if (theme === 'system') {
+                        const root = window.document.documentElement;
+                        if (mediaQuery.matches) {
+                            root.classList.add('dark');
+                        } else {
+                            root.classList.remove('dark');
+                        }
+                    }
+                };
+                mediaQuery.addEventListener('change', handleChange);
+                return () => mediaQuery.removeEventListener('change', handleChange);
+            }, [theme]);
+
+            const cycleTheme = () => {
+                if (theme === 'system') setTheme('dark');
+                else if (theme === 'dark') setTheme('light');
+                else setTheme('system');
+            };
+
+            const getThemeIcon = () => {
+                if (theme === 'system') return I.Monitor;
+                if (theme === 'dark') return I.Moon;
+                return I.Sun;
+            };
+
+            // Persistent Storage
             const [completedTargets, setCompletedTargets] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v8') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v9') || '[]'));
             });
             
             const [activatedMinors, setActivatedMinors] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v8') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v9') || '[]'));
             });
 
             const [logs, setLogs] = useState([]);
@@ -205,11 +266,11 @@
             }, [lastSync]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_completed_v8', JSON.stringify(Array.from(completedTargets)));
+                localStorage.setItem('dlp_completed_v9', JSON.stringify(Array.from(completedTargets)));
             }, [completedTargets]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_activated_v8', JSON.stringify(Array.from(activatedMinors)));
+                localStorage.setItem('dlp_activated_v9', JSON.stringify(Array.from(activatedMinors)));
             }, [activatedMinors]);
 
             const toggleExpand = (id) => {
@@ -292,21 +353,21 @@
                             
                             let ridesFound = 0;
                             const processed = data.lands.flatMap(land => 
-                                land.rides.map(r => {
-                                    ridesFound++;
-                                    const isSingleRider = r.name.toLowerCase().includes('single rider');
-                                    const isPriority = !isSingleRider && PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
-                                    
-                                    return {
-                                        ...r, 
-                                        parkName: park.name, 
-                                        parkId: park.id, 
-                                        landName: land.name,
-                                        isPriority: isPriority,
-                                        isSingleRider: isSingleRider,
-                                        isMinor: !isPriority && !isSingleRider
-                                    };
-                                })
+                                land.rides
+                                    .filter(r => !r.name.toLowerCase().includes('single rider'))
+                                    .map(r => {
+                                        ridesFound++;
+                                        const isPriority = PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
+                                        
+                                        return {
+                                            ...r, 
+                                            parkName: park.name, 
+                                            parkId: park.id, 
+                                            landName: land.name,
+                                            isPriority: isPriority,
+                                            isMinor: !isPriority
+                                        };
+                                    })
                             );
                             addLog(`[SYS] Parsed ${ridesFound} total data layers from ${park.name}`, 'info');
                             allFetchedRides.push(...processed);
@@ -338,7 +399,7 @@
             }, []);
 
             const memoizedData = useMemo(() => {
-                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], singleRiderSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0 } };
+                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0 } };
 
                 const parisTimeStr = new Date().toLocaleString("en-US", {timeZone: "Europe/Paris"});
                 const now = new Date(parisTimeStr);
@@ -347,7 +408,6 @@
                 if (t > 720) t = 720; 
                 const R = 200 + 200 * Math.sin((t * Math.PI) / 720); 
 
-                // Pre-calculate math for all rides so deep scan panels work universally
                 rides.forEach(ride => {
                     let mu_base = 20; 
                     const rideNameLower = ride.name.toLowerCase();
@@ -355,16 +415,13 @@
                     else if (rideNameLower.includes('crush') || rideNameLower.includes('peter pan') || rideNameLower.includes('parachutes') || rideNameLower.includes('rc racer')) mu_base = 13; 
                     else if (rideNameLower.includes('thunder') || rideNameLower.includes('hyperspace') || rideNameLower.includes('avengers')) mu_base = 25; 
 
-                    // Simulate drastically lower physical capacity for single rider funnels
-                    if (ride.isSingleRider) mu_base = Math.max(4, mu_base * 0.25);
-
                     const Ar = Object.keys(UPTIME_STATS).find(key => rideNameLower.includes(key)) 
                                ? UPTIME_STATS[Object.keys(UPTIME_STATS).find(key => rideNameLower.includes(key))] : 0.98;
                     
                     const mu_standby_raw = ride.isPriority ? mu_base * 0.6 : mu_base; 
                     const mu_eff = mu_standby_raw * Ar;
                     
-                    const baseAttraction = ride.isPriority ? 0.08 : (ride.isSingleRider ? 0.02 : 0.04);
+                    const baseAttraction = ride.isPriority ? 0.08 : 0.04;
                     const repulsion = baseAttraction / 150; 
                     const lambda = Math.max(0, R * (baseAttraction - (repulsion * ride.wait_time))); 
                     
@@ -387,7 +444,6 @@
                 const completedSequence = [];
                 const minorSequence = [];
                 const closedSequence = [];
-                const singleRiderSequence = [];
                 const activePool = [];
 
                 rides.forEach(r => {
@@ -398,8 +454,6 @@
                         completedSequence.push(r);
                     } else if (!r.is_open) {
                         closedSequence.push(r);
-                    } else if (r.isSingleRider) {
-                        singleRiderSequence.push(r);
                     } else if (r.isMinor && !activatedMinors.has(r.id)) {
                         minorSequence.push(r);
                     } else {
@@ -410,9 +464,7 @@
                 minorSequence.sort((a, b) => a.name.localeCompare(b.name));
                 completedSequence.sort((a, b) => a.name.localeCompare(b.name));
                 closedSequence.sort((a, b) => a.name.localeCompare(b.name));
-                singleRiderSequence.sort((a, b) => a.name.localeCompare(b.name));
 
-                // GROUPING & TSP ALGORITHM FOR ACTIVE POOL
                 const grouped = {};
                 activePool.forEach(ride => {
                     const zoneKey = `${ride.parkName} - ${ride.landName}`;
@@ -494,14 +546,13 @@
                     completedSequence,
                     minorSequence,
                     closedSequence,
-                    singleRiderSequence,
                     metrics: { queueEvasionSaved, walkSaved, totalSavedMins }
                 };
             }, [rides, activePark, completedTargets, activatedMinors]);
 
-            const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, singleRiderSequence, metrics } = memoizedData;
+            const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
 
-            const RideCard = ({ ride, isCompleted, isMinor, isClosed, isSingleRiderSection, globalStep }) => {
+            const RideCard = ({ ride, isCompleted, isMinor, isClosed, globalStep }) => {
                 const isExpanded = expandedRideId === ride.id;
                 const intel = ride.aiIntel;
 
@@ -510,19 +561,18 @@
                         <div 
                             onClick={() => toggleExpand(ride.id)}
                             className={`flex items-center p-3 rounded-xl transition-all cursor-pointer border ${
-                                isClosed ? 'bg-[#080b12] border-rose-900/30' :
-                                isSingleRiderSection ? 'bg-[#080b12] border-blue-900/30 hover:bg-[#0c111a]' :
-                                isCompleted ? 'bg-[#080b12] border-slate-800 hover:bg-[#0c111a]' :
-                                isMinor ? 'bg-[#080b12] border-slate-800 hover:bg-[#0c111a]' :
-                                ride.isPriority ? 'bg-emerald-900/10 border-emerald-500/20 hover:border-emerald-500/50' : 
-                                'bg-[#0c111a] border-slate-800 hover:border-slate-600'
+                                isClosed ? 'bg-white dark:bg-[#080b12] border-rose-200 dark:border-rose-900/30' :
+                                isCompleted ? 'bg-slate-100 dark:bg-[#080b12] border-slate-200 dark:border-slate-800 hover:bg-white dark:hover:bg-[#0c111a]' :
+                                isMinor ? 'bg-slate-100 dark:bg-[#080b12] border-slate-200 dark:border-slate-800 hover:bg-white dark:hover:bg-[#0c111a]' :
+                                ride.isPriority ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-200 dark:border-emerald-500/20 hover:border-emerald-400 dark:hover:border-emerald-500/50' : 
+                                'bg-white dark:bg-[#0c111a] border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-600'
                             } ${isExpanded ? 'rounded-b-none border-b-0' : ''}`}
                         >
-                            {!isMinor && !isCompleted && !isClosed && !isSingleRiderSection && (
+                            {!isMinor && !isCompleted && !isClosed && (
                                 <>
-                                    <div className="absolute -left-8 top-1/2 w-8 h-[2px] bg-slate-800 group-hover:bg-emerald-500/50 transition-colors z-0 hidden md:block"></div>
+                                    <div className="absolute -left-8 top-1/2 w-8 h-[2px] bg-slate-300 dark:bg-slate-800 group-hover:bg-emerald-400 dark:group-hover:bg-emerald-500/50 transition-colors z-0 hidden md:block"></div>
                                     <div className={`absolute -left-[45px] top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-lg transition-all z-10 hidden md:flex ${
-                                        ride.isPriority ? 'bg-emerald-500 text-black border-2 border-[#05070a] scale-110 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-800 text-slate-300 border-2 border-[#05070a]'
+                                        ride.isPriority ? 'bg-emerald-500 text-white dark:text-black border-2 border-white dark:border-[#05070a] scale-110 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-2 border-white dark:border-[#05070a]'
                                     }`}>
                                         {globalStep}
                                     </div>
@@ -531,12 +581,8 @@
 
                             <div className="mr-3 flex shrink-0">
                                 {isClosed ? (
-                                    <div className="w-5 h-5 rounded border border-rose-900/50 flex items-center justify-center bg-rose-950/20">
-                                        <Icon path={I.X} size={12} className="text-rose-500/50" />
-                                    </div>
-                                ) : isSingleRiderSection ? (
-                                    <div className="w-5 h-5 rounded border border-blue-900/50 flex items-center justify-center bg-blue-950/20">
-                                        <Icon path={I.User} size={12} className="text-blue-400" />
+                                    <div className="w-5 h-5 rounded border border-rose-300 dark:border-rose-900/50 flex items-center justify-center bg-rose-100 dark:bg-rose-950/20">
+                                        <Icon path={I.X} size={12} className="text-rose-500 dark:text-rose-500/50" />
                                     </div>
                                 ) : (
                                     <input 
@@ -544,7 +590,7 @@
                                         checked={isCompleted || (!isMinor && !masterSequence.find(r=>r.id===ride.id) && !isCompleted)}
                                         onChange={(e) => isMinor ? toggleMinor(e, ride.id) : toggleRide(e, ride.id)}
                                         onClick={(e) => e.stopPropagation()}
-                                        className={`w-5 h-5 rounded cursor-pointer ${isMinor ? 'accent-slate-600 bg-slate-800 border-slate-700' : 'accent-emerald-500 bg-slate-800 border-slate-700'}`} 
+                                        className={`w-5 h-5 rounded cursor-pointer bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 ${isMinor ? 'accent-slate-500 dark:accent-slate-600' : 'accent-emerald-500'}`} 
                                     />
                                 )}
                             </div>
@@ -552,33 +598,32 @@
                             <div className={`flex-grow ${isCompleted ? 'opacity-50' : ''}`}>
                                 <div className="flex items-center gap-2">
                                     <h4 className={`text-sm font-bold leading-tight ${
-                                        isCompleted ? 'text-slate-500 line-through decoration-slate-600' : 
-                                        isClosed ? 'text-slate-400' :
-                                        isSingleRiderSection ? 'text-blue-300' :
-                                        ride.isPriority ? 'text-emerald-50' : 'text-slate-200 group-hover:text-white'
+                                        isCompleted ? 'text-slate-500 line-through decoration-slate-400 dark:decoration-slate-600' : 
+                                        isClosed ? 'text-slate-500 dark:text-slate-400' :
+                                        ride.isPriority ? 'text-emerald-700 dark:text-emerald-50' : 'text-slate-700 dark:text-slate-200 group-hover:text-slate-900 dark:group-hover:text-white'
                                     }`}>
                                         {ride.name}
                                     </h4>
                                 </div>
                                 
-                                {ride.isPriority && !isCompleted && !isClosed && !isSingleRiderSection && (
-                                    <span className="inline-flex items-center gap-1 mt-1 text-[8px] font-black bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                {ride.isPriority && !isCompleted && !isClosed && (
+                                    <span className="inline-flex items-center gap-1 mt-1 text-[8px] font-black bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded uppercase tracking-wider">
                                         <Icon path={I.Target} size={8} /> Priority Target
                                     </span>
                                 )}
                                 
-                                {(isCompleted || isMinor || isClosed || isSingleRiderSection) && (
-                                    <p className="text-[9px] font-mono text-slate-600 uppercase mt-1">{ride.parkName} - {ride.landName}</p>
+                                {(isCompleted || isMinor || isClosed) && (
+                                    <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase mt-1">{ride.parkName} - {ride.landName}</p>
                                 )}
                                 
-                                {!isCompleted && !isMinor && !isClosed && !isSingleRiderSection && (
+                                {!isCompleted && !isMinor && !isClosed && (
                                     <div className="flex flex-col gap-1 mt-2">
-                                        <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[8px] font-mono text-slate-500 bg-[#05070a] px-2 py-1.5 rounded border border-slate-800/50 w-fit shadow-inner">
+                                        <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[8px] font-mono text-slate-600 dark:text-slate-500 bg-white dark:bg-[#05070a] px-2 py-1.5 rounded border border-slate-200 dark:border-slate-800/50 w-fit shadow-sm dark:shadow-inner">
                                             <span title="Arrival Rate (People joining per min)">λ: {ride.lambda.toFixed(1)}/m</span>
-                                            <span className="text-slate-700">|</span>
+                                            <span className="text-slate-300 dark:text-slate-700">|</span>
                                             <span title="Effective Capacity (Throughput × Uptime)">μ: {ride.mu.toFixed(1)}/m</span>
-                                            <span className="text-slate-700">|</span>
-                                            <span title="Traffic Intensity (Arrivals / Capacity)" className={ride.rho > 1.0 ? 'text-rose-400 font-bold bg-rose-500/10 px-1 rounded' : 'text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded'}>
+                                            <span className="text-slate-300 dark:text-slate-700">|</span>
+                                            <span title="Traffic Intensity (Arrivals / Capacity)" className={ride.rho > 1.0 ? 'text-rose-500 dark:text-rose-400 font-bold bg-rose-100 dark:bg-rose-500/10 px-1 rounded' : 'text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-100 dark:bg-emerald-500/10 px-1 rounded'}>
                                                 ρ: {ride.rho.toFixed(2)}
                                             </span>
                                         </div>
@@ -588,18 +633,18 @@
 
                             <div className="flex flex-col items-end justify-center shrink-0 ml-4 px-2">
                                 {isClosed ? (
-                                    <span className="text-rose-500 bg-rose-500/10 px-2 py-1 rounded text-[10px] font-bold font-mono">CLOSED</span>
+                                    <span className="text-rose-600 dark:text-rose-500 bg-rose-100 dark:bg-rose-500/10 px-2 py-1 rounded text-[10px] font-bold font-mono border border-rose-200 dark:border-transparent">CLOSED</span>
                                 ) : (
                                     <>
                                         <div className="flex items-center gap-1 text-right mb-0.5">
-                                            <div className={`font-black text-lg flex items-center gap-1 ${isCompleted ? 'text-slate-500' : isSingleRiderSection ? 'text-blue-400' : ride.wait_time <= 30 ? 'text-emerald-400' : ride.wait_time <= 60 ? 'text-amber-400' : 'text-rose-500'}`}>
+                                            <div className={`font-black text-lg flex items-center gap-1 ${isCompleted ? 'text-slate-400 dark:text-slate-500' : ride.wait_time <= 30 ? 'text-emerald-600 dark:text-emerald-400' : ride.wait_time <= 60 ? 'text-amber-500 dark:text-amber-400' : 'text-rose-600 dark:text-rose-500'}`}>
                                                 <Icon path={I.Timer} size={14} /> {ride.wait_time}
                                             </div>
-                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter w-4">MIN</span>
+                                            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter w-4">MIN</span>
                                         </div>
                                         
-                                        {!isCompleted && !isMinor && !isSingleRiderSection && (
-                                            <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.velocity > 0.1 ? 'text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                        {!isCompleted && !isMinor && (
+                                            <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.velocity > 0.1 ? 'text-rose-500 dark:text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
                                                 {ride.velocity > 0.1 ? <Icon path={I.TrendingUp} size={10} /> : ride.velocity < -0.1 ? <Icon path={I.TrendingDown} size={10} /> : <Icon path={I.Minus} size={10} />}
                                                 PRED: {ride.predictedWait}m
                                             </div>
@@ -609,38 +654,37 @@
                             </div>
                         </div>
 
-                        {/* EXPANDED AI DEEP-SCAN PANEL */}
                         {isExpanded && (
-                            <div className={`p-4 bg-[#05070a] border border-t-0 rounded-b-xl animate-in slide-in-from-top-2 ${
-                                isClosed ? 'border-rose-900/30' : isSingleRiderSection ? 'border-blue-900/30' : ride.isPriority ? 'border-emerald-500/20' : 'border-slate-800'
+                            <div className={`p-4 bg-slate-50 dark:bg-[#05070a] border border-t-0 rounded-b-xl animate-in slide-in-from-top-2 ${
+                                isClosed ? 'border-rose-200 dark:border-rose-900/30' : ride.isPriority ? 'border-emerald-200 dark:border-emerald-500/20' : 'border-slate-200 dark:border-slate-800'
                             }`}>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-3">
                                         <div>
-                                            <h5 className={`text-[10px] ${isSingleRiderSection ? 'text-blue-400' : 'text-emerald-500'} font-bold uppercase tracking-widest flex items-center gap-1 mb-1`}>
+                                            <h5 className="text-[10px] text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
                                                 <Icon path={I.Info} size={10} /> Tactical Briefing
                                             </h5>
-                                            <p className="text-xs text-slate-300 leading-relaxed bg-[#0c111a] p-2 rounded border border-slate-800">
+                                            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-white dark:bg-[#0c111a] p-2 rounded border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
                                                 {intel.brief}
                                             </p>
                                         </div>
                                         <div>
-                                            <h5 className="text-[10px] text-amber-400 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
+                                            <h5 className="text-[10px] text-blue-500 dark:text-blue-400 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
                                                 <Icon path={I.Cpu} size={10} /> Operational Intel
                                             </h5>
-                                            <p className="text-xs text-slate-400 leading-relaxed bg-[#0c111a] p-2 rounded border border-slate-800">
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed bg-white dark:bg-[#0c111a] p-2 rounded border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
                                                 {intel.intel}
                                             </p>
                                         </div>
                                         <div className="flex gap-2 text-[9px] font-mono text-slate-500 uppercase tracking-wider mt-2">
-                                            <span className="bg-[#161b22] px-2 py-1 rounded">TYPE: {intel.type}</span>
-                                            <span className="bg-[#161b22] px-2 py-1 rounded">ENV: {intel.env}</span>
-                                            <span className="bg-[#161b22] px-2 py-1 rounded">EST: {intel.duration}</span>
+                                            <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">TYPE: {intel.type}</span>
+                                            <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">ENV: {intel.env}</span>
+                                            <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">EST: {intel.duration}</span>
                                         </div>
                                     </div>
 
-                                    <div className="space-y-3 bg-[#0c111a] p-3 rounded-lg border border-slate-800/50 shadow-inner">
-                                        <h5 className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1 mb-2 border-b border-slate-800 pb-1">
+                                    <div className="space-y-3 bg-white dark:bg-[#0c111a] p-3 rounded-lg border border-slate-200 dark:border-slate-800/50 shadow-sm dark:shadow-inner">
+                                        <h5 className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1 mb-2 border-b border-slate-100 dark:border-slate-800 pb-1">
                                             <Icon path={I.BarChart} size={10} /> System Diagnostics
                                         </h5>
                                         
@@ -648,41 +692,41 @@
                                             <>
                                                 <div>
                                                     <div className="flex justify-between text-[10px] font-mono mb-1">
-                                                        <span className="text-slate-400">Current Vector</span>
-                                                        <span className={ride.velocity > 0 ? 'text-rose-400' : 'text-emerald-400'}>
+                                                        <span className="text-slate-500 dark:text-slate-400">Current Vector</span>
+                                                        <span className={ride.velocity > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
                                                             60m Forecast: {ride.predictedWait}m
                                                         </span>
                                                     </div>
-                                                    <div className="h-1.5 w-full bg-[#05070a] rounded-full overflow-hidden relative border border-slate-800">
-                                                        <div className="absolute top-0 left-0 h-full bg-slate-500" style={{ width: `${Math.min(100, (ride.wait_time / 120) * 100)}%` }}></div>
+                                                    <div className="h-1.5 w-full bg-slate-100 dark:bg-[#05070a] rounded-full overflow-hidden relative border border-slate-200 dark:border-slate-800">
+                                                        <div className="absolute top-0 left-0 h-full bg-slate-400 dark:bg-slate-500" style={{ width: `${Math.min(100, (ride.wait_time / 120) * 100)}%` }}></div>
                                                         {ride.velocity > 0 && (
-                                                            <div className="absolute top-0 h-full bg-rose-500/50" style={{ left: `${(ride.wait_time / 120) * 100}%`, width: `${Math.min(100, ((ride.predictedWait - ride.wait_time) / 120) * 100)}%` }}></div>
+                                                            <div className="absolute top-0 h-full bg-rose-400/50 dark:bg-rose-500/50" style={{ left: `${(ride.wait_time / 120) * 100}%`, width: `${Math.min(100, ((ride.predictedWait - ride.wait_time) / 120) * 100)}%` }}></div>
                                                         )}
                                                     </div>
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-2 mt-3">
-                                                    <div className="bg-[#05070a] p-2 rounded border border-slate-800/50">
+                                                    <div className="bg-slate-50 dark:bg-[#05070a] p-2 rounded border border-slate-200 dark:border-slate-800/50">
                                                         <span className="text-[8px] text-slate-500 uppercase block mb-1">Throughput (μ)</span>
-                                                        <span className="text-xs text-slate-300 font-mono">{ride.mu.toFixed(1)} riders/min</span>
-                                                        <p className="text-[8px] text-slate-600 mt-1 leading-tight">{isSingleRiderSection ? 'Available single seats per minute.' : 'Physical vehicle loading capacity.'}</p>
+                                                        <span className="text-xs text-slate-700 dark:text-slate-300 font-mono">{ride.mu.toFixed(1)} riders/min</span>
+                                                        <p className="text-[8px] text-slate-500 dark:text-slate-600 mt-1 leading-tight">Physical vehicle loading capacity.</p>
                                                     </div>
-                                                    <div className="bg-[#05070a] p-2 rounded border border-slate-800/50">
+                                                    <div className="bg-slate-50 dark:bg-[#05070a] p-2 rounded border border-slate-200 dark:border-slate-800/50">
                                                         <span className="text-[8px] text-slate-500 uppercase block mb-1">Traffic (ρ)</span>
-                                                        <span className={`text-xs font-mono font-bold ${ride.rho > 1 ? 'text-rose-400' : 'text-emerald-400'}`}>{ride.rho.toFixed(2)}</span>
-                                                        <p className="text-[8px] text-slate-600 mt-1 leading-tight">{ride.rho > 1 ? 'Queue expanding faster than capacity.' : 'System handling volume efficiently.'}</p>
+                                                        <span className={`text-xs font-mono font-bold ${ride.rho > 1 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{ride.rho.toFixed(2)}</span>
+                                                        <p className="text-[8px] text-slate-500 dark:text-slate-600 mt-1 leading-tight">{ride.rho > 1 ? 'Queue expanding faster than capacity.' : 'System handling volume efficiently.'}</p>
                                                     </div>
                                                 </div>
                                                 
                                                 {ride.uptime < 0.95 && (
-                                                    <div className="mt-2 flex items-center gap-2 text-[9px] font-mono text-amber-500 bg-amber-500/10 px-2 py-1.5 rounded border border-amber-500/20">
+                                                    <div className="mt-2 flex items-center gap-2 text-[9px] font-mono text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-500/10 px-2 py-1.5 rounded border border-amber-200 dark:border-amber-500/20">
                                                         <Icon path={I.ShieldAlert} size={12} /> 
-                                                        <span><strong>WARNING:</strong> {(ride.uptime * 100).toFixed(0)}% Historical Uptime. Elevated risk of mechanical failure.</span>
+                                                        <span><strong>WARNING:</strong> {(ride.uptime * 100).toFixed(0)}% Historical Uptime. Elevated mechanical risk.</span>
                                                     </div>
                                                 )}
                                             </>
                                         ) : (
-                                            <div className="py-4 text-center text-slate-500 text-xs font-mono">
+                                            <div className="py-4 text-center text-slate-400 dark:text-slate-500 text-xs font-mono">
                                                 TELEMETRY OFFLINE
                                             </div>
                                         )}
@@ -697,9 +741,9 @@
             const TacticalMap = () => {
                 if (activePark === 'all') {
                     return (
-                        <div className="h-48 w-full bg-[#080b12] rounded-xl border border-slate-800 flex items-center justify-center p-4 text-center shadow-inner">
+                        <div className="h-48 w-full bg-slate-100 dark:bg-[#080b12] rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center p-4 text-center shadow-inner">
                             <p className="text-xs text-slate-500 font-mono flex flex-col items-center gap-2">
-                                <Icon path={I.Crosshair} size={20} className="text-slate-600 animate-pulse" />
+                                <Icon path={I.Crosshair} size={20} className="text-slate-400 dark:text-slate-600 animate-pulse" />
                                 Tactical Map requires a specific Sector.<br/>Please select a single park.
                             </p>
                         </div>
@@ -715,9 +759,9 @@
                 }).filter(Boolean);
 
                 return (
-                    <div className="relative w-full aspect-[4/3] bg-[#05070a] rounded-xl border border-slate-800 overflow-hidden shadow-inner group">
-                        <div className="absolute inset-0 opacity-20 pointer-events-none" 
-                             style={{ backgroundImage: 'linear-gradient(#1e293b 1px, transparent 1px), linear-gradient(90deg, #1e293b 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+                    <div className="relative w-full aspect-[4/3] bg-white dark:bg-[#05070a] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-inner group">
+                        <div className="absolute inset-0 opacity-20 dark:opacity-20 pointer-events-none" 
+                             style={{ backgroundImage: 'linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
                         </div>
                         
                         <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
@@ -726,7 +770,7 @@
                                 const nextPoint = routePoints[idx + 1];
                                 return (
                                     <g key={`line-${idx}`}>
-                                        <line x1={`${point.x}%`} y1={`${point.y}%`} x2={`${nextPoint.x}%`} y2={`${nextPoint.y}%`} stroke="#334155" strokeWidth="2" />
+                                        <line x1={`${point.x}%`} y1={`${point.y}%`} x2={`${nextPoint.x}%`} y2={`${nextPoint.y}%`} strokeWidth="2" className="stroke-slate-300 dark:stroke-slate-700" />
                                         <line x1={`${point.x}%`} y1={`${point.y}%`} x2={`${nextPoint.x}%`} y2={`${nextPoint.y}%`} stroke="#10b981" strokeWidth="2" className="route-path-animation" />
                                     </g>
                                 );
@@ -738,11 +782,11 @@
                             return (
                                 <div key={`node-${i}`} className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${node.x}%`, top: `${node.y}%` }}>
                                     <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-black text-xs z-10 transition-all duration-500 shadow-lg ${
-                                        isActivePoint ? 'bg-emerald-500 border-emerald-300 text-black scale-110 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-[#0f172a] border-slate-700 text-slate-600 scale-90'
+                                        isActivePoint ? 'bg-emerald-500 border-emerald-300 dark:border-emerald-300 text-white dark:text-black scale-110 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-slate-100 dark:bg-[#0f172a] border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-600 scale-90'
                                     }`}>
                                         {isActivePoint ? isActivePoint.step : '•'}
                                     </div>
-                                    <span className={`mt-1 text-[8px] uppercase tracking-wider font-bold bg-[#05070a]/80 px-1 rounded ${isActivePoint ? 'text-emerald-400' : 'text-slate-600'}`}>
+                                    <span className={`mt-1 text-[8px] uppercase tracking-wider font-bold bg-white/80 dark:bg-[#05070a]/80 px-1 rounded ${isActivePoint ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-600'}`}>
                                         {node.label}
                                     </span>
                                 </div>
@@ -753,71 +797,79 @@
             };
 
             return (
-                <div className="min-h-screen bg-[#05070a] text-slate-300 font-sans p-4 md:p-8 flex flex-col items-center pb-32">
+                <div className="min-h-screen text-slate-800 dark:text-slate-300 font-sans p-4 md:p-8 flex flex-col items-center pb-32 transition-colors duration-300">
                     <div className="w-full max-w-6xl">
                         
-                        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-l-4 border-emerald-500 pl-6 py-2 bg-emerald-500/5 rounded-r-xl">
+                        <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-l-4 border-emerald-500 pl-6 py-2 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-r-xl">
                             <div>
-                                <h1 className="text-3xl font-black text-white tracking-tighter flex items-center gap-2">
-                                    <Icon path={I.Navigation} size={32} className="text-emerald-500 animate-pulse" />
-                                    DLP TOURING PLAN <span className="text-emerald-500/50 text-sm font-mono">{buildHash}</span>
+                                <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-2">
+                                    <Icon path={I.Navigation} size={32} className="text-emerald-600 dark:text-emerald-500 animate-pulse" />
+                                    DLP TOURING PLAN <span className="text-emerald-600/50 dark:text-emerald-500/50 text-sm font-mono">{buildHash}</span>
                                 </h1>
-                                <p className="text-xs font-mono text-emerald-400 uppercase tracking-widest mt-1">
+                                <p className="text-xs font-mono text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mt-1">
                                     Unified Queue Logistics Engine
                                 </p>
                             </div>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 sm:gap-4 flex-wrap sm:flex-nowrap">
                                 <button 
-                                    onClick={() => bootSystem(true)}
-                                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold text-xs transition-all border border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                                    onClick={cycleTheme}
+                                    className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs transition-all border border-slate-300 dark:border-slate-700"
+                                    title={`Theme: ${theme.toUpperCase()}`}
                                 >
-                                    <Icon path={I.RefreshCw} size={14} /> MANUAL SYNC
+                                    <Icon path={getThemeIcon()} size={14} /> 
+                                    <span className="hidden md:inline">{theme.toUpperCase()}</span>
                                 </button>
                                 <button 
                                     onClick={() => setShowPrimer(!showPrimer)}
-                                    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg font-bold text-xs transition-all border border-slate-700"
+                                    className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs transition-all border border-slate-300 dark:border-slate-700"
                                 >
                                     <Icon path={I.BookOpen} size={14} /> {showPrimer ? 'HIDE' : 'PRIMER'}
                                 </button>
-                                <div className="flex flex-col items-end hidden sm:flex">
+                                <button 
+                                    onClick={() => bootSystem(true)}
+                                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold text-xs transition-all border border-emerald-500 shadow-sm dark:shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                                >
+                                    <Icon path={I.RefreshCw} size={14} /> <span className="hidden sm:inline">SYNC</span>
+                                </button>
+                                <div className="flex flex-col items-end hidden lg:flex ml-2">
                                     {lastSync && <span className="text-[10px] font-mono text-slate-500">LAST SYNC: {lastSync}</span>}
-                                    <span className="text-[8px] font-mono text-emerald-600 flex items-center gap-1">
-                                         <Icon path={I.Activity} size={8} className="animate-pulse" /> AUTO-LINK (300s)
+                                    <span className="text-[8px] font-mono text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
+                                         <Icon path={I.Activity} size={8} className="animate-pulse" /> AUTO (300s)
                                     </span>
                                 </div>
                             </div>
                         </header>
 
                         {showPrimer && (
-                            <div className="mb-6 bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
-                                <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
-                                     <h2 className="text-sm font-black text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                            <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
+                                <div className="flex justify-between items-center mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">
+                                     <h2 className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
                                          <Icon path={I.Database} size={16} /> Reading the HUD Analytics
                                      </h2>
-                                     <button onClick={() => setShowPrimer(false)} className="text-slate-500 hover:text-white"><Icon path={I.X} size={16} /></button>
+                                     <button onClick={() => setShowPrimer(false)} className="text-slate-400 hover:text-slate-800 dark:text-slate-500 dark:hover:text-white"><Icon path={I.X} size={16} /></button>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
                                     <div className="space-y-4">
-                                        <p className="text-slate-300 leading-relaxed">
+                                        <p className="text-slate-600 dark:text-slate-300 leading-relaxed">
                                             The system maps the <strong>velocity</strong> of lines to calculate <em>Opportunity Cost</em>. It logically groups rides by land to minimize your physical walking exhaustion across the park.
                                         </p>
-                                        <div className="bg-[#05070a] p-3 rounded-xl border border-slate-800 font-mono text-[10px] space-y-2">
-                                            <div className="flex justify-between border-b border-slate-800 pb-1"><span className="text-slate-400">λ (Lambda)</span><span className="text-white">People joining queue per min</span></div>
-                                            <div className="flex justify-between border-b border-slate-800 pb-1"><span className="text-slate-400">Ar (Availability)</span><span className="text-white">Historical uptime %</span></div>
-                                            <div className="flex justify-between border-b border-slate-800 pb-1"><span className="text-slate-400">μ (Mu)</span><span className="text-white">Effective hardware capacity/min</span></div>
-                                            <div className="flex justify-between border-b border-slate-800 pb-1"><span className="text-slate-400">ρ (Rho)</span><span className="text-white">Ratio of λ / μ (Danger metric)</span></div>
-                                            <div className="flex justify-between"><span className="text-slate-400">PRED</span><span className="text-white">Velocity Forecast in 60 mins</span></div>
+                                        <div className="bg-slate-50 dark:bg-[#05070a] p-3 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-[10px] space-y-2">
+                                            <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">λ (Lambda)</span><span className="text-slate-800 dark:text-white">People joining queue per min</span></div>
+                                            <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">Ar (Availability)</span><span className="text-slate-800 dark:text-white">Historical uptime %</span></div>
+                                            <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">μ (Mu)</span><span className="text-slate-800 dark:text-white">Effective hardware capacity/min</span></div>
+                                            <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">ρ (Rho)</span><span className="text-slate-800 dark:text-white">Ratio of λ / μ (Danger metric)</span></div>
+                                            <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">PRED</span><span className="text-slate-800 dark:text-white">Velocity Forecast in 60 mins</span></div>
                                         </div>
                                     </div>
                                     <div className="space-y-4">
-                                        <h3 className="text-xs font-bold text-white uppercase tracking-wider text-emerald-500">How to read ρ (Traffic Intensity)</h3>
-                                        <ul className="space-y-2 text-xs text-slate-300 mb-4">
-                                            <li><span className="text-emerald-400 font-bold font-mono">ρ &lt; 1.0</span> <strong>Green:</strong> Queue shrinking. Safe to delay.</li>
-                                            <li><span className="text-rose-400 font-bold font-mono">ρ &gt; 1.0</span> <strong>Red:</strong> Queue expanding. Explosion imminent.</li>
+                                        <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500">How to read ρ (Traffic Intensity)</h3>
+                                        <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
+                                            <li><span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">ρ &lt; 1.0</span> <strong>Green:</strong> Queue shrinking. Safe to delay.</li>
+                                            <li><span className="text-rose-500 dark:text-rose-400 font-bold font-mono">ρ &gt; 1.0</span> <strong>Red:</strong> Queue expanding. Explosion imminent.</li>
                                         </ul>
-                                        <h3 className="text-xs font-bold text-white uppercase tracking-wider text-emerald-500 border-t border-slate-800 pt-3">Deep-Scan Modules</h3>
-                                        <ul className="space-y-2 text-xs text-slate-300">
-                                            <li className="flex items-center gap-2"><Icon path={I.Zap} size={14} className="text-emerald-400" /> Tap any ride row to expand its AI Tactical Brief and visualize its physical loading capacity constraints.</li>
+                                        <h3 className="text-xs font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-t border-slate-200 dark:border-slate-800 pt-3">Deep-Scan Modules</h3>
+                                        <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
+                                            <li className="flex items-center gap-2"><Icon path={I.Zap} size={14} className="text-emerald-600 dark:text-emerald-400" /> Tap any ride row to expand its AI Tactical Brief and visualize its physical loading capacity constraints.</li>
                                         </ul>
                                     </div>
                                 </div>
@@ -826,7 +878,7 @@
 
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                             <div className="lg:col-span-1 space-y-4">
-                                <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-5 shadow-xl">
+                                <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl">
                                     <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                                         <Icon path={I.Layers} size={12} /> Zone Selection
                                     </h2>
@@ -840,7 +892,7 @@
                                                 key={p.id}
                                                 onClick={() => setActivePark(p.id)}
                                                 className={`text-left px-4 py-2 rounded-xl text-xs font-bold transition-all border flex justify-between items-center ${
-                                                    activePark === p.id ? 'bg-emerald-600 border-emerald-400 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
+                                                    activePark === p.id ? 'bg-emerald-600 border-emerald-500 text-white shadow-md dark:shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300'
                                                 }`}
                                             >
                                                 {p.label}
@@ -850,7 +902,7 @@
                                     </div>
                                 </div>
 
-                                <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-3 shadow-xl hidden md:block">
+                                <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-sm dark:shadow-xl hidden md:block">
                                      <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 ml-2 flex items-center gap-2">
                                         <Icon path={I.MapIcon} size={12} /> Live Route Map
                                     </h2>
@@ -860,57 +912,57 @@
 
                             <div className="lg:col-span-3 space-y-6">
                                 {loading ? (
-                                    <div className="flex flex-col items-center justify-center py-24 bg-[#0c111a] border border-slate-800 rounded-3xl">
+                                    <div className="flex flex-col items-center justify-center py-24 bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm">
                                         <Icon path={I.Database} size={40} className="text-emerald-500 animate-bounce mb-4" />
-                                        <p className="text-white font-bold tracking-widest animate-pulse uppercase text-xs">Parsing Topological Data...</p>
+                                        <p className="text-slate-800 dark:text-white font-bold tracking-widest animate-pulse uppercase text-xs">Parsing Topological Data...</p>
                                     </div>
                                 ) : error ? (
-                                    <div className="bg-red-900/20 border border-red-500/50 rounded-3xl p-10 text-center">
-                                        <Icon path={I.ShieldAlert} size={48} className="mx-auto text-red-500 mb-4" />
-                                        <p className="text-red-300 text-sm">{error}</p>
+                                    <div className="bg-rose-50 dark:bg-red-900/20 border border-rose-200 dark:border-red-500/50 rounded-3xl p-10 text-center">
+                                        <Icon path={I.ShieldAlert} size={48} className="mx-auto text-rose-500 mb-4" />
+                                        <p className="text-rose-800 dark:text-red-300 text-sm">{error}</p>
                                     </div>
                                 ) : (
                                     <div className="space-y-6">
                                         
                                         {masterSequence.length > 0 && (
-                                            <div className="bg-[#0c111a] border-l-4 border-emerald-500 rounded-r-2xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                            <div className="bg-white dark:bg-[#0c111a] border-l-4 border-emerald-500 rounded-r-2xl p-4 shadow-sm dark:shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-slate-200 dark:border-transparent dark:border-l-emerald-500">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+                                                    <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
                                                         <Icon path={I.Hourglass} size={24} className="animate-pulse" />
                                                     </div>
                                                     <div>
                                                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Projected Efficiency Gain</p>
-                                                        <h3 className="text-2xl font-black text-white flex items-baseline gap-1">
-                                                            {Math.floor(metrics.totalSavedMins / 60)}<span className="text-sm text-emerald-500">H</span> {metrics.totalSavedMins % 60}<span className="text-sm text-emerald-500">M</span>
+                                                        <h3 className="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1">
+                                                            {Math.floor(metrics.totalSavedMins / 60)}<span className="text-sm text-emerald-600 dark:text-emerald-500">H</span> {metrics.totalSavedMins % 60}<span className="text-sm text-emerald-600 dark:text-emerald-500">M</span>
                                                         </h3>
                                                     </div>
                                                 </div>
-                                                <div className="text-right text-[10px] font-mono text-slate-400 space-y-1 bg-[#05070a] p-2 rounded-lg border border-slate-800 w-full sm:w-auto">
+                                                <div className="text-right text-[10px] font-mono text-slate-600 dark:text-slate-400 space-y-1 bg-slate-50 dark:bg-[#05070a] p-2 rounded-lg border border-slate-200 dark:border-slate-800 w-full sm:w-auto">
                                                     <div className="flex justify-between sm:justify-end gap-4">
                                                         <span>QUEUE EVASION:</span>
-                                                        <span className="text-emerald-400 font-bold">+{metrics.queueEvasionSaved}m</span>
+                                                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{metrics.queueEvasionSaved}m</span>
                                                     </div>
                                                     <div className="flex justify-between sm:justify-end gap-4">
                                                         <span>TSP ROUTING:</span>
-                                                        <span className="text-emerald-400 font-bold">+{metrics.walkSaved}m</span>
+                                                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{metrics.walkSaved}m</span>
                                                     </div>
                                                 </div>
                                             </div>
                                         )}
 
-                                        <div className="flex justify-between items-end px-2 mb-2 border-b border-slate-800 pb-2">
-                                            <h2 className="text-xl font-black text-white tracking-tight">MASTER SEQUENCE</h2>
-                                            <span className="text-xs font-mono text-emerald-500">{masterSequence.length} OBJECTIVES</span>
+                                        <div className="flex justify-between items-end px-2 mb-2 border-b border-slate-200 dark:border-slate-800 pb-2">
+                                            <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">MASTER SEQUENCE</h2>
+                                            <span className="text-xs font-mono text-emerald-600 dark:text-emerald-500">{masterSequence.length} OBJECTIVES</span>
                                         </div>
 
                                         {masterSequence.length === 0 ? (
-                                            <div className="p-8 bg-[#0c111a] border border-dashed border-slate-800 rounded-2xl text-center text-slate-500 text-sm flex flex-col items-center my-8">
+                                            <div className="p-8 bg-white dark:bg-[#0c111a] border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl text-center text-slate-500 text-sm flex flex-col items-center my-8 shadow-sm">
                                                  <Icon path={I.Activity} size={32} className="text-emerald-500 mb-3 opacity-50" />
-                                                 <p className="font-bold text-white mb-1">Queue Empty</p>
+                                                 <p className="font-bold text-slate-800 dark:text-white mb-1">Queue Empty</p>
                                                  <p>All active elite objectives have been logged.<br/>Untick items in the optional bank below to route secondary targets.</p>
                                              </div>
                                         ) : (
-                                            <div className="relative border-l-2 border-slate-800 ml-6 space-y-6 pb-8 mt-4">
+                                            <div className="relative border-l-2 border-slate-300 dark:border-slate-800 ml-6 space-y-6 pb-8 mt-4">
                                                 {itinerary.map((zone, zoneIdx) => (
                                                     <div key={`${zone.parkId}-${zone.landName}`} className="relative">
                                                         
@@ -918,21 +970,21 @@
                                                              <div className="absolute -left-[45px] -top-10 h-10 border-l-2 border-dashed border-emerald-500/30"></div>
                                                         )}
 
-                                                        <div className="absolute -left-[64px] -top-8 bg-[#0c111a] border border-slate-700 rounded-full px-2 py-1 flex items-center gap-1 text-[9px] font-bold text-slate-400 z-10 shadow-lg">
+                                                        <div className="absolute -left-[64px] -top-8 bg-white dark:bg-[#0c111a] border border-slate-300 dark:border-slate-700 rounded-full px-2 py-1 flex items-center gap-1 text-[9px] font-bold text-slate-500 dark:text-slate-400 z-10 shadow-sm dark:shadow-lg">
                                                             <Icon path={I.Footprints} size={10} className="text-emerald-500" /> Walk: ~{zone.travelTimeFromLast}m
                                                         </div>
                                                         
-                                                        <div className="absolute -left-[21px] top-0 bg-[#05070a] py-1 z-10">
-                                                            <div className="w-10 h-10 rounded-full bg-[#111827] border-2 border-slate-700 flex items-center justify-center">
+                                                        <div className="absolute -left-[21px] top-0 bg-slate-100 dark:bg-[#05070a] py-1 z-10">
+                                                            <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-[#111827] border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center">
                                                                 <Icon path={I.MapPin} size={16} className="text-slate-500" />
                                                             </div>
                                                         </div>
                                                         
                                                         <div className="ml-10 mb-4 mt-2">
-                                                            <h3 className="font-black text-slate-300 uppercase tracking-widest text-sm flex items-center gap-2">
+                                                            <h3 className="font-black text-slate-800 dark:text-slate-300 uppercase tracking-widest text-sm flex items-center gap-2">
                                                                 ENTER {zone.landName}
                                                             </h3>
-                                                            <p className="text-[9px] font-mono text-slate-600 uppercase">{zone.parkName}</p>
+                                                            <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase">{zone.parkName}</p>
                                                         </div>
 
                                                         <div className="ml-8">
@@ -947,11 +999,11 @@
 
                                         {/* COMPLETED OBJECTIVES ZONE */}
                                         {completedSequence.length > 0 && (
-                                            <div className="mt-8 border-t border-slate-800 pt-6">
+                                            <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
                                                 <div className="flex items-center gap-2 mb-4 px-2">
-                                                    <Icon path={I.CheckCircle} size={18} className="text-slate-500" />
+                                                    <Icon path={I.CheckCircle} size={18} className="text-slate-400 dark:text-slate-500" />
                                                     <h2 className="text-sm font-black text-slate-500 uppercase tracking-widest">Completed Objectives</h2>
-                                                    <span className="text-xs font-mono text-slate-600 bg-[#05070a] px-2 py-0.5 rounded border border-slate-800 ml-auto">
+                                                    <span className="text-xs font-mono text-slate-500 dark:text-slate-600 bg-white dark:bg-[#05070a] px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 ml-auto">
                                                         {completedSequence.length} LOGGED
                                                     </span>
                                                 </div>
@@ -963,11 +1015,11 @@
 
                                         {/* MINOR (OPTIONAL) ZONE */}
                                         {minorSequence.length > 0 && (
-                                            <div className="mt-8 border-t border-slate-800 pt-6">
+                                            <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
                                                 <div className="flex items-center gap-2 mb-4 px-2">
-                                                    <Icon path={I.List} size={18} className="text-slate-500" />
+                                                    <Icon path={I.List} size={18} className="text-slate-400 dark:text-slate-500" />
                                                     <h2 className="text-sm font-black text-slate-500 uppercase tracking-widest">All Other Attractions (Optional)</h2>
-                                                    <span className="text-xs font-mono text-slate-600 bg-[#05070a] px-2 py-0.5 rounded border border-slate-800 ml-auto">
+                                                    <span className="text-xs font-mono text-slate-500 dark:text-slate-600 bg-white dark:bg-[#05070a] px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 ml-auto">
                                                         {minorSequence.length} HIDDEN
                                                     </span>
                                                 </div>
@@ -977,33 +1029,17 @@
                                             </div>
                                         )}
 
-                                        {/* SINGLE RIDER ZONE */}
-                                        {singleRiderSequence.length > 0 && (
-                                            <div className="mt-8 border-t border-slate-800 pt-6">
-                                                <div className="flex items-center gap-2 mb-4 px-2">
-                                                    <Icon path={I.User} size={18} className="text-blue-400" />
-                                                    <h2 className="text-sm font-black text-blue-400 uppercase tracking-widest">Single Rider Network</h2>
-                                                    <span className="text-xs font-mono text-blue-400/70 bg-[#05070a] px-2 py-0.5 rounded border border-blue-500/20 ml-auto">
-                                                        {singleRiderSequence.length} ACTIVE
-                                                    </span>
-                                                </div>
-                                                <div className="px-2 opacity-80">
-                                                    {singleRiderSequence.map((ride) => <RideCard key={ride.id} ride={ride} isSingleRiderSection={true} />)}
-                                                </div>
-                                            </div>
-                                        )}
-
                                         {/* CLOSED ATTRACTIONS ZONE */}
                                         {closedSequence.length > 0 && (
-                                            <div className="mt-8 border-t border-slate-800 pt-6">
+                                            <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
                                                 <div className="flex items-center gap-2 mb-4 px-2">
                                                     <Icon path={I.ShieldAlert} size={18} className="text-rose-500" />
                                                     <h2 className="text-sm font-black text-rose-500 uppercase tracking-widest">Closed Attractions</h2>
-                                                    <span className="text-xs font-mono text-rose-500/70 bg-[#05070a] px-2 py-0.5 rounded border border-rose-500/20 ml-auto">
+                                                    <span className="text-xs font-mono text-rose-600 dark:text-rose-500/70 bg-rose-50 dark:bg-[#05070a] px-2 py-0.5 rounded border border-rose-200 dark:border-rose-500/20 ml-auto">
                                                         {closedSequence.length} OFFLINE
                                                     </span>
                                                 </div>
-                                                <div className="px-2 opacity-70">
+                                                <div className="px-2 opacity-80 dark:opacity-70">
                                                     {closedSequence.map((ride) => <RideCard key={ride.id} ride={ride} isClosed={true} />)}
                                                 </div>
                                             </div>
@@ -1015,30 +1051,30 @@
                         </div>
 
                         {/* TERMINAL LOG VIEWER */}
-                        <div className="mt-12 border border-slate-800 rounded-xl bg-[#0c111a] overflow-hidden shadow-xl mb-8">
+                        <div className="mt-12 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#0c111a] overflow-hidden shadow-sm dark:shadow-xl mb-8">
                             <button 
                                 onClick={() => setShowTerminal(!showTerminal)}
-                                className="w-full flex items-center justify-between p-3 bg-slate-900/50 hover:bg-slate-800 transition-colors text-[10px] font-bold text-slate-400 uppercase tracking-widest"
+                                className="w-full flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-transparent"
                             >
                                 <div className="flex items-center gap-2">
-                                    <Icon path={I.Terminal} size={14} className="text-emerald-500" /> System Network Logs
+                                    <Icon path={I.Terminal} size={14} className="text-emerald-600 dark:text-emerald-500" /> System Network Logs
                                 </div>
-                                <Icon path={showTerminal ? I.ChevronUp : I.ChevronDown} size={14} />
+                                <Icon path={showTerminal ? I.ChevronUp : I.ChevronDown} size={14} className="text-slate-400" />
                             </button>
                             
                             {showTerminal && (
-                                <div className="p-4 bg-[#020408] h-64 overflow-y-auto font-mono text-[10px] space-y-1.5 terminal-scroll">
+                                <div className="p-4 bg-slate-100 dark:bg-[#020408] h-64 overflow-y-auto font-mono text-[10px] space-y-1.5 terminal-scroll shadow-inner">
                                     {logs.length === 0 ? (
-                                        <p className="text-slate-600 italic">Initializing network daemon...</p>
+                                        <p className="text-slate-500 dark:text-slate-600 italic">Initializing network daemon...</p>
                                     ) : (
                                         logs.map((log, i) => (
                                             <div key={i} className="flex items-start gap-3">
-                                                <span className="text-slate-600 shrink-0">[{log.time}]</span>
+                                                <span className="text-slate-400 dark:text-slate-600 shrink-0">[{log.time}]</span>
                                                 <span className={`
-                                                    ${log.type === 'info' ? 'text-blue-400' : ''}
-                                                    ${log.type === 'success' ? 'text-emerald-400' : ''}
-                                                    ${log.type === 'warn' ? 'text-amber-400' : ''}
-                                                    ${log.type === 'error' ? 'text-rose-500 font-bold' : ''}
+                                                    ${log.type === 'info' ? 'text-blue-600 dark:text-blue-400' : ''}
+                                                    ${log.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : ''}
+                                                    ${log.type === 'warn' ? 'text-amber-600 dark:text-amber-400' : ''}
+                                                    ${log.type === 'error' ? 'text-rose-600 dark:text-rose-500 font-bold' : ''}
                                                 `}>
                                                     {log.msg}
                                                 </span>
