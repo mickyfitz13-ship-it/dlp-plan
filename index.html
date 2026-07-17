@@ -90,12 +90,7 @@
             let type = "Standard Ride";
             let env = "Mixed Architecture";
 
-            if (ride.isSingleRider) {
-                brief = "Solo operative queuing protocol. Designed to backfill empty seats in standard ride vehicles.";
-                intel = "Throughput is highly volatile and depends entirely on odd-numbered standby groups. Use only if separated.";
-                type = "Auxiliary Queue";
-                env = "Bypass Corridor";
-            } else if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana")) {
+            if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana")) {
                 brief = "High-velocity kinetic experience. Endorphin spike expected. Secure all loose equipment prior to launch.";
                 intel = "High-value tactical target. Traffic surges rapidly after park opening. Strike early or late.";
                 type = "Thrill / High-G";
@@ -202,10 +197,10 @@
             const [expandedRideId, setExpandedRideId] = useState(null);
 
             // Theme Management
-            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v10') || 'system');
+            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v11') || 'system');
 
             useEffect(() => {
-                localStorage.setItem('dlp_theme_v10', theme);
+                localStorage.setItem('dlp_theme_v11', theme);
                 const root = window.document.documentElement;
                 
                 if (theme === 'dark') {
@@ -251,11 +246,11 @@
 
             // Persistent Storage
             const [completedTargets, setCompletedTargets] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v10') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v11') || '[]'));
             });
             
             const [activatedMinors, setActivatedMinors] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v10') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v11') || '[]'));
             });
 
             const [logs, setLogs] = useState([]);
@@ -268,11 +263,11 @@
             }, [lastSync]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_completed_v10', JSON.stringify(Array.from(completedTargets)));
+                localStorage.setItem('dlp_completed_v11', JSON.stringify(Array.from(completedTargets)));
             }, [completedTargets]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_activated_v10', JSON.stringify(Array.from(activatedMinors)));
+                localStorage.setItem('dlp_activated_v11', JSON.stringify(Array.from(activatedMinors)));
             }, [activatedMinors]);
 
             const toggleExpand = (id) => {
@@ -401,7 +396,7 @@
             }, []);
 
             const memoizedData = useMemo(() => {
-                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0 } };
+                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0, totalQueueTimeMins: 0 } };
 
                 const parisTimeStr = new Date().toLocaleString("en-US", {timeZone: "Europe/Paris"});
                 const now = new Date(parisTimeStr);
@@ -528,11 +523,13 @@
                 let counter = 1;
                 let tspTotalWalk = 0;
                 let queueEvasionSaved = 0;
+                let totalQueueTimeMins = 0;
 
                 tspSortedLands.forEach(zone => {
                     tspTotalWalk += (zone.travelTimeFromLast || 0);
                     zone.rides.forEach(ride => {
                         sequence.push({ ...ride, globalStep: counter++, zoneInfo: zone });
+                        totalQueueTimeMins += ride.wait_time;
                         if (ride.velocity > 0) {
                            queueEvasionSaved += Math.round(ride.predictedWait - ride.wait_time);
                         }
@@ -548,7 +545,7 @@
                     completedSequence,
                     minorSequence,
                     closedSequence,
-                    metrics: { queueEvasionSaved, walkSaved, totalSavedMins }
+                    metrics: { queueEvasionSaved, walkSaved, totalSavedMins, totalQueueTimeMins }
                 };
             }, [rides, activePark, completedTargets, activatedMinors]);
 
@@ -860,7 +857,6 @@
                                     </p>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        {/* Core Execution Steps */}
                                         <div className="space-y-4">
                                             <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">I. Squad Deployment & Routing</h3>
                                             <ul className="space-y-3">
@@ -879,7 +875,6 @@
                                             </ul>
                                         </div>
 
-                                        {/* Telemetry Guide */}
                                         <div className="space-y-4">
                                             <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">II. HUD Diagnostics</h3>
                                             <p className="text-xs">Tap anywhere on a ride's card (except the checkbox) to run an AI Deep-Scan, revealing tactical briefings and throughput charts based on these core variables:</p>
@@ -951,24 +946,42 @@
                                     <div className="space-y-6">
                                         
                                         {masterSequence.length > 0 && (
-                                            <div className="bg-white dark:bg-[#0c111a] border-l-4 border-emerald-500 rounded-r-2xl p-4 shadow-sm dark:shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-slate-200 dark:border-transparent dark:border-l-emerald-500">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
-                                                        <Icon path={I.Hourglass} size={24} className="animate-pulse" />
+                                            <div className="bg-white dark:bg-[#0c111a] border-l-4 border-emerald-500 rounded-r-2xl p-4 shadow-sm dark:shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-slate-200 dark:border-transparent dark:border-l-emerald-500">
+                                                
+                                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-3 bg-slate-100 dark:bg-slate-800/50 rounded-xl text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                                            <Icon path={I.Timer} size={24} />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Est. Total Queue Time</p>
+                                                            <h3 className="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1">
+                                                                {Math.floor(metrics.totalQueueTimeMins / 60)}<span className="text-sm text-slate-500">H</span> {metrics.totalQueueTimeMins % 60}<span className="text-sm text-slate-500">M</span>
+                                                            </h3>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Projected Efficiency Gain</p>
-                                                        <h3 className="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1">
-                                                            {Math.floor(metrics.totalSavedMins / 60)}<span className="text-sm text-emerald-600 dark:text-emerald-500">H</span> {metrics.totalSavedMins % 60}<span className="text-sm text-emerald-600 dark:text-emerald-500">M</span>
-                                                        </h3>
+
+                                                    <div className="hidden sm:block w-px h-10 bg-slate-200 dark:bg-slate-800"></div>
+
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                                                            <Icon path={I.Hourglass} size={24} className="animate-pulse" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Projected Efficiency Gain</p>
+                                                            <h3 className="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1">
+                                                                {Math.floor(metrics.totalSavedMins / 60)}<span className="text-sm text-emerald-600 dark:text-emerald-500">H</span> {metrics.totalSavedMins % 60}<span className="text-sm text-emerald-600 dark:text-emerald-500">M</span>
+                                                            </h3>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div className="text-right text-[10px] font-mono text-slate-600 dark:text-slate-400 space-y-1 bg-slate-50 dark:bg-[#05070a] p-2 rounded-lg border border-slate-200 dark:border-slate-800 w-full sm:w-auto">
-                                                    <div className="flex justify-between sm:justify-end gap-4">
+
+                                                <div className="text-right text-[10px] font-mono text-slate-600 dark:text-slate-400 space-y-1 bg-slate-50 dark:bg-[#05070a] p-2 rounded-lg border border-slate-200 dark:border-slate-800 w-full md:w-auto">
+                                                    <div className="flex justify-between md:justify-end gap-4">
                                                         <span>QUEUE EVASION:</span>
                                                         <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{metrics.queueEvasionSaved}m</span>
                                                     </div>
-                                                    <div className="flex justify-between sm:justify-end gap-4">
+                                                    <div className="flex justify-between md:justify-end gap-4">
                                                         <span>TSP ROUTING:</span>
                                                         <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{metrics.walkSaved}m</span>
                                                     </div>
