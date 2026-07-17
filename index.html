@@ -43,7 +43,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- INLINE ICONS ---
         const Icon = ({ path, size = 24, className = "" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{ __html: path }} />
         );
@@ -82,39 +81,57 @@
             CheckSquare: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>'
         };
 
-        // --- GLOBAL RESORT DATABASE ---
         const GLOBAL_PARKS = {
-            "Disneyland Paris": [
-                { id: 4, name: "Disneyland Park" },
-                { id: 28, name: "Disney Adventure World" }
-            ],
-            "Walt Disney World (Florida)": [
-                { id: 6, name: "Magic Kingdom" },
-                { id: 5, name: "EPCOT" },
-                { id: 7, name: "Hollywood Studios" },
-                { id: 8, name: "Animal Kingdom" }
-            ],
-            "Disneyland Resort (California)": [
-                { id: 16, name: "Disneyland Park" },
-                { id: 17, name: "Disney California Adventure" }
-            ],
-            "Tokyo Disney Resort": [
-                { id: 274, name: "Tokyo Disneyland" },
-                { id: 275, name: "Tokyo DisneySea" }
-            ],
-            "Hong Kong & Shanghai": [
-                { id: 31, name: "Hong Kong Disneyland" },
-                { id: 30, name: "Shanghai Disneyland" }
-            ]
+            "Disneyland Paris": {
+                timeZone: "Europe/Paris",
+                defaultClose: "21:00",
+                sectors: [
+                    { id: 4, name: "Disneyland Park" },
+                    { id: 28, name: "Disney Adventure World" }
+                ]
+            },
+            "Walt Disney World (Florida)": {
+                timeZone: "America/New_York",
+                defaultClose: "22:00",
+                sectors: [
+                    { id: 6, name: "Magic Kingdom" },
+                    { id: 5, name: "EPCOT" },
+                    { id: 7, name: "Hollywood Studios" },
+                    { id: 8, name: "Animal Kingdom" }
+                ]
+            },
+            "Disneyland Resort (California)": {
+                timeZone: "America/Los_Angeles",
+                defaultClose: "22:00",
+                sectors: [
+                    { id: 16, name: "Disneyland Park" },
+                    { id: 17, name: "Disney California Adventure" }
+                ]
+            },
+            "Tokyo Disney Resort": {
+                timeZone: "Asia/Tokyo",
+                defaultClose: "21:00",
+                sectors: [
+                    { id: 274, name: "Tokyo Disneyland" },
+                    { id: 275, name: "Tokyo DisneySea" }
+                ]
+            },
+            "Hong Kong & Shanghai": {
+                timeZone: "Asia/Hong_Kong",
+                defaultClose: "20:30",
+                sectors: [
+                    { id: 31, name: "Hong Kong Disneyland" },
+                    { id: 30, name: "Shanghai Disneyland" }
+                ]
+            }
         };
 
-        // Global Elite E-Ticket Priority Rides
         const PRIORITY_RIDES = [
             "hyperspace mountain", "big thunder mountain", "tower of terror", "spider-man", "flight force", "ratatouille", "crush's coaster", "pirates of the caribbean", "indiana jones", "phantom manor", "peter pan", "buzz lightyear", "rise of the resistance", "smugglers run", "tron", "seven dwarfs mine train", "space mountain", "guardians of the galaxy", "slinky dog dash", "avatar flight of passage", "expedition everest", "test track", "soarin", "mickey & minnie", "radiator springs racers", "incredicoaster", "journey to the center of the earth", "beauty and the beast", "mystic manor", "iron man experience", "roaring rapids", "zootopia", "toy story mania"
         ];
 
-        // Specific Paris Map Data
         const TACTICAL_COORDS = {
+            // Paris
             4: [
                 { match: "main street", x: 50, y: 85, label: "Main St.", lat: 48.8716, lng: 2.7779 },
                 { match: "fantasy", x: 50, y: 20, label: "Fantasyland", lat: 48.8741, lng: 2.7758 },
@@ -128,10 +145,109 @@
                 { match: "toon", x: 70, y: 60, label: "Toon Studio", lat: 48.8683, lng: 2.7813 },
                 { match: "pixar", x: 80, y: 25, label: "Worlds of Pixar", lat: 48.8672, lng: 2.7806 },
                 { match: "avengers", x: 20, y: 30, label: "Avengers Campus", lat: 48.8678, lng: 2.7783 }
+            ],
+            // Florida Magic Kingdom
+            6: [
+                { match: "main street", x: 50, y: 85, label: "Main St.", lat: 28.4172, lng: -81.5812 },
+                { match: "fantasy", x: 50, y: 25, label: "Fantasyland", lat: 28.4205, lng: -81.5812 },
+                { match: "tomorrow", x: 80, y: 55, label: "Tomorrowland", lat: 28.4189, lng: -81.5794 },
+                { match: "adventure", x: 25, y: 60, label: "Adventureland", lat: 28.4184, lng: -81.5831 },
+                { match: "frontier", x: 15, y: 35, label: "Frontierland", lat: 28.4201, lng: -81.5839 },
+                { match: "liberty", x: 35, y: 40, label: "Liberty Square", lat: 28.4194, lng: -81.5824 }
+            ],
+            // Florida EPCOT
+            5: [
+                { match: "celebration", x: 50, y: 55, label: "World Celebration", lat: 28.3712, lng: -81.5494 },
+                { match: "discovery", x: 75, y: 45, label: "World Discovery", lat: 28.3718, lng: -81.5478 },
+                { match: "nature", x: 25, y: 45, label: "World Nature", lat: 28.3719, lng: -81.5512 },
+                { match: "showcase", x: 50, y: 15, label: "World Showcase", lat: 28.3685, lng: -81.5493 }
+            ],
+            // Florida Hollywood Studios
+            7: [
+                { match: "hollywood boulevard", x: 50, y: 85, label: "Hollywood Blvd", lat: 28.3575, lng: -81.5582 },
+                { match: "sunset", x: 80, y: 70, label: "Sunset Blvd", lat: 28.3565, lng: -81.5568 },
+                { match: "toy story", x: 70, y: 30, label: "Toy Story Land", lat: 28.3592, lng: -81.5574 },
+                { match: "galaxy", x: 20, y: 25, label: "Galaxy's Edge", lat: 28.3585, lng: -81.5608 },
+                { match: "animation", x: 75, y: 50, label: "Animation Courtyard", lat: 28.3579, lng: -81.5564 },
+                { match: "echo", x: 30, y: 65, label: "Echo Lake", lat: 28.3581, lng: -81.5592 }
+            ],
+            // Florida Animal Kingdom
+            8: [
+                { match: "oasis", x: 50, y: 85, label: "Oasis", lat: 28.3529, lng: -81.5898 },
+                { match: "discovery island", x: 50, y: 55, label: "Discovery Island", lat: 28.3551, lng: -81.5901 },
+                { match: "pandora", x: 15, y: 45, label: "Pandora", lat: 28.3553, lng: -81.5925 },
+                { match: "africa", x: 35, y: 20, label: "Africa", lat: 28.3578, lng: -81.5912 },
+                { match: "asia", x: 75, y: 25, label: "Asia", lat: 28.3581, lng: -81.5878 },
+                { match: "dino", x: 80, y: 60, label: "Dinoland U.S.A.", lat: 28.3552, lng: -81.5862 }
+            ],
+            // California Disneyland Park
+            16: [
+                { match: "main street", x: 50, y: 85, label: "Main St.", lat: 33.8121, lng: -117.9190 },
+                { match: "fantasy", x: 50, y: 25, label: "Fantasyland", lat: 33.8145, lng: -117.9191 },
+                { match: "tomorrow", x: 80, y: 55, label: "Tomorrowland", lat: 33.8132, lng: -117.9175 },
+                { match: "adventure", x: 30, y: 60, label: "Adventureland", lat: 33.8128, lng: -117.9205 },
+                { match: "frontier", x: 25, y: 40, label: "Frontierland", lat: 33.8142, lng: -117.9210 },
+                { match: "orleans", x: 15, y: 50, label: "New Orleans Sq.", lat: 33.8131, lng: -117.9215 },
+                { match: "critter", x: 10, y: 35, label: "Critter Country", lat: 33.8139, lng: -117.9228 },
+                { match: "galaxy", x: 25, y: 15, label: "Galaxy's Edge", lat: 33.8152, lng: -117.9220 },
+                { match: "toontown", x: 70, y: 15, label: "Toontown", lat: 33.8159, lng: -117.9184 }
+            ],
+            // California Adventure
+            17: [
+                { match: "buena vista", x: 50, y: 85, label: "Buena Vista St.", lat: 33.8075, lng: -117.9205 },
+                { match: "pixar", x: 75, y: 30, label: "Pixar Pier", lat: 33.8055, lng: -117.9192 },
+                { match: "grizzly", x: 25, y: 55, label: "Grizzly Peak", lat: 33.8068, lng: -117.9218 },
+                { match: "hollywood", x: 75, y: 70, label: "Hollywood Land", lat: 33.8082, lng: -117.9188 },
+                { match: "cars", x: 45, y: 40, label: "Cars Land", lat: 33.8062, lng: -117.9201 },
+                { match: "avengers", x: 55, y: 55, label: "Avengers Campus", lat: 33.8071, lng: -117.9202 },
+                { match: "paradise", x: 50, y: 20, label: "Paradise Gardens", lat: 33.8051, lng: -117.9211 }
+            ],
+            // Tokyo Disneyland
+            274: [
+                { match: "world bazaar", x: 50, y: 80, label: "World Bazaar", lat: 35.6321, lng: 139.8805 },
+                { match: "fantasy", x: 50, y: 25, label: "Fantasyland", lat: 35.6341, lng: 139.8802 },
+                { match: "tomorrow", x: 80, y: 50, label: "Tomorrowland", lat: 35.6331, lng: 139.8821 },
+                { match: "adventure", x: 25, y: 65, label: "Adventureland", lat: 35.6315, lng: 139.8792 },
+                { match: "western", x: 20, y: 40, label: "Westernland", lat: 35.6332, lng: 139.8785 },
+                { match: "critter", x: 15, y: 25, label: "Critter Country", lat: 35.6345, lng: 139.8781 },
+                { match: "toontown", x: 75, y: 25, label: "Toontown", lat: 35.6349, lng: 139.8815 }
+            ],
+            // Tokyo DisneySea
+            275: [
+                { match: "mediterranean", x: 50, y: 80, label: "Med. Harbor", lat: 35.6268, lng: 139.8845 },
+                { match: "mysterious", x: 50, y: 50, label: "Mysterious Island", lat: 35.6272, lng: 139.8835 },
+                { match: "mermaid", x: 75, y: 35, label: "Mermaid Lagoon", lat: 35.6288, lng: 139.8848 },
+                { match: "arabian", x: 80, y: 20, label: "Arabian Coast", lat: 35.6295, lng: 139.8838 },
+                { match: "lost river", x: 60, y: 15, label: "Lost River Delta", lat: 35.6305, lng: 139.8818 },
+                { match: "port discovery", x: 20, y: 35, label: "Port Discovery", lat: 35.6281, lng: 139.8808 },
+                { match: "american", x: 25, y: 65, label: "Am. Waterfront", lat: 35.6258, lng: 139.8815 },
+                { match: "fantasy", x: 45, y: 15, label: "Fantasy Springs", lat: 35.6312, lng: 139.8802 }
+            ],
+            // Hong Kong Disneyland
+            31: [
+                { match: "main street", x: 50, y: 85, label: "Main St.", lat: 22.3130, lng: 114.0435 },
+                { match: "fantasy", x: 50, y: 25, label: "Fantasyland", lat: 22.3148, lng: 114.0428 },
+                { match: "tomorrow", x: 75, y: 55, label: "Tomorrowland", lat: 22.3139, lng: 114.0450 },
+                { match: "adventure", x: 25, y: 55, label: "Adventureland", lat: 22.3125, lng: 114.0418 },
+                { match: "grizzly", x: 15, y: 35, label: "Grizzly Gulch", lat: 22.3135, lng: 114.0405 },
+                { match: "mystic", x: 20, y: 20, label: "Mystic Point", lat: 22.3142, lng: 114.0408 },
+                { match: "toy story", x: 35, y: 15, label: "Toy Story Land", lat: 22.3151, lng: 114.0412 },
+                { match: "frozen", x: 70, y: 20, label: "World of Frozen", lat: 22.3155, lng: 114.0442 }
+            ],
+            // Shanghai Disneyland
+            30: [
+                { match: "mickey avenue", x: 50, y: 80, label: "Mickey Avenue", lat: 31.1412, lng: 121.6575 },
+                { match: "fantasy", x: 50, y: 20, label: "Fantasyland", lat: 31.1455, lng: 121.6570 },
+                { match: "tomorrow", x: 80, y: 50, label: "Tomorrowland", lat: 31.1432, lng: 121.6605 },
+                { match: "adventure", x: 20, y: 55, label: "Adventure Isle", lat: 31.1395, lng: 121.6548 },
+                { match: "treasure", x: 25, y: 35, label: "Treasure Cove", lat: 31.1415, lng: 121.6542 },
+                { match: "toy story", x: 75, y: 25, label: "Toy Story Land", lat: 31.1448, lng: 121.6598 },
+                { match: "imagination", x: 50, y: 55, label: "Gardens of Imag.", lat: 31.1418, lng: 121.6572 },
+                { match: "zootopia", x: 70, y: 35, label: "Zootopia", lat: 31.1438, lng: 121.6588 }
             ]
         };
 
-        const getCoords = (parkId, landName) => {
+        const getCoordsGlobal = (parkId, landName) => {
             const mapData = TACTICAL_COORDS[parkId];
             if (!mapData) return { x: 50, y: 50 };
             const safeLand = landName ? landName.toLowerCase() : "";
@@ -139,7 +255,7 @@
             return coord || { x: 50, y: 50 };
         };
 
-        const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
+        const getHaversineDistanceGlobal = (lat1, lon1, lat2, lon2) => {
             const R = 6371; 
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
@@ -147,43 +263,13 @@
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
         };
 
-        const generateTacticalIntelligence = (ride) => {
-            const n = ride.name.toLowerCase();
-            let brief = "Standard objective. Normal operational protocols apply.";
-            let intel = "Secondary target. Queue density is generally stable.";
-            let type = "Standard Ride";
-            let env = "Mixed Architecture";
-
-            if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana") || n.includes("tron") || n.includes("test track")) {
-                brief = "High-velocity kinetic experience. Endorphin spike expected. Secure all loose equipment prior to launch.";
-                intel = "High-value tactical target. Traffic surges rapidly after park opening. Strike early or late.";
-                type = "Thrill / High-G";
-                env = "Dynamic / Outdoor Track";
-            } else if (n.includes("phantom") || n.includes("tower") || n.includes("mansion") || n.includes("journey")) {
-                brief = "Atmospheric and psychological simulation. Low-light environment navigation required.";
-                intel = "Hardware capacity is highly efficient. Wait times often stabilize in the mid-afternoon.";
-                type = "Dark Ride / Drop";
-                env = "Climate-Controlled Indoors";
-            } else if (n.includes("peter pan") || n.includes("ratatouille") || n.includes("crush") || n.includes("resistance") || n.includes("beauty and the beast")) {
-                brief = "High-value narrative track. Heavy civilian foot-traffic expected in this sector.";
-                intel = "Capacity bottlenecks are common. Optimum execution time is during parade operations or meal hours.";
-                type = "Scenic / Tracked";
-                env = "Immersive Indoors";
-            } else if (n.includes("pirates") || n.includes("small world") || n.includes("buzz") || n.includes("star tours") || n.includes("mermaid")) {
-                brief = "High-capacity continuous-load system. Rapid troop movement through the facility.";
-                intel = "Excellent omnimover throughput. Even long physical lines will clear faster than expected.";
-                type = "Omnimover / Boat";
-                env = "Massive Indoor Show Building";
-            } else if (ride.isMinor) {
-                brief = "Secondary atmospheric objective. Ideal for operational cooldown and stamina recovery.";
-                intel = "Low priority. Engage only if in the immediate vicinity and queue is minimal.";
-                type = "Leisure / Viewing";
-                env = "General Architecture";
-            }
-            return { brief, intel, type, env };
+        const getRideMetricsGlobal = (rideName, landName, parkId) => {
+            const n = rideName.toLowerCase();
+            const isPriority = PRIORITY_RIDES.some(top => n.includes(top));
+            const coords = getCoordsGlobal(parkId, landName); 
+            return { isPriority, x: coords.x, y: coords.y, duration: isPriority ? 5 : 3, uptime: 0.95 };
         };
 
-        // 8-SECOND CIRCUIT BREAKER TO PREVENT INFINITE LOADING
         const fetchWithTimeout = async (url, timeout = 8000) => {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), timeout);
@@ -204,9 +290,15 @@
         ];
 
         const App = () => {
-            const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v2') || "Disneyland Paris");
-            const [activePark, setActivePark] = useState(() => localStorage.getItem('global_park_v2') || 'all'); 
+            const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v3') || "Disneyland Paris");
+            const [activePark, setActivePark] = useState(() => localStorage.getItem('global_park_v3') || 'all'); 
             
+            // Editable target park close time
+            const [closingTimeStr, setClosingTimeStr] = useState(() => {
+                const regionConfig = GLOBAL_PARKS[activeRegion] || GLOBAL_PARKS["Disneyland Paris"];
+                return regionConfig.defaultClose;
+            });
+
             const [rides, setRides] = useState([]);
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
@@ -215,10 +307,10 @@
             const [expandedRideId, setExpandedRideId] = useState(null);
 
             // Theme Management
-            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v17') || 'system');
+            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v18') || 'system');
             
             useEffect(() => {
-                localStorage.setItem('dlp_theme_v17', theme);
+                localStorage.setItem('dlp_theme_v18', theme);
                 const root = window.document.documentElement;
                 if (theme === 'dark') root.classList.add('dark');
                 else if (theme === 'light') root.classList.remove('dark');
@@ -233,11 +325,11 @@
             const getThemeIcon = () => theme === 'system' ? I.Monitor : (theme === 'dark' ? I.Moon : I.Sun);
 
             // GPS Logic
-            const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v17') || 'false'));
+            const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v18') || 'false'));
             const [userGPS, setUserGPS] = useState(null);
 
             useEffect(() => {
-                localStorage.setItem('dlp_gps_v17', JSON.stringify(gpsEnabled));
+                localStorage.setItem('dlp_gps_v18', JSON.stringify(gpsEnabled));
                 let watchId;
                 if (gpsEnabled) {
                     watchId = navigator.geolocation.watchPosition(
@@ -255,8 +347,8 @@
 
             const toggleGPS = () => setGpsEnabled(!gpsEnabled);
 
-            const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v17') || '[]')));
-            const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v17') || '[]')));
+            const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v18') || '[]')));
+            const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v18') || '[]')));
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(false);
             const logsEndRef = useRef(null);
@@ -266,14 +358,15 @@
                 return `BUILD ${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
             }, [lastSync]);
 
-            useEffect(() => localStorage.setItem('dlp_completed_v17', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
-            useEffect(() => localStorage.setItem('dlp_activated_v17', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
+            useEffect(() => localStorage.setItem('dlp_completed_v18', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
+            useEffect(() => localStorage.setItem('dlp_activated_v18', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
 
             const handleRegionChange = (newRegion) => {
                 setActiveRegion(newRegion);
                 setActivePark('all');
-                localStorage.setItem('global_region_v2', newRegion);
-                localStorage.setItem('global_park_v2', 'all');
+                setClosingTimeStr(GLOBAL_PARKS[newRegion].defaultClose);
+                localStorage.setItem('global_region_v3', newRegion);
+                localStorage.setItem('global_park_v3', 'all');
             };
 
             const toggleExpand = (id) => setExpandedRideId(prev => prev === id ? null : id);
@@ -313,7 +406,7 @@
                 try {
                     const allFetchedRides = [];
                     let parksOnline = 0;
-                    const CURRENT_PARKS = GLOBAL_PARKS[activeRegion];
+                    const CURRENT_PARKS = GLOBAL_PARKS[activeRegion].sectors;
 
                     for (const park of CURRENT_PARKS) {
                         try {
@@ -322,7 +415,7 @@
                                 try {
                                     addLog(`[NET] Engaging node: ${proxy.name} for ${park.name}...`, 'info');
                                     data = await proxy.fetch(`https://queue-times.com/parks/${park.id}/queue_times.json`);
-                                    if (data && (data.lands || data.rides)) break; // Bulletproof check
+                                    if (data && (data.lands || data.rides)) break; 
                                 } catch(e) { addLog(`[WARN] Node timeout/failure: ${e.message}`, 'warn'); }
                             }
                             if (!data || (!data.lands && !data.rides)) throw new Error("All network nodes exhausted or timed out.");
@@ -330,7 +423,6 @@
                             parksOnline++;
                             let rawRides = [];
                             
-                            // Safely extract from any API structure variations globally
                             if (data.lands) {
                                 data.lands.forEach(land => {
                                     if (land.rides) {
@@ -345,17 +437,16 @@
                             const processed = rawRides
                                 .filter(r => r.name && !r.name.toLowerCase().includes('single rider'))
                                 .map(r => {
-                                    const isPriority = PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
-                                    const coords = getCoords(park.id, r.landName);
+                                    const metrics = getRideMetricsGlobal(r.name, r.landName, park.id);
                                     return {
                                         ...r, 
                                         parkName: park.name, 
                                         parkId: park.id, 
-                                        isPriority: isPriority,
-                                        isMinor: !isPriority,
-                                        coords: { x: coords.x, y: coords.y },
-                                        duration: isPriority ? 5 : 3,
-                                        uptime: 0.95
+                                        isPriority: metrics.isPriority,
+                                        isMinor: !metrics.isPriority,
+                                        coords: { x: metrics.x, y: metrics.y },
+                                        duration: metrics.duration,
+                                        uptime: metrics.uptime
                                     };
                                 });
                             allFetchedRides.push(...processed);
@@ -364,14 +455,39 @@
 
                     if (parksOnline === 0) throw new Error("No operational telemetry returned from endpoint nodes. Proxies timed out.");
                     
-                    // -- REAL-TIME DELTA Q MATH ENGINE --
+                    // -- REAL-TIME DELTA Q MATH ENGINE WITH CLOSURE SENSITIVITY --
                     const now = Date.now();
-                    const history = JSON.parse(localStorage.getItem('dlp_history_v17') || '{}');
+                    const history = JSON.parse(localStorage.getItem('dlp_history_v18') || '{}');
                     const newHistory = { ...history };
                     
                     const openRides = allFetchedRides.filter(r => r.is_open);
                     const totalWait = openRides.reduce((sum, r) => sum + r.wait_time, 0);
                     const liveResortLoadFactor = openRides.length > 0 ? (totalWait / openRides.length) : 15;
+
+                    // Calculate Local Time in Park Timezone to check for closures
+                    let localMinutesToday = 0;
+                    try {
+                        const targetTimeZone = GLOBAL_PARKS[activeRegion].timeZone;
+                        const formatter = new Intl.DateTimeFormat("en-US", {
+                            timeZone: targetTimeZone,
+                            hour: "numeric",
+                            minute: "numeric",
+                            hour12: false
+                        });
+                        const parts = formatter.formatToParts(new Date());
+                        const hourPart = parts.find(p => p.type === 'hour')?.value;
+                        const minPart = parts.find(p => p.type === 'minute')?.value;
+                        if (hourPart && minPart) {
+                            localMinutesToday = parseInt(hourPart) * 60 + parseInt(minPart);
+                        }
+                    } catch (e) {
+                        const fallNow = new Date();
+                        localMinutesToday = fallNow.getHours() * 60 + fallNow.getMinutes();
+                    }
+
+                    // Parse Selected Target Closing Time (e.g. "21:00" -> 1260 mins)
+                    const [closeH, closeM] = closingTimeStr.split(":").map(Number);
+                    const targetClosingMinutes = (closeH * 60) + (closeM || 0);
 
                     const computedRides = allFetchedRides.map(ride => {
                         let mu_base = ride.isPriority ? 25 : 15;
@@ -399,7 +515,23 @@
                         }
 
                         newHistory[ride.id] = { wait: ride.wait_time, timestamp: now };
-                        const predictedWait = Math.max(0, ride.wait_time + (velocity * 60));
+
+                        // Predicted Queue with custom steady-state friction floors and closure logic
+                        let predictedWait = 0;
+                        let isPredictionClosed = false;
+
+                        if ((localMinutesToday + 60) >= targetClosingMinutes) {
+                            // If the park closes within 60 minutes, the 60-min PRED value must evaluate to CLOSED
+                            isPredictionClosed = true;
+                        } else {
+                            predictedWait = ride.wait_time + (velocity * 60);
+                            
+                            // Steady-state friction floors (lines never shrink to 0 if still open)
+                            const frictionFloor = ride.isPriority ? Math.max(10, Math.round(ride.wait_time * 0.2)) : Math.max(5, Math.round(ride.wait_time * 0.1));
+                            if (predictedWait < frictionFloor) {
+                                predictedWait = frictionFloor;
+                            }
+                        }
 
                         return {
                             ...ride,
@@ -407,13 +539,14 @@
                             lambda: Number(lambda.toFixed(1)),
                             rho: Number(rho.toFixed(2)),
                             velocity: Number(velocity.toFixed(2)),
+                            isPredictionClosed,
                             predictedWait: Math.round(predictedWait),
                             routingScore: ride.wait_time - (predictedWait - ride.wait_time),
                             aiIntel: generateTacticalIntelligence(ride)
                         };
                     });
 
-                    localStorage.setItem('dlp_history_v17', JSON.stringify(newHistory));
+                    localStorage.setItem('dlp_history_v18', JSON.stringify(newHistory));
                     setRides(computedRides);
                     setLastSync(new Date().toLocaleTimeString('en-GB', { hour12: false }));
                     addLog(`[SYS] Engine processed ${computedRides.length} active variables for ${activeRegion}.`, 'success');
@@ -477,7 +610,7 @@
                        let closestLand = null;
                        let minDistance = Infinity;
                        TACTICAL_COORDS[pId].forEach(land => {
-                           const d = getHaversineDistance(userGPS.lat, userGPS.lng, land.lat, land.lng);
+                           const d = getHaversineDistanceGlobal(userGPS.lat, userGPS.lng, land.lat, land.lng);
                            if (d < minDistance) { minDistance = d; closestLand = land; }
                        });
                        if (closestLand) currentPos = { x: closestLand.x, y: closestLand.y };
@@ -486,14 +619,14 @@
                        for (let i = completedArray.length - 1; i >= 0; i--) {
                            const lastRide = rides.find(r => r.id === completedArray[i]);
                            if (lastRide && lastRide.parkId.toString() === pId) {
-                               currentPos = getCoords(pId, lastRide.landName); break; 
+                               currentPos = getCoordsGlobal(pId, lastRide.landName); break; 
                            }
                        }
                    }
 
                    while(unvisited.length > 0) {
                       unvisited.forEach(zone => {
-                         const dest = getCoords(pId, zone.landName);
+                         const dest = getCoordsGlobal(pId, zone.landName);
                          const physicalDistance = Math.sqrt(Math.pow(dest.x - currentPos.x, 2) + Math.pow(dest.y - currentPos.y, 2));
                          const travelTimeMins = Math.max(2, Math.round(physicalDistance * 0.15)); 
                          
@@ -624,9 +757,15 @@
                                             <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter w-4">MIN</span>
                                         </div>
                                         {!isCompleted && !isMinor && (
-                                            <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.velocity > 0.1 ? 'text-rose-500 dark:text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                                                {ride.velocity > 0.1 ? <Icon path={I.TrendingUp} size={10} /> : ride.velocity < -0.1 ? <Icon path={I.TrendingDown} size={10} /> : <Icon path={I.Minus} size={10} />}
-                                                PRED: {Math.round(ride.predictedWait)}m
+                                            <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.isPredictionClosed ? 'text-rose-600 dark:text-rose-400' : ride.velocity > 0.1 ? 'text-rose-500 dark:text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                {ride.isPredictionClosed ? (
+                                                    <span className="bg-rose-100 dark:bg-rose-500/15 px-1.5 py-0.5 rounded text-[8px] font-mono tracking-widest uppercase">PRED: Closed</span>
+                                                ) : (
+                                                    <>
+                                                        {ride.velocity > 0.1 ? <Icon path={I.TrendingUp} size={10} /> : ride.velocity < -0.1 ? <Icon path={I.TrendingDown} size={10} /> : <Icon path={I.Minus} size={10} />}
+                                                        PRED: {Math.round(ride.predictedWait)}m
+                                                    </>
+                                                )}
                                             </div>
                                         )}
                                     </>
@@ -659,7 +798,7 @@
                                         <div className="flex gap-2 text-[9px] font-mono text-slate-500 uppercase tracking-wider mt-2">
                                             <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">TYPE: {intel.type}</span>
                                             <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">ENV: {intel.env}</span>
-                                            <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">EST: {intel.duration}</span>
+                                            <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">EST: {ride.duration} MIN</span>
                                         </div>
                                     </div>
 
@@ -673,12 +812,12 @@
                                                     <div className="flex justify-between text-[10px] font-mono mb-1">
                                                         <span className="text-slate-500 dark:text-slate-400">Current Vector</span>
                                                         <span className={ride.velocity > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
-                                                            60m Forecast: {Math.round(ride.predictedWait)}m
+                                                            {ride.isPredictionClosed ? "Forecast: Park Closed" : `60m Forecast: ${Math.round(ride.predictedWait)}m`}
                                                         </span>
                                                     </div>
                                                     <div className="h-1.5 w-full bg-slate-100 dark:bg-[#05070a] rounded-full overflow-hidden relative border border-slate-200 dark:border-slate-800">
                                                         <div className="absolute top-0 left-0 h-full bg-slate-400 dark:bg-slate-500" style={{ width: `${Math.min(100, (ride.wait_time / 120) * 100)}%` }}></div>
-                                                        {ride.velocity > 0 && (
+                                                        {ride.velocity > 0 && !ride.isPredictionClosed && (
                                                             <div className="absolute top-0 h-full bg-rose-400/50 dark:bg-rose-500/50" style={{ left: `${(ride.wait_time / 120) * 100}%`, width: `${Math.min(100, ((ride.predictedWait - ride.wait_time) / 120) * 100)}%` }}></div>
                                                         )}
                                                     </div>
@@ -709,7 +848,7 @@
                         <div className="h-48 w-full bg-slate-100 dark:bg-[#080b12] rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center p-4 text-center shadow-inner">
                             <p className="text-xs text-slate-500 font-mono flex flex-col items-center gap-2">
                                 <Icon path={I.MapIcon} size={20} className="text-slate-400 dark:text-slate-600 opacity-50" />
-                                Tactical Map Offline.<br/>Select a supported sector to view grid.
+                                Tactical Map Offline.<br/>Grid plotted globally.
                             </p>
                         </div>
                     );
@@ -789,7 +928,6 @@
                             </div>
                         </header>
 
-                        {/* EXPANDED OPERATIONAL FIELD MANUAL */}
                         {showPrimer && (
                             <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
                                 <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">
@@ -853,11 +991,33 @@
                                     <select 
                                         value={activeRegion}
                                         onChange={(e) => handleRegionChange(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl p-3 mb-6 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-inner transition-colors"
+                                        className="w-full bg-slate-50 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl p-3 mb-4 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-inner transition-colors"
                                     >
                                         {Object.keys(GLOBAL_PARKS).map(region => (
                                             <option key={region} value={region}>{region}</option>
                                         ))}
+                                    </select>
+
+                                    {/* DYNAMIC TARGET CLOSING TIME SELECTOR */}
+                                    <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 flex items-center gap-2">
+                                        <Icon path={I.Hourglass} size={12} /> Target Park Close
+                                    </h2>
+                                    <select 
+                                        value={closingTimeStr}
+                                        onChange={(e) => setClosingTimeStr(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl p-3 mb-6 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-inner transition-colors"
+                                    >
+                                        <option value="18:00">18:00 (6:00 PM)</option>
+                                        <option value="19:00">19:00 (7:00 PM)</option>
+                                        <option value="20:00">20:00 (8:00 PM)</option>
+                                        <option value="20:30">20:30 (8:30 PM)</option>
+                                        <option value="21:00">21:00 (9:00 PM)</option>
+                                        <option value="21:30">21:30 (9:30 PM)</option>
+                                        <option value="22:00">22:00 (10:00 PM)</option>
+                                        <option value="22:30">22:30 (10:30 PM)</option>
+                                        <option value="23:00">23:00 (11:00 PM)</option>
+                                        <option value="23:30">23:30 (11:30 PM)</option>
+                                        <option value="00:00">00:00 (Midnight)</option>
                                     </select>
 
                                     <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
@@ -873,7 +1033,7 @@
                                             Full Resort {activePark === 'all' && <Icon path={I.ChevronRight} size={14} />}
                                         </button>
                                         
-                                        {GLOBAL_PARKS[activeRegion].map(p => (
+                                        {GLOBAL_PARKS[activeRegion].sectors.map(p => (
                                             <button
                                                 key={p.id}
                                                 onClick={() => setActivePark(p.id.toString())}
@@ -901,7 +1061,7 @@
                                     <div className="space-y-6">
                                         
                                         {masterSequence.length > 0 && (
-                                            <div className="bg-white dark:bg-[#0c111a] rounded-2xl p-4 flex flex-col md:flex-row justify-between border border-slate-200 dark:border-slate-800 gap-4">
+                                            <div className="bg-white dark:bg-[#0c111a] rounded-2xl p-4 flex flex-col md:flex-row justify-between border border-slate-200 dark:border-slate-800 gap-4 border-l-4 border-l-emerald-500">
                                                 <div className="flex gap-6">
                                                     <div>
                                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Est. Queue Time</p>
