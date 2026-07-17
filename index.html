@@ -108,6 +108,22 @@
             ]
         };
 
+        // --- GLOBAL CHRONOLOGY MATRIX (TIMEZONE & DEFAULT CLOSE) ---
+        const PARK_CHRONOLOGY = {
+            4: { tz: "Europe/Paris", defaultClose: "22:00" }, 
+            28: { tz: "Europe/Paris", defaultClose: "21:00" }, 
+            6: { tz: "America/New_York", defaultClose: "22:00" }, 
+            5: { tz: "America/New_York", defaultClose: "21:00" }, 
+            7: { tz: "America/New_York", defaultClose: "21:00" }, 
+            8: { tz: "America/New_York", defaultClose: "20:00" }, 
+            16: { tz: "America/Los_Angeles", defaultClose: "23:00" }, 
+            17: { tz: "America/Los_Angeles", defaultClose: "22:00" }, 
+            274: { tz: "Asia/Tokyo", defaultClose: "21:00" }, 
+            275: { tz: "Asia/Tokyo", defaultClose: "21:00" }, 
+            31: { tz: "Asia/Hong_Kong", defaultClose: "20:30" }, 
+            30: { tz: "Asia/Shanghai", defaultClose: "21:30" } 
+        };
+
         // Global Elite E-Ticket Priority Rides
         const PRIORITY_RIDES = [
             "hyperspace mountain", "big thunder mountain", "tower of terror", "spider-man", "flight force", "ratatouille", "crush's coaster", "pirates of the caribbean", "indiana jones", "phantom manor", "peter pan", "buzz lightyear", "rise of the resistance", "smugglers run", "tron", "seven dwarfs mine train", "space mountain", "guardians of the galaxy", "slinky dog dash", "avatar flight of passage", "expedition everest", "test track", "soarin", "mickey & minnie", "radiator springs racers", "incredicoaster", "journey to the center of the earth", "beauty and the beast", "mystic manor", "iron man experience", "roaring rapids", "zootopia", "toy story mania"
@@ -202,9 +218,8 @@
         ];
 
         const App = () => {
-            const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v2') || "Disneyland Paris");
-            const [activePark, setActivePark] = useState(() => localStorage.getItem('global_park_v2') || 'all'); 
-            const [closeTime, setCloseTime] = useState(() => localStorage.getItem('global_close_time') || "22:00");
+            const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v3') || "Disneyland Paris");
+            const [activePark, setActivePark] = useState(() => localStorage.getItem('global_park_v3') || 'all'); 
             
             const [rides, setRides] = useState([]);
             const [loading, setLoading] = useState(true);
@@ -214,10 +229,10 @@
             const [expandedRideId, setExpandedRideId] = useState(null);
 
             // Theme Management
-            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v17') || 'system');
+            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v18') || 'system');
             
             useEffect(() => {
-                localStorage.setItem('dlp_theme_v17', theme);
+                localStorage.setItem('dlp_theme_v18', theme);
                 const root = window.document.documentElement;
                 if (theme === 'dark') root.classList.add('dark');
                 else if (theme === 'light') root.classList.remove('dark');
@@ -232,11 +247,11 @@
             const getThemeIcon = () => theme === 'system' ? I.Monitor : (theme === 'dark' ? I.Moon : I.Sun);
 
             // GPS Logic
-            const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v17') || 'false'));
+            const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v18') || 'false'));
             const [userGPS, setUserGPS] = useState(null);
 
             useEffect(() => {
-                localStorage.setItem('dlp_gps_v17', JSON.stringify(gpsEnabled));
+                localStorage.setItem('dlp_gps_v18', JSON.stringify(gpsEnabled));
                 let watchId;
                 if (gpsEnabled) {
                     watchId = navigator.geolocation.watchPosition(
@@ -254,8 +269,8 @@
 
             const toggleGPS = () => setGpsEnabled(!gpsEnabled);
 
-            const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v17') || '[]')));
-            const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v17') || '[]')));
+            const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v18') || '[]')));
+            const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v18') || '[]')));
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(false);
             const logsEndRef = useRef(null);
@@ -265,15 +280,14 @@
                 return `BUILD ${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
             }, [lastSync]);
 
-            useEffect(() => localStorage.setItem('dlp_completed_v17', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
-            useEffect(() => localStorage.setItem('dlp_activated_v17', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
-            useEffect(() => localStorage.setItem('global_close_time', closeTime), [closeTime]);
+            useEffect(() => localStorage.setItem('dlp_completed_v18', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
+            useEffect(() => localStorage.setItem('dlp_activated_v18', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
 
             const handleRegionChange = (newRegion) => {
                 setActiveRegion(newRegion);
                 setActivePark('all');
-                localStorage.setItem('global_region_v2', newRegion);
-                localStorage.setItem('global_park_v2', 'all');
+                localStorage.setItem('global_region_v3', newRegion);
+                localStorage.setItem('global_park_v3', 'all');
             };
 
             const toggleExpand = (id) => setExpandedRideId(prev => prev === id ? null : id);
@@ -322,7 +336,7 @@
                                 try {
                                     addLog(`[NET] Engaging node: ${proxy.name} for ${park.name}...`, 'info');
                                     data = await proxy.fetch(`https://queue-times.com/parks/${park.id}/queue_times.json`);
-                                    if (data && (data.lands || data.rides)) break; // Bulletproof check
+                                    if (data && (data.lands || data.rides)) break; 
                                 } catch(e) { addLog(`[WARN] Node timeout/failure: ${e.message}`, 'warn'); }
                             }
                             if (!data || (!data.lands && !data.rides)) throw new Error("All network nodes exhausted or timed out.");
@@ -330,7 +344,6 @@
                             parksOnline++;
                             let rawRides = [];
                             
-                            // Safely extract from any API structure variations globally
                             if (data.lands) {
                                 data.lands.forEach(land => {
                                     if (land.rides) {
@@ -364,20 +377,13 @@
 
                     if (parksOnline === 0) throw new Error("No operational telemetry returned from endpoint nodes. Proxies timed out.");
                     
-                    // -- REAL-TIME DELTA Q MATH ENGINE --
                     const now = Date.now();
-                    const history = JSON.parse(localStorage.getItem('dlp_history_v17') || '{}');
+                    const history = JSON.parse(localStorage.getItem('dlp_history_v18') || '{}');
                     const newHistory = { ...history };
                     
                     const openRides = allFetchedRides.filter(r => r.is_open);
                     const totalWait = openRides.reduce((sum, r) => sum + r.wait_time, 0);
                     const liveResortLoadFactor = openRides.length > 0 ? (totalWait / openRides.length) : 15;
-
-                    // Closing Time Logic
-                    const [cHour, cMin] = closeTime.split(':').map(Number);
-                    const closeDateObj = new Date(now);
-                    closeDateObj.setHours(cHour, cMin, 0, 0);
-                    const minsToClose = (closeDateObj.getTime() - now) / 60000;
 
                     const computedRides = allFetchedRides.map(ride => {
                         let mu_base = ride.isPriority ? 25 : 15;
@@ -406,15 +412,27 @@
 
                         newHistory[ride.id] = { wait: ride.wait_time, timestamp: now };
                         
-                        // Apply Realistic Friction Floor to prevent 0m (unless ride wait is already tiny)
+                        // Autonomous Timezone Matrix Fetch
+                        const chrono = PARK_CHRONOLOGY[ride.parkId] || { tz: "UTC", defaultClose: "22:00" };
+                        const formatter = new Intl.DateTimeFormat('en-GB', { timeZone: chrono.tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+                        const [currHour, currMin] = formatter.format(new Date()).split(':').map(Number);
+                        const currentMins = currHour * 60 + currMin;
+                        const [closeHour, closeMin] = chrono.defaultClose.split(':').map(Number);
+                        let closeMins = closeHour * 60 + closeMin;
+
+                        if (closeHour <= 4 && currHour >= 18) closeMins += 24 * 60; // Past midnight handler
+                        else if (currHour <= 4 && closeHour >= 18) closeMins -= 24 * 60; 
+                        
+                        const minsToClose = closeMins - currentMins;
+
+                        // Friction Floor Math
                         const rawPred = Math.round(ride.wait_time + (velocity * 60));
                         const frictionFloor = Math.min(ride.wait_time, ride.isPriority ? 10 : 5);
                         let finalPred = Math.max(frictionFloor, rawPred);
 
-                        // Closing Time Override
                         let predDisplay = finalPred;
                         if (minsToClose <= 60 && minsToClose > 0) predDisplay = "CLOSING";
-                        else if (minsToClose <= 0 && minsToClose > -720) predDisplay = "CLOSED"; // Avoid midnight wrap-around bugs
+                        else if (minsToClose <= 0 && minsToClose >= -240) predDisplay = "CLOSED"; 
 
                         return {
                             ...ride,
@@ -428,7 +446,7 @@
                         };
                     });
 
-                    localStorage.setItem('dlp_history_v17', JSON.stringify(newHistory));
+                    localStorage.setItem('dlp_history_v18', JSON.stringify(newHistory));
                     setRides(computedRides);
                     setLastSync(new Date().toLocaleTimeString('en-GB', { hour12: false }));
                     addLog(`[SYS] Engine processed ${computedRides.length} active variables for ${activeRegion}.`, 'success');
@@ -444,7 +462,7 @@
                 bootSystem();
                 const syncInterval = setInterval(() => bootSystem(true), 300000); 
                 return () => clearInterval(syncInterval);
-            }, [activeRegion, closeTime]); // Re-sync if close time is adjusted
+            }, [activeRegion]);
 
             const memoizedData = useMemo(() => {
                 if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0, totalQueueTimeMins: 0 } };
@@ -806,7 +824,6 @@
                             </div>
                         </header>
 
-                        {/* EXPANDED OPERATIONAL FIELD MANUAL */}
                         {showPrimer && (
                             <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
                                 <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">
@@ -902,16 +919,6 @@
                                             </button>
                                         ))}
                                     </div>
-
-                                    <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 mt-6 flex items-center gap-2">
-                                        <Icon path={I.Timer} size={12} /> Target Park Close
-                                    </h2>
-                                    <input 
-                                        type="time" 
-                                        value={closeTime}
-                                        onChange={(e) => setCloseTime(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl p-3 mb-2 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-inner transition-colors"
-                                    />
                                 </div>
                                 <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-3 hidden md:block">
                                     <TacticalMap />
@@ -947,18 +954,24 @@
                                             <span className="text-xs font-mono text-emerald-600 dark:text-emerald-500 font-bold">{masterSequence.length} OBJECTIVES</span>
                                         </div>
 
-                                        <div className="space-y-0 w-full">
+                                        <div className="space-y-0 w-full mt-4">
                                             {masterSequence.map((ride, idx) => {
-                                                const showWalkBadge = idx > 0 && ride.travelTimeFromLast > 0 && ride.zoneInfo !== masterSequence[idx-1].zoneInfo;
+                                                const isFirstInZone = idx === 0 || ride.zoneInfo.zoneKey !== masterSequence[idx-1].zoneInfo.zoneKey;
+                                                
                                                 return (
                                                     <React.Fragment key={ride.id}>
-                                                        {showWalkBadge && (
-                                                            <div className="flex flex-col items-center justify-center w-full mb-3 mt-1">
-                                                                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
-                                                                <div className="bg-white dark:bg-[#0c111a] border border-slate-300 dark:border-slate-700 rounded-full px-3 py-1 flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 shadow-sm">
-                                                                    <Icon path={I.Footprints} size={10} className="text-emerald-500" /> Walk to {ride.landName}: ~{Math.round(ride.travelTimeFromLast)}m
+                                                        {isFirstInZone && (
+                                                            <div className="flex flex-col items-center justify-center w-full mb-4 mt-6 relative">
+                                                                <div className="h-px w-full bg-slate-300 dark:bg-slate-700 absolute top-1/2 -translate-y-1/2 z-0"></div>
+                                                                <div className="bg-slate-100 dark:bg-[#0c111a] border border-slate-300 dark:border-slate-700 rounded-full px-4 py-1.5 flex items-center gap-2 text-[10px] font-black text-slate-600 dark:text-slate-300 shadow-sm z-10 uppercase tracking-widest">
+                                                                    <Icon path={I.MapPin} size={12} className="text-emerald-500" /> {ride.landName}
+                                                                    {idx > 0 && ride.zoneInfo.travelTimeFromLast > 0 && (
+                                                                        <span className="text-[10px] text-slate-400 bg-white dark:bg-[#05070a] px-2 py-0.5 rounded-full ml-1 border border-slate-200 dark:border-slate-800 flex items-center gap-1">
+                                                                            <Icon path={I.Footprints} size={10} />
+                                                                            {Math.round(ride.zoneInfo.travelTimeFromLast)}m
+                                                                        </span>
+                                                                    )}
                                                                 </div>
-                                                                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
                                                             </div>
                                                         )}
                                                         <RideCard ride={ride} globalStep={ride.globalStep} />
