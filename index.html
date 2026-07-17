@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>DLP Tactical Optimizer</title>
+    <title>Global Tactical Optimizer</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -35,6 +35,7 @@
         .dark { --grid-color: #1e293b; }
         
         .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     </style>
 </head>
 <body>
@@ -82,28 +83,38 @@
             CheckSquare: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>'
         };
 
-        const PARK_IDS = [
-            { id: 4, name: "Disneyland Park", slug: "disneyland-park" },
-            { id: 28, name: "Disney Adventure World", slug: "walt-disney-studios" }
-        ];
-
-        // --- SPECIFIC RIDE DATABASE (UI Coords + Real Lat/Long + Run Time) ---
-        const RIDE_DB = {
-            "big thunder mountain": { priority: true, x: 15, y: 60, duration: 4, uptime: 0.85 },
-            "phantom manor": { priority: true, x: 10, y: 70, duration: 6, uptime: 0.96 },
-            "pirates of the caribbean": { priority: true, x: 20, y: 30, duration: 10, uptime: 0.95 },
-            "indiana jones": { priority: true, x: 10, y: 20, duration: 2, uptime: 0.86 },
-            "peter pan's flight": { priority: true, x: 45, y: 20, duration: 3, uptime: 0.97 },
-            "star wars hyperspace mountain": { priority: true, x: 85, y: 45, duration: 3, uptime: 0.90 },
-            "star tours": { priority: true, x: 90, y: 55, duration: 5, uptime: 0.98 },
-            "buzz lightyear": { priority: true, x: 80, y: 65, duration: 5, uptime: 0.98 },
-            "tower of terror": { priority: true, x: 40, y: 50, duration: 5, uptime: 0.98 },
-            "ratatouille": { priority: true, x: 80, y: 20, duration: 5, uptime: 0.91 },
-            "crush's coaster": { priority: true, x: 75, y: 40, duration: 3, uptime: 0.88 },
-            "spider-man": { priority: true, x: 20, y: 30, duration: 4, uptime: 0.92 },
-            "flight force": { priority: true, x: 15, y: 20, duration: 2, uptime: 0.89 }
+        // --- GLOBAL RESORT DATABASE ---
+        const GLOBAL_PARKS = {
+            "Disneyland Paris": [
+                { id: 4, name: "Disneyland Park" },
+                { id: 28, name: "Disney Adventure World" }
+            ],
+            "Walt Disney World (Florida)": [
+                { id: 6, name: "Magic Kingdom" },
+                { id: 5, name: "EPCOT" },
+                { id: 7, name: "Hollywood Studios" },
+                { id: 8, name: "Animal Kingdom" }
+            ],
+            "Disneyland Resort (California)": [
+                { id: 16, name: "Disneyland Park" },
+                { id: 17, name: "Disney California Adventure" }
+            ],
+            "Tokyo Disney Resort": [
+                { id: 81, name: "Tokyo Disneyland" },
+                { id: 82, name: "Tokyo DisneySea" }
+            ],
+            "Hong Kong & Shanghai": [
+                { id: 83, name: "Hong Kong Disneyland" },
+                { id: 84, name: "Shanghai Disneyland" }
+            ]
         };
 
+        // Global Elite E-Ticket Priority Rides
+        const PRIORITY_RIDES = [
+            "hyperspace mountain", "big thunder mountain", "tower of terror", "spider-man", "flight force", "ratatouille", "crush's coaster", "pirates of the caribbean", "indiana jones", "phantom manor", "peter pan", "buzz lightyear", "rise of the resistance", "smugglers run", "tron", "seven dwarfs mine train", "space mountain", "guardians of the galaxy", "slinky dog dash", "avatar flight of passage", "expedition everest", "test track", "soarin", "mickey & minnie", "radiator springs racers", "incredicoaster", "journey to the center of the earth", "beauty and the beast", "mystic manor", "iron man experience", "roaring rapids", "zootopia"
+        ];
+
+        // Specific Paris Map Data
         const TACTICAL_COORDS = {
             4: [
                 { match: "main street", x: 50, y: 85, label: "Main St.", lat: 48.8716, lng: 2.7779 },
@@ -123,7 +134,7 @@
 
         const getCoords = (parkId, landName) => {
             const mapData = TACTICAL_COORDS[parkId];
-            if (!mapData) return { x: 50, y: 50 };
+            if (!mapData) return { x: 50, y: 50 }; // Fallback to center if coords undefined
             const coord = mapData.find(c => landName.toLowerCase().includes(c.match));
             return coord || { x: 50, y: 50 };
         };
@@ -132,18 +143,8 @@
             const R = 6371; 
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-        };
-
-        const getRideMetrics = (rideName, landName) => {
-            const n = rideName.toLowerCase();
-            const match = Object.keys(RIDE_DB).find(key => n.includes(key));
-            if (match) return { isPriority: true, ...RIDE_DB[match] };
-            const coords = getCoords(4, landName); 
-            return { isPriority: false, x: coords.x, y: coords.y, duration: 3, uptime: 0.98 };
         };
 
         const generateTacticalIntelligence = (ride) => {
@@ -153,27 +154,22 @@
             let type = "Standard Ride";
             let env = "Mixed Architecture";
 
-            if (ride.isSingleRider) {
-                brief = "Solo operative queuing protocol. Designed to backfill empty seats in standard ride vehicles.";
-                intel = "Throughput is highly volatile and depends entirely on odd-numbered standby groups. Use only if separated.";
-                type = "Auxiliary Queue";
-                env = "Bypass Corridor";
-            } else if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana")) {
+            if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana") || n.includes("tron")) {
                 brief = "High-velocity kinetic experience. Endorphin spike expected. Secure all loose equipment prior to launch.";
                 intel = "High-value tactical target. Traffic surges rapidly after park opening. Strike early or late.";
                 type = "Thrill / High-G";
                 env = "Dynamic / Outdoor Track";
-            } else if (n.includes("phantom") || n.includes("tower")) {
+            } else if (n.includes("phantom") || n.includes("tower") || n.includes("mansion")) {
                 brief = "Atmospheric and psychological simulation. Low-light environment navigation required.";
                 intel = "Hardware capacity is highly efficient. Wait times often stabilize in the mid-afternoon.";
                 type = "Dark Ride / Drop";
                 env = "Climate-Controlled Indoors";
-            } else if (n.includes("peter pan") || n.includes("ratatouille") || n.includes("crush")) {
+            } else if (n.includes("peter pan") || n.includes("ratatouille") || n.includes("crush") || n.includes("resistance")) {
                 brief = "High-value narrative track. Heavy civilian foot-traffic expected in this sector.";
                 intel = "Capacity bottlenecks are common. Optimum execution time is during parade operations or meal hours.";
                 type = "Scenic / Tracked";
                 env = "Immersive Indoors";
-            } else if (n.includes("pirates") || n.includes("small world") || n.includes("buzz") || n.includes("star tours")) {
+            } else if (n.includes("pirates") || n.includes("small world") || n.includes("buzz") || n.includes("star tours") || n.includes("mermaid")) {
                 brief = "High-capacity continuous-load system. Rapid troop movement through the facility.";
                 intel = "Excellent omnimover throughput. Even long physical lines will clear faster than expected.";
                 type = "Omnimover / Boat";
@@ -184,19 +180,36 @@
                 type = "Leisure / Viewing";
                 env = "General Architecture";
             }
-            return { brief, intel, type, env, duration: ride.duration + " mins" };
+            return { brief, intel, type, env };
+        };
+
+        // 8-SECOND CIRCUIT BREAKER TO PREVENT INFINITE LOADING
+        const fetchWithTimeout = async (url, timeout = 8000) => {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const res = await fetch(url, { signal: controller.signal });
+                clearTimeout(id);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return await res.json();
+            } catch (e) {
+                clearTimeout(id);
+                throw e;
+            }
         };
 
         const PROXIES = [
-            { name: "CorsProxy.io (Primary)", fetch: async (t) => await (await fetch(`https://corsproxy.io/?${encodeURIComponent(t)}`)).json() },
-            { name: "AllOrigins GET (Fallback)", fetch: async (t) => JSON.parse((await (await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(t)}`)).json()).contents) }
+            { name: "CorsProxy.io (Primary)", fetch: async (t) => await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(t)}`) },
+            { name: "AllOrigins GET (Fallback)", fetch: async (t) => JSON.parse((await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(t)}`)).contents) }
         ];
 
         const App = () => {
+            const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v1') || "Disneyland Paris");
+            const [activePark, setActivePark] = useState(() => localStorage.getItem('global_park_v1') || 'all'); 
+            
             const [rides, setRides] = useState([]);
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
-            const [activePark, setActivePark] = useState('4'); 
             const [lastSync, setLastSync] = useState(null);
             const [showPrimer, setShowPrimer] = useState(false);
             const [expandedRideId, setExpandedRideId] = useState(null);
@@ -217,7 +230,6 @@
                 else if (theme === 'dark') setTheme('light');
                 else setTheme('system');
             };
-
             const getThemeIcon = () => theme === 'system' ? I.Monitor : (theme === 'dark' ? I.Moon : I.Sun);
 
             // GPS Logic
@@ -257,13 +269,21 @@
             useEffect(() => localStorage.setItem('dlp_completed_v16', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
             useEffect(() => localStorage.setItem('dlp_activated_v16', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
 
+            const handleRegionChange = (newRegion) => {
+                setActiveRegion(newRegion);
+                setActivePark('all');
+                localStorage.setItem('global_region_v1', newRegion);
+                localStorage.setItem('global_park_v1', 'all');
+                // Auto-fetch data for new region on change
+            };
+
             const toggleExpand = (id) => setExpandedRideId(prev => prev === id ? null : id);
             
             const toggleRide = (e, rideId) => {
                 e.stopPropagation(); 
                 setCompletedTargets(prev => {
                     const next = new Set(prev);
-                    if (next.has(rideId)) { next.delete(rideId); addLog(`[SYS] Objective restored to active tracking sequence.`, 'success'); } 
+                    if (next.has(rideId)) { next.delete(rideId); addLog(`[SYS] Objective restored to active sequence.`, 'success'); } 
                     else { next.add(rideId); addLog(`[SYS] Objective complete. Updating Dynamic Origin vector.`, 'info'); }
                     return next;
                 });
@@ -289,13 +309,14 @@
             const bootSystem = async (isSilent = false) => {
                 if (!isSilent) setLoading(true);
                 setError(null);
-                addLog(`[SYS] Boot sequence initialized. Real-time Delta Queue engine active.`, 'info');
+                addLog(`[SYS] Boot sequence initialized for ${activeRegion}. Live Data Engine active.`, 'info');
 
                 try {
                     const allFetchedRides = [];
                     let parksOnline = 0;
+                    const CURRENT_PARKS = GLOBAL_PARKS[activeRegion];
 
-                    for (const park of PARK_IDS) {
+                    for (const park of CURRENT_PARKS) {
                         try {
                             let data = null;
                             for (const proxy of PROXIES) {
@@ -303,9 +324,9 @@
                                     addLog(`[NET] Engaging node: ${proxy.name} for ${park.name}...`, 'info');
                                     data = await proxy.fetch(`https://queue-times.com/parks/${park.id}/queue_times.json`);
                                     if (data && data.lands) break;
-                                } catch(e) { addLog(`[WARN] Node failure: ${e.message}`, 'warn'); }
+                                } catch(e) { addLog(`[WARN] Node timeout/failure: ${e.message}`, 'warn'); }
                             }
-                            if (!data || !data.lands) throw new Error("All network nodes exhausted.");
+                            if (!data || !data.lands) throw new Error("All network nodes exhausted or timed out.");
                             
                             parksOnline++;
                             
@@ -313,17 +334,18 @@
                                 land.rides
                                     .filter(r => !r.name.toLowerCase().includes('single rider'))
                                     .map(r => {
-                                        const metrics = getRideMetrics(r.name, land.name);
+                                        const isPriority = PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
+                                        const coords = getCoords(park.id, land.name);
                                         return {
                                             ...r, 
                                             parkName: park.name, 
                                             parkId: park.id, 
                                             landName: land.name,
-                                            isPriority: metrics.isPriority,
-                                            isMinor: !metrics.isPriority,
-                                            coords: { x: metrics.x, y: metrics.y },
-                                            duration: metrics.duration,
-                                            uptime: metrics.uptime
+                                            isPriority: isPriority,
+                                            isMinor: !isPriority,
+                                            coords: { x: coords.x, y: coords.y },
+                                            duration: isPriority ? 5 : 3,
+                                            uptime: 0.95
                                         };
                                     })
                             );
@@ -331,14 +353,13 @@
                         } catch (e) { addLog(`[ERR] ${park.name} completely isolated.`, 'error'); }
                     }
 
-                    if (parksOnline === 0) throw new Error("No operational telemetry returned from endpoint nodes.");
+                    if (parksOnline === 0) throw new Error("No operational telemetry returned from endpoint nodes. Proxies timed out.");
                     
                     // -- REAL-TIME DELTA Q MATH ENGINE --
                     const now = Date.now();
                     const history = JSON.parse(localStorage.getItem('dlp_history_v16') || '{}');
                     const newHistory = { ...history };
                     
-                    // Fallback calculation if no history exists (Live Resort Load)
                     const openRides = allFetchedRides.filter(r => r.is_open);
                     const totalWait = openRides.reduce((sum, r) => sum + r.wait_time, 0);
                     const liveResortLoadFactor = openRides.length > 0 ? (totalWait / openRides.length) : 15;
@@ -346,7 +367,7 @@
                     const computedRides = allFetchedRides.map(ride => {
                         let mu_base = ride.isPriority ? 25 : 15;
                         const n = ride.name.toLowerCase();
-                        if (n.includes('phantom') || n.includes('pirates') || n.includes('buzz') || n.includes('small world')) mu_base = 33; 
+                        if (n.includes('phantom') || n.includes('pirates') || n.includes('buzz') || n.includes('small world') || n.includes('mansion')) mu_base = 33; 
                         else if (n.includes('crush') || n.includes('peter pan')) mu_base = 13; 
 
                         const mu_eff = (ride.isPriority ? mu_base * 0.6 : mu_base) * ride.uptime;
@@ -355,26 +376,21 @@
                         let rho = 0;
                         let velocity = 0;
 
-                        // Use historical wait delta if older than 1 min but less than 1 hour (prevent stale data)
-                        if (past && past.wait !== undefined && (now - past.timestamp) > 60000 && (now - past.timestamp) < 3600000) {
+                        if (past && past.wait !== undefined && (now - past.timestamp) > 120000) { // 2 mins minimum to prevent math explosions
+                            const deltaT = Math.max(2, (now - past.timestamp) / 60000); 
                             const deltaQ = ride.wait_time - past.wait;
-                            const deltaT = (now - past.timestamp) / 60000; // in minutes
-                            
-                            // True Empirical Arrival Velocity
-                            lambda = Math.max(0, mu_eff * (1 + (deltaQ / deltaT)));
+                            // Cap expansion/shrink velocity to realistic numbers (+/- 3 mins per minute)
+                            velocity = Math.max(-3, Math.min(3, deltaQ / deltaT));
+                            lambda = Math.max(0, mu_eff * (1 + velocity));
                             rho = mu_eff > 0 ? lambda / mu_eff : 0;
-                            velocity = deltaQ / deltaT;
                         } else {
-                            // First load fallback using real-time resort density
                             const baseAttraction = ride.isPriority ? 0.25 : 0.12;
                             lambda = Math.max(0, liveResortLoadFactor * (baseAttraction - ((baseAttraction / 180) * ride.wait_time))); 
                             rho = mu_eff > 0 ? lambda / mu_eff : 0;
                             velocity = rho - 1; 
                         }
 
-                        // Store this sync's wait time for the next loop
                         newHistory[ride.id] = { wait: ride.wait_time, timestamp: now };
-
                         const predictedWait = Math.max(0, ride.wait_time + (velocity * 60));
 
                         return {
@@ -392,7 +408,7 @@
                     localStorage.setItem('dlp_history_v16', JSON.stringify(newHistory));
                     setRides(computedRides);
                     setLastSync(new Date().toLocaleTimeString('en-GB', { hour12: false }));
-                    addLog(`[SYS] Engine processed ${computedRides.length} active variables. Queue histories cached.`, 'success');
+                    addLog(`[SYS] Engine processed ${computedRides.length} active variables for ${activeRegion}.`, 'success');
                 } catch (err) {
                     addLog(`[SYS] Boot failure: ${err.message}`, 'error');
                     if (!isSilent) setError(err.message);
@@ -400,6 +416,13 @@
                     if (!isSilent) setLoading(false);
                 }
             };
+
+            // Re-fetch automatically when activeRegion changes
+            useEffect(() => {
+                bootSystem();
+                const syncInterval = setInterval(() => bootSystem(true), 300000); 
+                return () => clearInterval(syncInterval);
+            }, [activeRegion]);
 
             const memoizedData = useMemo(() => {
                 if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0, totalQueueTimeMins: 0 } };
@@ -443,7 +466,7 @@
                    let unvisited = parkGroups[pId];
                    let currentPos = { x: 50, y: 95 }; 
                    
-                   if (gpsEnabled && userGPS) {
+                   if (gpsEnabled && userGPS && TACTICAL_COORDS[pId]) {
                        let closestLand = null;
                        let minDistance = Infinity;
                        TACTICAL_COORDS[pId].forEach(land => {
@@ -629,7 +652,7 @@
                                         <div className="flex gap-2 text-[9px] font-mono text-slate-500 uppercase tracking-wider mt-2">
                                             <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">TYPE: {intel.type}</span>
                                             <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">ENV: {intel.env}</span>
-                                            <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">EST: {intel.duration}</span>
+                                            <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">EST: {ride.duration} MIN</span>
                                         </div>
                                     </div>
 
@@ -674,7 +697,17 @@
             };
 
             const TacticalMap = () => {
-                if (activePark === 'all') return null;
+                if (activePark === 'all' || !TACTICAL_COORDS[activePark]) {
+                    return (
+                        <div className="h-48 w-full bg-slate-100 dark:bg-[#080b12] rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center p-4 text-center shadow-inner">
+                            <p className="text-xs text-slate-500 font-mono flex flex-col items-center gap-2">
+                                <Icon path={I.MapIcon} size={20} className="text-slate-400 dark:text-slate-600 opacity-50" />
+                                Tactical Map Offline.<br/>Select a supported sector to view grid.
+                            </p>
+                        </div>
+                    );
+                }
+
                 const mapData = TACTICAL_COORDS[activePark];
                 const parkItinerary = itinerary.filter(zone => zone.parkId.toString() === activePark);
                 const routePoints = parkItinerary.map((zone, idx) => {
@@ -705,6 +738,9 @@
                                     }`}>
                                         {activeNode ? activeNode.step : '•'}
                                     </div>
+                                    <span className={`mt-1 text-[8px] uppercase tracking-wider font-bold bg-white/80 dark:bg-[#05070a]/80 px-1 rounded ${activeNode ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-600'}`}>
+                                        {node.label}
+                                    </span>
                                 </div>
                             );
                         })}
@@ -713,20 +749,20 @@
             };
 
             return (
-                <div className="min-h-screen text-slate-800 dark:text-slate-300 font-sans p-4 md:p-8 flex flex-col items-center pb-32">
+                <div className="min-h-screen text-slate-800 dark:text-slate-300 font-sans p-4 md:p-8 flex flex-col items-center pb-32 transition-colors duration-300">
                     <div className="w-full max-w-6xl">
                         
                         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-l-4 border-emerald-500 pl-6 py-2 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-r-xl">
                             <div>
-                                <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-2">
+                                <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-2 uppercase">
                                     <Icon path={I.Navigation} size={32} className="text-emerald-600 dark:text-emerald-500" />
-                                    DLP TOURING PLAN <span className="text-emerald-600/50 dark:text-emerald-500/50 text-sm font-mono">{buildHash}</span>
+                                    GLOBAL TOURING PLAN <span className="text-emerald-600/50 dark:text-emerald-500/50 text-sm font-mono">{buildHash}</span>
                                 </h1>
                                 <p className="text-xs font-mono text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mt-1">Unified Queue Logistics Engine</p>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
                                 <button onClick={toggleGPS} className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-xs border ${gpsEnabled ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}>
-                                    <Icon path={I.MapPin} size={14} /> <span>GPS {gpsEnabled ? 'ON' : 'OFF'}</span>
+                                    <Icon path={I.MapPin} size={14} className={gpsEnabled ? "animate-pulse" : ""} /> <span>GPS {gpsEnabled ? 'ON' : 'OFF'}</span>
                                 </button>
                                 <button onClick={cycleTheme} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs border border-slate-300 dark:border-slate-700">
                                     <Icon path={getThemeIcon()} size={14} /> <span>{theme.toUpperCase()}</span>
@@ -741,19 +777,99 @@
                         </header>
 
                         {showPrimer && (
-                            <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl">
-                                <h2 className="text-lg font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4">Operational Manual</h2>
-                                <p className="leading-relaxed">This terminal utilizes <strong>Live Data Delta Tracking</strong>. Every 5 minutes, the engine pulls the current queue times and compares them to the historic ledger cached on your device. By measuring the absolute difference between the old wait time and the new wait time, it calculates a mathematically precise Live Arrival Velocity ($\lambda$). It no longer guesses crowds based on the time of day; it responds directly to empirical data drops.</p>
+                            <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
+                                <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">
+                                     <h2 className="text-lg font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                                         <Icon path={I.BookOpen} size={20} /> Operational Field Manual
+                                     </h2>
+                                     <button onClick={() => setShowPrimer(false)} className="text-slate-400 hover:text-slate-800 dark:text-slate-500 dark:hover:text-white transition-colors">
+                                        <Icon path={I.X} size={20} />
+                                    </button>
+                                </div>
+                                <div className="space-y-8 text-sm text-slate-600 dark:text-slate-300">
+                                    <p className="leading-relaxed text-base">
+                                        This terminal utilizes <strong>Live Data Delta Tracking</strong>. Every 5 minutes, the engine pulls the current queue times and compares them to the historic ledger cached on your device. By measuring the absolute difference between the old wait time and the new wait time, it calculates a mathematically precise Live Arrival Velocity ($\lambda$).
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-4">
+                                            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">I. Squad Deployment & Routing</h3>
+                                            <ul className="space-y-3">
+                                                <li className="flex items-start gap-2">
+                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                                                    <span><strong>Follow the Master Sequence:</strong> The system automatically groups rides by land to prevent physical exhaustion. It evaluates wait times, predicts 60-minute surges, and clusters your route.</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                                                    <span><strong>Log Completed Targets:</strong> Once you enter a queue, <strong>check the box</strong>. The system will log it, set your current location as the new <em>Dynamic Origin</em>, and instantly recalculate the optimal route.</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <Icon path={I.MapPin} size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                                                    <span><strong>Toggle GPS Tracking:</strong> Tap the GPS button to triangulate your actual location and build a new path based on your physical coordinates.</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">II. HUD Diagnostics</h3>
+                                            <p className="text-xs">Tap anywhere on a ride's card (except the checkbox) to run an AI Deep-Scan based on these core variables:</p>
+                                            <div className="bg-slate-50 dark:bg-[#05070a] p-3 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-[10px] space-y-2">
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">λ (Lambda)</span><span className="text-slate-800 dark:text-white">People joining queue per min</span></div>
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">Ar (Availability)</span><span className="text-slate-800 dark:text-white">Historical uptime %</span></div>
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">μ (Mu)</span><span className="text-slate-800 dark:text-white">Effective capacity/min</span></div>
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">ρ (Rho)</span><span className="text-slate-800 dark:text-white">Ratio of λ / μ</span></div>
+                                                <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">PRED</span><span className="text-slate-800 dark:text-white">Velocity Forecast in 60 mins</span></div>
+                                            </div>
+                                            <div className="text-xs space-y-2 pt-2">
+                                                <p><span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">ρ &lt; 1.0 (Green):</span> The queue is actively shrinking. Safe to delay riding.</p>
+                                                <p><span className="text-rose-500 dark:text-rose-400 font-bold font-mono">ρ &gt; 1.0 (Red):</span> Wait time is expanding rapidly. Route here immediately.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            
+                            {/* NEW GLOBAL SIDEBAR */}
                             <div className="lg:col-span-1 space-y-4">
                                 <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                                    
+                                    <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                                        <Icon path={I.MapIcon} size={12} /> Global Network
+                                    </h2>
+                                    <select 
+                                        value={activeRegion}
+                                        onChange={(e) => handleRegionChange(e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl p-3 mb-6 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-inner"
+                                    >
+                                        {Object.keys(GLOBAL_PARKS).map(region => (
+                                            <option key={region} value={region}>{region}</option>
+                                        ))}
+                                    </select>
+
+                                    <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                                        <Icon path={I.Layers} size={12} /> Sector Selection
+                                    </h2>
                                     <div className="grid grid-cols-1 gap-2">
-                                        {[{ id: '4', label: 'Disneyland Park' }, { id: '28', label: 'Disney Adventure World' }, { id: 'all', label: 'Full Resort' }].map(p => (
-                                            <button key={p.id} onClick={() => setActivePark(p.id)} className={`text-left px-4 py-2 rounded-xl text-xs font-bold border flex justify-between items-center ${activePark === p.id ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'}`}>
-                                                {p.label} <Icon path={I.ChevronRight} size={14} />
+                                        <button
+                                            onClick={() => setActivePark('all')}
+                                            className={`text-left px-4 py-3 rounded-xl text-xs font-bold transition-all border flex justify-between items-center ${
+                                                activePark === 'all' ? 'bg-emerald-600 border-emerald-500 text-white shadow-md' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300'
+                                            }`}
+                                        >
+                                            Full Resort <Icon path={I.ChevronRight} size={14} />
+                                        </button>
+                                        
+                                        {GLOBAL_PARKS[activeRegion].map(p => (
+                                            <button
+                                                key={p.id}
+                                                onClick={() => setActivePark(p.id.toString())}
+                                                className={`text-left px-4 py-3 rounded-xl text-xs font-bold transition-all border flex justify-between items-center ${
+                                                    activePark === p.id.toString() ? 'bg-emerald-600 border-emerald-500 text-white shadow-md' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300'
+                                                }`}
+                                            >
+                                                {p.name} {activePark === p.id.toString() && <Icon path={I.ChevronRight} size={14} />}
                                             </button>
                                         ))}
                                     </div>
@@ -764,45 +880,78 @@
                             </div>
 
                             <div className="lg:col-span-3 space-y-6">
-                                {loading ? <div className="text-center py-24">Parsing Topological Telemetry Data...</div> : (
+                                {loading ? <div className="text-center py-24 text-slate-500 font-mono text-sm animate-pulse tracking-widest">Processing Tactical Telemetry...</div> : error ? (
+                                    <div className="bg-rose-50 dark:bg-red-900/20 border border-rose-200 dark:border-red-500/50 rounded-3xl p-10 text-center">
+                                        <Icon path={I.ShieldAlert} size={48} className="mx-auto text-rose-500 mb-4" />
+                                        <p className="text-rose-800 dark:text-red-300 text-sm font-bold">{error}</p>
+                                    </div>
+                                ) : (
                                     <div className="space-y-6">
+                                        
                                         {masterSequence.length > 0 && (
                                             <div className="bg-white dark:bg-[#0c111a] rounded-2xl p-4 flex flex-col md:flex-row justify-between border border-slate-200 dark:border-slate-800 gap-4">
                                                 <div className="flex gap-6">
                                                     <div>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase">Est. Queue Time</p>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Est. Queue Time</p>
                                                         <h3 className="text-2xl font-black">{Math.floor(metrics.totalQueueTimeMins / 60)}H {metrics.totalQueueTimeMins % 60}M</h3>
                                                     </div>
                                                     <div>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase">Efficiency Saved</p>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Efficiency Saved</p>
                                                         <h3 className="text-2xl font-black text-emerald-500">{Math.floor(metrics.totalSavedMins / 60)}H {metrics.totalSavedMins % 60}M</h3>
                                                     </div>
                                                 </div>
                                             </div>
                                         )}
 
+                                        <div className="flex justify-between items-end px-2 mb-2 border-b border-slate-200 dark:border-slate-800 pb-2 mt-4">
+                                            <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">MASTER SEQUENCE</h2>
+                                            <span className="text-xs font-mono text-emerald-600 dark:text-emerald-500 font-bold">{masterSequence.length} OBJECTIVES</span>
+                                        </div>
+
                                         <div className="space-y-0 w-full">
-                                            {masterSequence.map(ride => <RideCard key={ride.id} ride={ride} globalStep={ride.globalStep} />)}
+                                            {masterSequence.map((ride, idx) => {
+                                                const showWalkBadge = idx > 0 && ride.travelTimeFromLast > 0 && ride.zoneInfo !== masterSequence[idx-1].zoneInfo;
+                                                return (
+                                                    <React.Fragment key={ride.id}>
+                                                        {showWalkBadge && (
+                                                            <div className="flex flex-col items-center justify-center w-full mb-3 mt-1">
+                                                                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
+                                                                <div className="bg-white dark:bg-[#0c111a] border border-slate-300 dark:border-slate-700 rounded-full px-3 py-1 flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 shadow-sm">
+                                                                    <Icon path={I.Footprints} size={10} className="text-emerald-500" /> Walk to {ride.landName}: ~{Math.round(ride.travelTimeFromLast)}m
+                                                                </div>
+                                                                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
+                                                            </div>
+                                                        )}
+                                                        <RideCard ride={ride} globalStep={ride.globalStep} />
+                                                    </React.Fragment>
+                                                );
+                                            })}
                                         </div>
 
                                         {completedSequence.length > 0 && (
                                             <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
-                                                <h3 className="text-xs font-black uppercase mb-4 tracking-wider text-slate-400">Completed Archive</h3>
-                                                {completedSequence.map(ride => <RideCard key={ride.id} ride={ride} isCompleted={true} />)}
+                                                <h3 className="text-xs font-black uppercase mb-4 tracking-widest text-slate-400">Completed Archive</h3>
+                                                <div className="opacity-60 space-y-3">
+                                                    {completedSequence.map(ride => <RideCard key={ride.id} ride={ride} isCompleted={true} />)}
+                                                </div>
                                             </div>
                                         )}
 
                                         {minorSequence.length > 0 && (
                                             <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
-                                                <h3 className="text-xs font-black uppercase mb-4 tracking-wider text-slate-400">All Other Attractions (Optional)</h3>
-                                                {minorSequence.map(ride => <RideCard key={ride.id} ride={ride} isMinor={true} />)}
+                                                <h3 className="text-xs font-black uppercase mb-4 tracking-widest text-slate-400">All Other Attractions (Optional)</h3>
+                                                <div className="opacity-80 space-y-3">
+                                                    {minorSequence.map(ride => <RideCard key={ride.id} ride={ride} isMinor={true} />)}
+                                                </div>
                                             </div>
                                         )}
 
                                         {closedSequence.length > 0 && (
                                             <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
-                                                <h3 className="text-xs font-black uppercase mb-4 tracking-wider text-rose-500">Offline Attractions</h3>
-                                                {closedSequence.map(ride => <RideCard key={ride.id} ride={ride} isClosed={true} />)}
+                                                <h3 className="text-xs font-black uppercase mb-4 tracking-widest text-rose-500">Offline Attractions</h3>
+                                                <div className="opacity-80 dark:opacity-70 space-y-3">
+                                                    {closedSequence.map(ride => <RideCard key={ride.id} ride={ride} isClosed={true} />)}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -812,7 +961,7 @@
 
                         {/* TERMINAL */}
                         <div className="mt-12 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#0c111a] overflow-hidden">
-                            <button onClick={() => setShowTerminal(!showTerminal)} className="w-full flex justify-between p-3 text-[10px] font-mono tracking-widest text-slate-400 uppercase">
+                            <button onClick={() => setShowTerminal(!showTerminal)} className="w-full flex justify-between p-3 text-[10px] font-mono tracking-widest text-slate-500 dark:text-slate-400 uppercase">
                                 <span>Network Daemon Logs</span> <span>[TOGGLE]</span>
                             </button>
                             {showTerminal && (
