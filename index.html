@@ -35,7 +35,6 @@
         .dark { --grid-color: #1e293b; }
         
         .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-        .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     </style>
 </head>
 <body>
@@ -100,18 +99,18 @@
                 { id: 17, name: "Disney California Adventure" }
             ],
             "Tokyo Disney Resort": [
-                { id: 81, name: "Tokyo Disneyland" },
-                { id: 82, name: "Tokyo DisneySea" }
+                { id: 274, name: "Tokyo Disneyland" },
+                { id: 275, name: "Tokyo DisneySea" }
             ],
             "Hong Kong & Shanghai": [
-                { id: 83, name: "Hong Kong Disneyland" },
-                { id: 84, name: "Shanghai Disneyland" }
+                { id: 31, name: "Hong Kong Disneyland" },
+                { id: 30, name: "Shanghai Disneyland" }
             ]
         };
 
         // Global Elite E-Ticket Priority Rides
         const PRIORITY_RIDES = [
-            "hyperspace mountain", "big thunder mountain", "tower of terror", "spider-man", "flight force", "ratatouille", "crush's coaster", "pirates of the caribbean", "indiana jones", "phantom manor", "peter pan", "buzz lightyear", "rise of the resistance", "smugglers run", "tron", "seven dwarfs mine train", "space mountain", "guardians of the galaxy", "slinky dog dash", "avatar flight of passage", "expedition everest", "test track", "soarin", "mickey & minnie", "radiator springs racers", "incredicoaster", "journey to the center of the earth", "beauty and the beast", "mystic manor", "iron man experience", "roaring rapids", "zootopia"
+            "hyperspace mountain", "big thunder mountain", "tower of terror", "spider-man", "flight force", "ratatouille", "crush's coaster", "pirates of the caribbean", "indiana jones", "phantom manor", "peter pan", "buzz lightyear", "rise of the resistance", "smugglers run", "tron", "seven dwarfs mine train", "space mountain", "guardians of the galaxy", "slinky dog dash", "avatar flight of passage", "expedition everest", "test track", "soarin", "mickey & minnie", "radiator springs racers", "incredicoaster", "journey to the center of the earth", "beauty and the beast", "mystic manor", "iron man experience", "roaring rapids", "zootopia", "toy story mania"
         ];
 
         // Specific Paris Map Data
@@ -134,8 +133,9 @@
 
         const getCoords = (parkId, landName) => {
             const mapData = TACTICAL_COORDS[parkId];
-            if (!mapData) return { x: 50, y: 50 }; // Fallback to center if coords undefined
-            const coord = mapData.find(c => landName.toLowerCase().includes(c.match));
+            if (!mapData) return { x: 50, y: 50 };
+            const safeLand = landName ? landName.toLowerCase() : "";
+            const coord = mapData.find(c => safeLand.includes(c.match));
             return coord || { x: 50, y: 50 };
         };
 
@@ -154,17 +154,17 @@
             let type = "Standard Ride";
             let env = "Mixed Architecture";
 
-            if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana") || n.includes("tron")) {
+            if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana") || n.includes("tron") || n.includes("test track")) {
                 brief = "High-velocity kinetic experience. Endorphin spike expected. Secure all loose equipment prior to launch.";
                 intel = "High-value tactical target. Traffic surges rapidly after park opening. Strike early or late.";
                 type = "Thrill / High-G";
                 env = "Dynamic / Outdoor Track";
-            } else if (n.includes("phantom") || n.includes("tower") || n.includes("mansion")) {
+            } else if (n.includes("phantom") || n.includes("tower") || n.includes("mansion") || n.includes("journey")) {
                 brief = "Atmospheric and psychological simulation. Low-light environment navigation required.";
                 intel = "Hardware capacity is highly efficient. Wait times often stabilize in the mid-afternoon.";
                 type = "Dark Ride / Drop";
                 env = "Climate-Controlled Indoors";
-            } else if (n.includes("peter pan") || n.includes("ratatouille") || n.includes("crush") || n.includes("resistance")) {
+            } else if (n.includes("peter pan") || n.includes("ratatouille") || n.includes("crush") || n.includes("resistance") || n.includes("beauty and the beast")) {
                 brief = "High-value narrative track. Heavy civilian foot-traffic expected in this sector.";
                 intel = "Capacity bottlenecks are common. Optimum execution time is during parade operations or meal hours.";
                 type = "Scenic / Tracked";
@@ -204,8 +204,8 @@
         ];
 
         const App = () => {
-            const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v1') || "Disneyland Paris");
-            const [activePark, setActivePark] = useState(() => localStorage.getItem('global_park_v1') || 'all'); 
+            const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v2') || "Disneyland Paris");
+            const [activePark, setActivePark] = useState(() => localStorage.getItem('global_park_v2') || 'all'); 
             
             const [rides, setRides] = useState([]);
             const [loading, setLoading] = useState(true);
@@ -215,10 +215,10 @@
             const [expandedRideId, setExpandedRideId] = useState(null);
 
             // Theme Management
-            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v16') || 'system');
+            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v17') || 'system');
             
             useEffect(() => {
-                localStorage.setItem('dlp_theme_v16', theme);
+                localStorage.setItem('dlp_theme_v17', theme);
                 const root = window.document.documentElement;
                 if (theme === 'dark') root.classList.add('dark');
                 else if (theme === 'light') root.classList.remove('dark');
@@ -233,11 +233,11 @@
             const getThemeIcon = () => theme === 'system' ? I.Monitor : (theme === 'dark' ? I.Moon : I.Sun);
 
             // GPS Logic
-            const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v16') || 'false'));
+            const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v17') || 'false'));
             const [userGPS, setUserGPS] = useState(null);
 
             useEffect(() => {
-                localStorage.setItem('dlp_gps_v16', JSON.stringify(gpsEnabled));
+                localStorage.setItem('dlp_gps_v17', JSON.stringify(gpsEnabled));
                 let watchId;
                 if (gpsEnabled) {
                     watchId = navigator.geolocation.watchPosition(
@@ -255,8 +255,8 @@
 
             const toggleGPS = () => setGpsEnabled(!gpsEnabled);
 
-            const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v16') || '[]')));
-            const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v16') || '[]')));
+            const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v17') || '[]')));
+            const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v17') || '[]')));
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(false);
             const logsEndRef = useRef(null);
@@ -266,15 +266,14 @@
                 return `BUILD ${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
             }, [lastSync]);
 
-            useEffect(() => localStorage.setItem('dlp_completed_v16', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
-            useEffect(() => localStorage.setItem('dlp_activated_v16', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
+            useEffect(() => localStorage.setItem('dlp_completed_v17', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
+            useEffect(() => localStorage.setItem('dlp_activated_v17', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
 
             const handleRegionChange = (newRegion) => {
                 setActiveRegion(newRegion);
                 setActivePark('all');
-                localStorage.setItem('global_region_v1', newRegion);
-                localStorage.setItem('global_park_v1', 'all');
-                // Auto-fetch data for new region on change
+                localStorage.setItem('global_region_v2', newRegion);
+                localStorage.setItem('global_park_v2', 'all');
             };
 
             const toggleExpand = (id) => setExpandedRideId(prev => prev === id ? null : id);
@@ -323,32 +322,42 @@
                                 try {
                                     addLog(`[NET] Engaging node: ${proxy.name} for ${park.name}...`, 'info');
                                     data = await proxy.fetch(`https://queue-times.com/parks/${park.id}/queue_times.json`);
-                                    if (data && data.lands) break;
+                                    if (data && (data.lands || data.rides)) break; // Bulletproof check
                                 } catch(e) { addLog(`[WARN] Node timeout/failure: ${e.message}`, 'warn'); }
                             }
-                            if (!data || !data.lands) throw new Error("All network nodes exhausted or timed out.");
+                            if (!data || (!data.lands && !data.rides)) throw new Error("All network nodes exhausted or timed out.");
                             
                             parksOnline++;
+                            let rawRides = [];
                             
-                            const processed = data.lands.flatMap(land => 
-                                land.rides
-                                    .filter(r => !r.name.toLowerCase().includes('single rider'))
-                                    .map(r => {
-                                        const isPriority = PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
-                                        const coords = getCoords(park.id, land.name);
-                                        return {
-                                            ...r, 
-                                            parkName: park.name, 
-                                            parkId: park.id, 
-                                            landName: land.name,
-                                            isPriority: isPriority,
-                                            isMinor: !isPriority,
-                                            coords: { x: coords.x, y: coords.y },
-                                            duration: isPriority ? 5 : 3,
-                                            uptime: 0.95
-                                        };
-                                    })
-                            );
+                            // Safely extract from any API structure variations globally
+                            if (data.lands) {
+                                data.lands.forEach(land => {
+                                    if (land.rides) {
+                                        land.rides.forEach(r => rawRides.push({ ...r, landName: land.name }));
+                                    }
+                                });
+                            }
+                            if (data.rides) {
+                                data.rides.forEach(r => rawRides.push({ ...r, landName: 'Park Grounds' }));
+                            }
+                            
+                            const processed = rawRides
+                                .filter(r => r.name && !r.name.toLowerCase().includes('single rider'))
+                                .map(r => {
+                                    const isPriority = PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
+                                    const coords = getCoords(park.id, r.landName);
+                                    return {
+                                        ...r, 
+                                        parkName: park.name, 
+                                        parkId: park.id, 
+                                        isPriority: isPriority,
+                                        isMinor: !isPriority,
+                                        coords: { x: coords.x, y: coords.y },
+                                        duration: isPriority ? 5 : 3,
+                                        uptime: 0.95
+                                    };
+                                });
                             allFetchedRides.push(...processed);
                         } catch (e) { addLog(`[ERR] ${park.name} completely isolated.`, 'error'); }
                     }
@@ -357,7 +366,7 @@
                     
                     // -- REAL-TIME DELTA Q MATH ENGINE --
                     const now = Date.now();
-                    const history = JSON.parse(localStorage.getItem('dlp_history_v16') || '{}');
+                    const history = JSON.parse(localStorage.getItem('dlp_history_v17') || '{}');
                     const newHistory = { ...history };
                     
                     const openRides = allFetchedRides.filter(r => r.is_open);
@@ -376,10 +385,9 @@
                         let rho = 0;
                         let velocity = 0;
 
-                        if (past && past.wait !== undefined && (now - past.timestamp) > 120000) { // 2 mins minimum to prevent math explosions
+                        if (past && past.wait !== undefined && (now - past.timestamp) > 120000) { 
                             const deltaT = Math.max(2, (now - past.timestamp) / 60000); 
                             const deltaQ = ride.wait_time - past.wait;
-                            // Cap expansion/shrink velocity to realistic numbers (+/- 3 mins per minute)
                             velocity = Math.max(-3, Math.min(3, deltaQ / deltaT));
                             lambda = Math.max(0, mu_eff * (1 + velocity));
                             rho = mu_eff > 0 ? lambda / mu_eff : 0;
@@ -405,7 +413,7 @@
                         };
                     });
 
-                    localStorage.setItem('dlp_history_v16', JSON.stringify(newHistory));
+                    localStorage.setItem('dlp_history_v17', JSON.stringify(newHistory));
                     setRides(computedRides);
                     setLastSync(new Date().toLocaleTimeString('en-GB', { hour12: false }));
                     addLog(`[SYS] Engine processed ${computedRides.length} active variables for ${activeRegion}.`, 'success');
@@ -417,7 +425,6 @@
                 }
             };
 
-            // Re-fetch automatically when activeRegion changes
             useEffect(() => {
                 bootSystem();
                 const syncInterval = setInterval(() => bootSystem(true), 300000); 
@@ -491,7 +498,7 @@
                          const travelTimeMins = Math.max(2, Math.round(physicalDistance * 0.15)); 
                          
                          zone.travelTimeFromLast = travelTimeMins;
-                         zone.tspCostScore = zone.avgScore + (travelTimeMins * 3.5); // 3.5x Stamina Penalty
+                         zone.tspCostScore = zone.avgScore + (travelTimeMins * 3.5); 
                          zone.coords = dest;
                       });
                       
@@ -652,7 +659,7 @@
                                         <div className="flex gap-2 text-[9px] font-mono text-slate-500 uppercase tracking-wider mt-2">
                                             <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">TYPE: {intel.type}</span>
                                             <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">ENV: {intel.env}</span>
-                                            <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">EST: {ride.duration} MIN</span>
+                                            <span className="bg-slate-200 dark:bg-[#161b22] px-2 py-1 rounded">EST: {intel.duration}</span>
                                         </div>
                                     </div>
 
@@ -711,12 +718,17 @@
                 const mapData = TACTICAL_COORDS[activePark];
                 const parkItinerary = itinerary.filter(zone => zone.parkId.toString() === activePark);
                 const routePoints = parkItinerary.map((zone, idx) => {
-                    const coord = mapData.find(c => zone.landName.toLowerCase().includes(c.match));
+                    const safeLand = zone.landName ? zone.landName.toLowerCase() : "";
+                    const coord = mapData.find(c => safeLand.includes(c.match));
                     return coord ? { ...coord, step: idx + 1 } : null;
                 }).filter(Boolean);
 
                 return (
-                    <div className="relative w-full aspect-[4/3] bg-white dark:bg-[#05070a] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-inner">
+                    <div className="relative w-full aspect-[4/3] bg-white dark:bg-[#05070a] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-inner group">
+                        <div className="absolute inset-0 opacity-20 dark:opacity-20 pointer-events-none" 
+                             style={{ backgroundImage: 'linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+                        </div>
+                        
                         <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
                             {routePoints.map((point, idx) => {
                                 if (idx === routePoints.length - 1) return null;
@@ -729,6 +741,7 @@
                                 );
                             })}
                         </svg>
+
                         {mapData.map((node, i) => {
                             const activeNode = routePoints.find(p => p.match === node.match);
                             return (
@@ -761,21 +774,22 @@
                                 <p className="text-xs font-mono text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mt-1">Unified Queue Logistics Engine</p>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-                                <button onClick={toggleGPS} className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-xs border ${gpsEnabled ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}>
+                                <button onClick={toggleGPS} className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-xs border transition-all ${gpsEnabled ? 'bg-blue-600 border-blue-500 text-white shadow-sm dark:shadow-[0_0_10px_rgba(59,130,246,0.3)]' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}>
                                     <Icon path={I.MapPin} size={14} className={gpsEnabled ? "animate-pulse" : ""} /> <span>GPS {gpsEnabled ? 'ON' : 'OFF'}</span>
                                 </button>
-                                <button onClick={cycleTheme} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs border border-slate-300 dark:border-slate-700">
+                                <button onClick={cycleTheme} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs border border-slate-300 dark:border-slate-700 transition-all">
                                     <Icon path={getThemeIcon()} size={14} /> <span>{theme.toUpperCase()}</span>
                                 </button>
-                                <button onClick={() => setShowPrimer(!showPrimer)} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs border border-slate-300 dark:border-slate-700">
+                                <button onClick={() => setShowPrimer(!showPrimer)} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs border border-slate-300 dark:border-slate-700 transition-all">
                                     <Icon path={I.BookOpen} size={14} /> <span>MANUAL</span>
                                 </button>
-                                <button onClick={() => bootSystem(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold text-xs border border-emerald-500">
+                                <button onClick={() => bootSystem(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold text-xs border border-emerald-500 transition-all shadow-sm dark:shadow-[0_0_10px_rgba(16,185,129,0.2)]">
                                     <Icon path={I.RefreshCw} size={14} /> <span>SYNC</span>
                                 </button>
                             </div>
                         </header>
 
+                        {/* EXPANDED OPERATIONAL FIELD MANUAL */}
                         {showPrimer && (
                             <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
                                 <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">
@@ -808,7 +822,6 @@
                                                 </li>
                                             </ul>
                                         </div>
-
                                         <div className="space-y-4">
                                             <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">II. HUD Diagnostics</h3>
                                             <p className="text-xs">Tap anywhere on a ride's card (except the checkbox) to run an AI Deep-Scan based on these core variables:</p>
@@ -831,17 +844,16 @@
 
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                             
-                            {/* NEW GLOBAL SIDEBAR */}
+                            {/* GLOBAL SIDEBAR */}
                             <div className="lg:col-span-1 space-y-4">
                                 <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-                                    
                                     <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
-                                        <Icon path={I.MapIcon} size={12} /> Global Network
+                                        <Icon path={I.Database} size={12} /> Global Network
                                     </h2>
                                     <select 
                                         value={activeRegion}
                                         onChange={(e) => handleRegionChange(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl p-3 mb-6 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-inner"
+                                        className="w-full bg-slate-50 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold rounded-xl p-3 mb-6 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-inner transition-colors"
                                     >
                                         {Object.keys(GLOBAL_PARKS).map(region => (
                                             <option key={region} value={region}>{region}</option>
@@ -858,7 +870,7 @@
                                                 activePark === 'all' ? 'bg-emerald-600 border-emerald-500 text-white shadow-md' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300'
                                             }`}
                                         >
-                                            Full Resort <Icon path={I.ChevronRight} size={14} />
+                                            Full Resort {activePark === 'all' && <Icon path={I.ChevronRight} size={14} />}
                                         </button>
                                         
                                         {GLOBAL_PARKS[activeRegion].map(p => (
@@ -961,11 +973,11 @@
 
                         {/* TERMINAL */}
                         <div className="mt-12 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#0c111a] overflow-hidden">
-                            <button onClick={() => setShowTerminal(!showTerminal)} className="w-full flex justify-between p-3 text-[10px] font-mono tracking-widest text-slate-500 dark:text-slate-400 uppercase">
+                            <button onClick={() => setShowTerminal(!showTerminal)} className="w-full flex justify-between p-3 text-[10px] font-mono tracking-widest text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-transparent">
                                 <span>Network Daemon Logs</span> <span>[TOGGLE]</span>
                             </button>
                             {showTerminal && (
-                                <div className="p-4 bg-slate-100 dark:bg-[#020408] h-48 overflow-y-auto font-mono text-[10px] terminal-scroll">
+                                <div className="p-4 bg-slate-100 dark:bg-[#020408] h-48 overflow-y-auto font-mono text-[10px] terminal-scroll shadow-inner">
                                     {logs.map((log, i) => (
                                         <div key={i} className="flex gap-2 text-slate-500">
                                             <span>[{log.time}]</span> <span className={log.type === 'success' ? 'text-emerald-500' : ''}>{log.msg}</span>
