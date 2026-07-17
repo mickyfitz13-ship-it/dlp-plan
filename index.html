@@ -60,7 +60,8 @@
             TrendingUp: '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline>',
             TrendingDown: '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline>',
             Minus: '<line x1="5" y1="12" x2="19" y2="12"></line>',
-            RefreshCw: '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>'
+            RefreshCw: '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
+            CheckCircle: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>'
         };
 
         // --- DATA LOGISTICS ---
@@ -115,72 +116,23 @@
             return coord || { x: 50, y: 50 };
         };
 
-        // --- NETWORK ARCHITECTURE ---
+        // --- UPDATED NETWORK ARCHITECTURE ---
         const PROXIES = [
             {
-                name: "AllOrigins GET (CORS-Safe)",
+                name: "CorsProxy.io (Primary)",
+                fetch: async (target) => {
+                    const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(target)}`);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    return await res.json();
+                }
+            },
+            {
+                name: "AllOrigins GET (Fallback)",
                 fetch: async (target) => {
                     const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(target)}`);
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     const data = await res.json();
                     return JSON.parse(data.contents);
-                }
-            },
-            {
-                name: "AllOrigins RAW",
-                fetch: async (target) => {
-                    const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    return await res.json();
-                }
-            },
-            {
-                name: "ThingProxy",
-                fetch: async (target) => {
-                    const res = await fetch(`https://thingproxy.freeboard.io/fetch/${target}`);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    return await res.json();
-                }
-            },
-            {
-                name: "JSONP Bypass Layer",
-                fetch: (target) => {
-                    return new Promise((resolve, reject) => {
-                        const callbackName = 'jsonp_' + Date.now() + '_' + Math.round(Math.random() * 10000);
-                        const script = document.createElement('script');
-                        
-                        const timeoutId = setTimeout(() => {
-                            cleanup();
-                            reject(new Error("JSONP Request Timeout"));
-                        }, 10000);
-
-                        const cleanup = () => {
-                            if (window[callbackName]) delete window[callbackName];
-                            if (script.parentNode) script.parentNode.removeChild(script);
-                            clearTimeout(timeoutId);
-                        };
-
-                        window[callbackName] = function(data) {
-                            cleanup();
-                            if (data && data.contents) {
-                                try { 
-                                    const parsed = JSON.parse(data.contents);
-                                    resolve(parsed); 
-                                } 
-                                catch(e) { reject(new Error("Invalid JSON Payload")); }
-                            } else {
-                                reject(new Error("Empty data received"));
-                            }
-                        };
-
-                        script.src = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}&callback=${callbackName}`;
-                        script.onerror = () => {
-                            cleanup();
-                            reject(new Error("Script injection blocked"));
-                        };
-                        
-                        document.body.appendChild(script);
-                    });
                 }
             }
         ];
@@ -193,6 +145,11 @@
             const [lastSync, setLastSync] = useState(null);
             const [showPrimer, setShowPrimer] = useState(false);
             
+            // Persistent Memory State
+            const [completedTargets, setCompletedTargets] = useState(() => {
+                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v2') || '[]'));
+            });
+
             // Terminal System States
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(false);
@@ -203,13 +160,30 @@
                 return `BUILD ${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
             }, [lastSync]);
 
-            // Helper to push logs to the terminal UI
+            // Save checked off rides to local storage
+            useEffect(() => {
+                localStorage.setItem('dlp_completed_v2', JSON.stringify(Array.from(completedTargets)));
+            }, [completedTargets]);
+
+            const toggleRide = (rideId) => {
+                setCompletedTargets(prev => {
+                    const next = new Set(prev);
+                    if (next.has(rideId)) {
+                        next.delete(rideId);
+                        addLog(`[SYS] Objective restored to routing sequence.`, 'success');
+                    } else {
+                        next.add(rideId);
+                        addLog(`[SYS] Objective completed. Evading from routing.`, 'info');
+                    }
+                    return next;
+                });
+            };
+
             const addLog = (msg, type = 'info') => {
                 const time = new Date().toLocaleTimeString('en-GB', { hour12: false, fractionalSecondDigits: 3 });
                 setLogs(prev => [...prev, { time, msg, type }]);
             };
 
-            // Auto-scroll terminal to bottom when new logs arrive
             useEffect(() => {
                 if (showTerminal && logsEndRef.current) {
                     logsEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -242,7 +216,6 @@
             const bootSystem = async (isSilent = false) => {
                 if (!isSilent) setLoading(true);
                 setError(null);
-                if (!isSilent) setRides([]);
                 
                 addLog(`[SYS] Boot sequence initialized. Silent refresh: ${isSilent}`, 'info');
 
@@ -274,7 +247,6 @@
                             allFetchedRides.push(...processed);
                         } catch (e) { 
                             addLog(`[ERR] ${park.name} completely isolated. Connection blocked.`, 'error');
-                            console.warn(`Park ${park.name} offline/isolated.`); 
                         }
                     }
 
@@ -294,28 +266,33 @@
                 }
             };
 
+            // Setup Auto-Link timer for 5 Minutes
             useEffect(() => {
                 bootSystem();
-                const syncInterval = setInterval(() => bootSystem(true), 60000);
+                const syncInterval = setInterval(() => bootSystem(true), 300000); 
                 return () => clearInterval(syncInterval);
             }, []);
 
             const memoizedData = useMemo(() => {
-                if (rides.length === 0) return { itinerary: [], masterSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0 } };
+                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0 } };
 
                 const parisTimeStr = new Date().toLocaleString("en-US", {timeZone: "Europe/Paris"});
                 const now = new Date(parisTimeStr);
-                
                 let t = (now.getHours() * 60 + now.getMinutes()) - 540;
                 if (t < 0) t = 0;
                 if (t > 720) t = 720; 
 
                 const R = 200 + 200 * Math.sin((t * Math.PI) / 720); 
 
+                // Isolate completed rides so they don't break the walking algorithm
+                const completedSequence = rides.filter(r => completedTargets.has(r.id) && (activePark === 'all' || r.parkId === parseInt(activePark)));
+
+                // Filter for active itinerary
                 let filtered = rides.filter(r => {
                     const matchPark = activePark === 'all' || r.parkId === parseInt(activePark);
                     const matchWait = r.wait_time >= 20 || r.isPriority; 
-                    return matchPark && matchWait;
+                    const isNotCompleted = !completedTargets.has(r.id);
+                    return matchPark && matchWait && isNotCompleted;
                 });
 
                 const grouped = {};
@@ -417,11 +394,12 @@
                 return { 
                     itinerary: tspSortedLands, 
                     masterSequence: sequence,
+                    completedSequence,
                     metrics: { queueEvasionSaved, walkSaved, totalSavedMins }
                 };
-            }, [rides, activePark]);
+            }, [rides, activePark, completedTargets]);
 
-            const { itinerary, masterSequence, metrics } = memoizedData;
+            const { itinerary, masterSequence, completedSequence, metrics } = memoizedData;
 
             const TacticalMap = () => {
                 if (activePark === 'all') {
@@ -497,15 +475,21 @@
                             </div>
                             <div className="flex items-center gap-4">
                                 <button 
+                                    onClick={() => bootSystem(true)}
+                                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold text-xs transition-all border border-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                                >
+                                    <Icon path={I.RefreshCw} size={14} /> MANUAL SYNC
+                                </button>
+                                <button 
                                     onClick={() => setShowPrimer(!showPrimer)}
                                     className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg font-bold text-xs transition-all border border-slate-700"
                                 >
-                                    <Icon path={I.BookOpen} size={14} /> {showPrimer ? 'HIDE PRIMER' : 'TELEMETRY PRIMER'}
+                                    <Icon path={I.BookOpen} size={14} /> {showPrimer ? 'HIDE' : 'PRIMER'}
                                 </button>
-                                <div className="flex flex-col items-end">
+                                <div className="flex flex-col items-end hidden sm:flex">
                                     {lastSync && <span className="text-[10px] font-mono text-slate-500">LAST SYNC: {lastSync}</span>}
                                     <span className="text-[8px] font-mono text-emerald-600 flex items-center gap-1">
-                                         <Icon path={I.Activity} size={8} className="animate-pulse" /> AUTO-LINK (60s)
+                                         <Icon path={I.Activity} size={8} className="animate-pulse" /> AUTO-LINK (300s)
                                     </span>
                                 </div>
                             </div>
@@ -671,6 +655,15 @@
                                                                     {ride.globalStep}
                                                                 </div>
 
+                                                                <div className="mr-3 flex shrink-0">
+                                                                    <input 
+                                                                        type="checkbox" 
+                                                                        checked={completedTargets.has(ride.id)} 
+                                                                        onChange={() => toggleRide(ride.id)}
+                                                                        className="w-5 h-5 accent-emerald-500 rounded border-slate-700 bg-slate-800 cursor-pointer" 
+                                                                    />
+                                                                </div>
+
                                                                 <div className="ml-2 flex-grow">
                                                                     <div className="flex items-center gap-2">
                                                                         <h4 className={`text-sm font-bold leading-tight ${ride.isPriority ? 'text-emerald-50' : 'text-slate-200 group-hover:text-white'}`}>
@@ -721,6 +714,38 @@
                                                 </div>
                                             ))}
                                         </div>
+
+                                        {/* COMPLETED OBJECTIVES ZONE */}
+                                        {completedSequence.length > 0 && (
+                                            <div className="mt-8 border-t border-slate-800 pt-6">
+                                                <div className="flex items-center gap-2 mb-4 px-2">
+                                                    <Icon path={I.CheckCircle} size={18} className="text-slate-500" />
+                                                    <h2 className="text-sm font-black text-slate-500 uppercase tracking-widest">Completed Objectives</h2>
+                                                    <span className="text-xs font-mono text-slate-600 bg-[#05070a] px-2 py-0.5 rounded border border-slate-800 ml-auto">
+                                                        {completedSequence.length} LOGGED
+                                                    </span>
+                                                </div>
+                                                
+                                                <div className="space-y-2 px-2 opacity-50">
+                                                    {completedSequence.map((ride) => (
+                                                        <div key={ride.id} className="flex items-center p-3 rounded-xl bg-[#080b12] border border-slate-800">
+                                                            <div className="mr-3 flex shrink-0">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    checked={true}
+                                                                    onChange={() => toggleRide(ride.id)}
+                                                                    className="w-5 h-5 accent-emerald-500 rounded border-slate-700 bg-slate-800 cursor-pointer" 
+                                                                />
+                                                            </div>
+                                                            <div className="flex-grow">
+                                                                <h4 className="text-sm font-bold text-slate-500 line-through decoration-slate-600">{ride.name}</h4>
+                                                                <p className="text-[9px] font-mono text-slate-600 uppercase">{ride.parkName} - {ride.landName}</p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
