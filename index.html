@@ -29,7 +29,7 @@
         .terminal-scroll::-webkit-scrollbar { width: 6px; }
         .terminal-scroll::-webkit-scrollbar-track { background: transparent; }
         .terminal-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        .dark .terminal-scroll::-webkit-scrollbar-thumb { background: #1e293b; }
+        .dark .terminal-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
 
         :root { --grid-color: #e2e8f0; }
         .dark { --grid-color: #1e293b; }
@@ -43,6 +43,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
+        // --- INLINE ICONS ---
         const Icon = ({ path, size = 24, className = "" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{ __html: path }} />
         );
@@ -74,6 +75,7 @@
             BarChart: '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
             Zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>',
             Info: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>',
+            User: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>',
             Sun: '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>',
             Moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
             Monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>',
@@ -102,7 +104,6 @@
             "flight force": { priority: true, x: 15, y: 20, duration: 2, uptime: 0.89 }
         };
 
-        // Added Latitude and Longitude to cross-reference physical location via Haversine
         const TACTICAL_COORDS = {
             4: [
                 { match: "main street", x: 50, y: 85, label: "Main St.", lat: 48.8716, lng: 2.7779 },
@@ -127,16 +128,14 @@
             return coord || { x: 50, y: 50 };
         };
 
-        // GPS Math Logic
         const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
-            const R = 6371; // Earth Radius in km
+            const R = 6371; 
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
                       Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
         };
 
         const getRideMetrics = (rideName, landName) => {
@@ -154,7 +153,12 @@
             let type = "Standard Ride";
             let env = "Mixed Architecture";
 
-            if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana")) {
+            if (ride.isSingleRider) {
+                brief = "Solo operative queuing protocol. Designed to backfill empty seats in standard ride vehicles.";
+                intel = "Throughput is highly volatile and depends entirely on odd-numbered standby groups. Use only if separated.";
+                type = "Auxiliary Queue";
+                env = "Bypass Corridor";
+            } else if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana")) {
                 brief = "High-velocity kinetic experience. Endorphin spike expected. Secure all loose equipment prior to launch.";
                 intel = "High-value tactical target. Traffic surges rapidly after park opening. Strike early or late.";
                 type = "Thrill / High-G";
@@ -198,10 +202,10 @@
             const [expandedRideId, setExpandedRideId] = useState(null);
 
             // Theme Management
-            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v14') || 'system');
+            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v16') || 'system');
             
             useEffect(() => {
-                localStorage.setItem('dlp_theme_v14', theme);
+                localStorage.setItem('dlp_theme_v16', theme);
                 const root = window.document.documentElement;
                 if (theme === 'dark') root.classList.add('dark');
                 else if (theme === 'light') root.classList.remove('dark');
@@ -217,11 +221,11 @@
             const getThemeIcon = () => theme === 'system' ? I.Monitor : (theme === 'dark' ? I.Moon : I.Sun);
 
             // GPS Logic
-            const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v14') || 'false'));
+            const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v16') || 'false'));
             const [userGPS, setUserGPS] = useState(null);
 
             useEffect(() => {
-                localStorage.setItem('dlp_gps_v14', JSON.stringify(gpsEnabled));
+                localStorage.setItem('dlp_gps_v16', JSON.stringify(gpsEnabled));
                 let watchId;
                 if (gpsEnabled) {
                     watchId = navigator.geolocation.watchPosition(
@@ -239,8 +243,8 @@
 
             const toggleGPS = () => setGpsEnabled(!gpsEnabled);
 
-            const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v14') || '[]')));
-            const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v14') || '[]')));
+            const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v16') || '[]')));
+            const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v16') || '[]')));
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(false);
             const logsEndRef = useRef(null);
@@ -250,8 +254,8 @@
                 return `BUILD ${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
             }, [lastSync]);
 
-            useEffect(() => localStorage.setItem('dlp_completed_v14', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
-            useEffect(() => localStorage.setItem('dlp_activated_v14', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
+            useEffect(() => localStorage.setItem('dlp_completed_v16', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
+            useEffect(() => localStorage.setItem('dlp_activated_v16', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
 
             const toggleExpand = (id) => setExpandedRideId(prev => prev === id ? null : id);
             
@@ -285,7 +289,7 @@
             const bootSystem = async (isSilent = false) => {
                 if (!isSilent) setLoading(true);
                 setError(null);
-                addLog(`[SYS] Boot sequence initialized. Stamina and GPS logic active.`, 'info');
+                addLog(`[SYS] Boot sequence initialized. Real-time Delta Queue engine active.`, 'info');
 
                 try {
                     const allFetchedRides = [];
@@ -304,13 +308,11 @@
                             if (!data || !data.lands) throw new Error("All network nodes exhausted.");
                             
                             parksOnline++;
-                            let ridesFound = 0;
                             
                             const processed = data.lands.flatMap(land => 
                                 land.rides
                                     .filter(r => !r.name.toLowerCase().includes('single rider'))
                                     .map(r => {
-                                        ridesFound++;
                                         const metrics = getRideMetrics(r.name, land.name);
                                         return {
                                             ...r, 
@@ -325,15 +327,72 @@
                                         };
                                     })
                             );
-                            addLog(`[SYS] Parsed ${ridesFound} objectives from ${park.name}`, 'info');
                             allFetchedRides.push(...processed);
                         } catch (e) { addLog(`[ERR] ${park.name} completely isolated.`, 'error'); }
                     }
 
-                    if (parksOnline === 0) throw new Error("No operational telemetry returned from endpoint nodes. Check network connection.");
+                    if (parksOnline === 0) throw new Error("No operational telemetry returned from endpoint nodes.");
                     
-                    setRides(allFetchedRides);
+                    // -- REAL-TIME DELTA Q MATH ENGINE --
+                    const now = Date.now();
+                    const history = JSON.parse(localStorage.getItem('dlp_history_v16') || '{}');
+                    const newHistory = { ...history };
+                    
+                    // Fallback calculation if no history exists (Live Resort Load)
+                    const openRides = allFetchedRides.filter(r => r.is_open);
+                    const totalWait = openRides.reduce((sum, r) => sum + r.wait_time, 0);
+                    const liveResortLoadFactor = openRides.length > 0 ? (totalWait / openRides.length) : 15;
+
+                    const computedRides = allFetchedRides.map(ride => {
+                        let mu_base = ride.isPriority ? 25 : 15;
+                        const n = ride.name.toLowerCase();
+                        if (n.includes('phantom') || n.includes('pirates') || n.includes('buzz') || n.includes('small world')) mu_base = 33; 
+                        else if (n.includes('crush') || n.includes('peter pan')) mu_base = 13; 
+
+                        const mu_eff = (ride.isPriority ? mu_base * 0.6 : mu_base) * ride.uptime;
+                        const past = history[ride.id];
+                        let lambda = 0;
+                        let rho = 0;
+                        let velocity = 0;
+
+                        // Use historical wait delta if older than 1 min but less than 1 hour (prevent stale data)
+                        if (past && past.wait !== undefined && (now - past.timestamp) > 60000 && (now - past.timestamp) < 3600000) {
+                            const deltaQ = ride.wait_time - past.wait;
+                            const deltaT = (now - past.timestamp) / 60000; // in minutes
+                            
+                            // True Empirical Arrival Velocity
+                            lambda = Math.max(0, mu_eff * (1 + (deltaQ / deltaT)));
+                            rho = mu_eff > 0 ? lambda / mu_eff : 0;
+                            velocity = deltaQ / deltaT;
+                        } else {
+                            // First load fallback using real-time resort density
+                            const baseAttraction = ride.isPriority ? 0.25 : 0.12;
+                            lambda = Math.max(0, liveResortLoadFactor * (baseAttraction - ((baseAttraction / 180) * ride.wait_time))); 
+                            rho = mu_eff > 0 ? lambda / mu_eff : 0;
+                            velocity = rho - 1; 
+                        }
+
+                        // Store this sync's wait time for the next loop
+                        newHistory[ride.id] = { wait: ride.wait_time, timestamp: now };
+
+                        const predictedWait = Math.max(0, ride.wait_time + (velocity * 60));
+
+                        return {
+                            ...ride,
+                            mu: Number(mu_eff.toFixed(1)),
+                            lambda: Number(lambda.toFixed(1)),
+                            rho: Number(rho.toFixed(2)),
+                            velocity: Number(velocity.toFixed(2)),
+                            predictedWait: Math.round(predictedWait),
+                            routingScore: ride.wait_time - (predictedWait - ride.wait_time),
+                            aiIntel: generateTacticalIntelligence(ride)
+                        };
+                    });
+
+                    localStorage.setItem('dlp_history_v16', JSON.stringify(newHistory));
+                    setRides(computedRides);
                     setLastSync(new Date().toLocaleTimeString('en-GB', { hour12: false }));
+                    addLog(`[SYS] Engine processed ${computedRides.length} active variables. Queue histories cached.`, 'success');
                 } catch (err) {
                     addLog(`[SYS] Boot failure: ${err.message}`, 'error');
                     if (!isSilent) setError(err.message);
@@ -342,38 +401,8 @@
                 }
             };
 
-            useEffect(() => {
-                bootSystem();
-                const syncInterval = setInterval(() => bootSystem(true), 300000); 
-                return () => clearInterval(syncInterval);
-            }, []);
-
             const memoizedData = useMemo(() => {
-                if (rides.length === 0) return { masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0, totalQueueTimeMins: 0 } };
-
-                const parisTimeStr = new Date().toLocaleString("en-US", {timeZone: "Europe/Paris"});
-                const now = new Date(parisTimeStr);
-                let t = (now.getHours() * 60 + now.getMinutes()) - 540;
-                if (t < 0) t = 0; if (t > 720) t = 720; 
-                const R = 200 + 200 * Math.sin((t * Math.PI) / 720); 
-
-                rides.forEach(ride => {
-                    let mu_base = ride.isPriority ? 25 : 15;
-                    const n = ride.name.toLowerCase();
-                    if (n.includes('phantom') || n.includes('pirates') || n.includes('buzz') || n.includes('small world')) mu_base = 33; 
-                    else if (n.includes('crush') || n.includes('peter pan')) mu_base = 13; 
-
-                    const mu_eff = (ride.isPriority ? mu_base * 0.6 : mu_base) * ride.uptime;
-                    const baseAttraction = ride.isPriority ? 0.08 : 0.04;
-                    const lambda = Math.max(0, R * (baseAttraction - ((baseAttraction/150) * ride.wait_time))); 
-                    
-                    ride.rho = mu_eff > 0 ? lambda / mu_eff : 0;
-                    ride.velocity = ride.rho - 1; 
-                    ride.predictedWait = Math.max(0, ride.wait_time + (ride.velocity * 60));
-                    ride.lambda = lambda;
-                    ride.mu = mu_eff;
-                    ride.aiIntel = generateTacticalIntelligence(ride);
-                });
+                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0, totalQueueTimeMins: 0 } };
 
                 const completedSequence = [];
                 const minorSequence = [];
@@ -392,20 +421,28 @@
                 completedSequence.sort((a, b) => a.name.localeCompare(b.name));
                 closedSequence.sort((a, b) => a.name.localeCompare(b.name));
 
-                let sequence = [];
-                let counter = 1;
-                let tspTotalWalk = 0;
-                let queueEvasionSaved = 0;
-                let totalQueueTimeMins = 0;
+                const grouped = {};
+                activePool.forEach(ride => {
+                    const zoneKey = `${ride.parkName} - ${ride.landName}`;
+                    if (!grouped[zoneKey]) {
+                        grouped[zoneKey] = { zoneKey, parkId: ride.parkId, parkName: ride.parkName, landName: ride.landName, rides: [], avgScore: 0 };
+                    }
+                    grouped[zoneKey].rides.push(ride);
+                });
 
+                Object.values(grouped).forEach(zone => {
+                    zone.rides.sort((a, b) => a.routingScore - b.routingScore);
+                    zone.avgScore = zone.rides.reduce((sum, r) => sum + r.routingScore, 0) / zone.rides.length;
+                });
+
+                let tspSortedLands = [];
                 const parkGroups = {};
-                activePool.forEach(r => { if(!parkGroups[r.parkId]) parkGroups[r.parkId] = []; parkGroups[r.parkId].push(r); });
+                Object.values(grouped).forEach(z => { if(!parkGroups[z.parkId]) parkGroups[z.parkId] = []; parkGroups[z.parkId].push(z); });
 
                 Object.keys(parkGroups).forEach(pId => {
                    let unvisited = parkGroups[pId];
-                   let currentPos = { x: 50, y: 95 }; // Default Gates
+                   let currentPos = { x: 50, y: 95 }; 
                    
-                   // Dynamic Origin Selection: GPS Overrides Manual Checked Boxes
                    if (gpsEnabled && userGPS) {
                        let closestLand = null;
                        let minDistance = Infinity;
@@ -419,72 +456,65 @@
                        for (let i = completedArray.length - 1; i >= 0; i--) {
                            const lastRide = rides.find(r => r.id === completedArray[i]);
                            if (lastRide && lastRide.parkId.toString() === pId) {
-                               currentPos = lastRide.coords; break; 
+                               currentPos = getCoords(pId, lastRide.landName); break; 
                            }
                        }
                    }
 
                    while(unvisited.length > 0) {
-                      unvisited.forEach(ride => {
-                         const distance = Math.sqrt(Math.pow(ride.coords.x - currentPos.x, 2) + Math.pow(ride.coords.y - currentPos.y, 2));
-                         const walkTimeMins = Math.max(2, Math.round(distance * 0.18)); 
-                         const futureQueue = Math.max(0, ride.wait_time + (ride.velocity * walkTimeMins));
+                      unvisited.forEach(zone => {
+                         const dest = getCoords(pId, zone.landName);
+                         const physicalDistance = Math.sqrt(Math.pow(dest.x - currentPos.x, 2) + Math.pow(dest.y - currentPos.y, 2));
+                         const travelTimeMins = Math.max(2, Math.round(physicalDistance * 0.15)); 
                          
-                         // 3.5x Walking Penalty ensures you don't run around unnecessarily
-                         const walkPenalty = walkTimeMins * 3.5;
-                         const urgencyBonus = ride.velocity > 0 ? (ride.velocity * 20) : 0;
-                         
-                         ride.travelTimeFromLast = walkTimeMins;
-                         ride.projectedWaitAtArrival = Math.round(futureQueue);
-                         ride.tacticalScore = ride.projectedWaitAtArrival + walkPenalty - urgencyBonus;
+                         zone.travelTimeFromLast = travelTimeMins;
+                         zone.tspCostScore = zone.avgScore + (travelTimeMins * 3.5); // 3.5x Stamina Penalty
+                         zone.coords = dest;
                       });
                       
-                      unvisited.sort((a,b) => a.tacticalScore - b.tacticalScore);
-                      const nextRide = unvisited.shift();
-                      
-                      nextRide.globalStep = counter++;
-                      sequence.push(nextRide);
-                      
-                      tspTotalWalk += nextRide.travelTimeFromLast;
-                      totalQueueTimeMins += nextRide.projectedWaitAtArrival;
-                      if (nextRide.velocity > 0) queueEvasionSaved += Math.round(nextRide.predictedWait - nextRide.wait_time);
-                      
-                      currentPos = nextRide.coords; 
+                      unvisited.sort((a,b) => a.tspCostScore - b.tspCostScore);
+                      const nextZone = unvisited.shift();
+                      tspSortedLands.push(nextZone);
+                      currentPos = nextZone.coords; 
                    }
                 });
 
-                let walkSaved = Math.round(tspTotalWalk * 0.6); 
+                let sequence = [];
+                let counter = 1;
+                let tspTotalWalk = 0;
+                let queueEvasionSaved = 0;
+                let totalQueueTimeMins = 0;
+
+                tspSortedLands.forEach(zone => {
+                    tspTotalWalk += zone.travelTimeFromLast;
+                    zone.rides.forEach(ride => {
+                        sequence.push({ ...ride, globalStep: counter++, zoneInfo: zone });
+                        totalQueueTimeMins += Math.round(ride.wait_time);
+                        if (ride.velocity > 0) queueEvasionSaved += Math.round(ride.predictedWait - ride.wait_time);
+                    });
+                });
+
+                let walkSaved = Math.round(tspTotalWalk * 0.8);
                 let totalSavedMins = Math.round(walkSaved + queueEvasionSaved);
 
                 return { 
-                    masterSequence: sequence,
+                    itinerary: tspSortedLands, masterSequence: sequence,
                     completedSequence, minorSequence, closedSequence,
                     metrics: { queueEvasionSaved: Math.round(queueEvasionSaved), walkSaved, totalSavedMins, totalQueueTimeMins: Math.round(totalQueueTimeMins) }
                 };
             }, [rides, activePark, completedTargets, activatedMinors, gpsEnabled, userGPS]);
 
-            const { masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
+            const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
 
             const RideCard = ({ ride, isCompleted, isMinor, isClosed, globalStep }) => {
                 const isExpanded = expandedRideId === ride.id;
                 const intel = ride.aiIntel;
-                const showWalkBadge = globalStep !== undefined && !isCompleted && !isClosed && !isMinor;
 
                 return (
-                    <div className="relative group mb-3 w-full">
-                        {showWalkBadge && (
-                            <div className="flex flex-col items-center justify-center w-full mb-3 mt-1">
-                                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
-                                <div className="bg-white dark:bg-[#0c111a] border border-slate-300 dark:border-slate-700 rounded-full px-3 py-1 flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 z-10 shadow-sm">
-                                    <Icon path={I.Footprints} size={10} className="text-emerald-500" /> Walk to {ride.landName}: ~{ride.travelTimeFromLast}m
-                                </div>
-                                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
-                            </div>
-                        )}
-
+                    <div className="relative group mb-3">
                         <div 
                             onClick={() => toggleExpand(ride.id)}
-                            className={`flex items-center p-3 rounded-xl transition-all cursor-pointer border relative z-20 ${
+                            className={`flex items-center p-3 rounded-xl transition-all cursor-pointer border ${
                                 isClosed ? 'bg-white dark:bg-[#080b12] border-rose-200 dark:border-rose-900/30' :
                                 isCompleted ? 'bg-slate-100 dark:bg-[#080b12] border-slate-200 dark:border-slate-800 hover:bg-white dark:hover:bg-[#0c111a]' :
                                 isMinor ? 'bg-slate-100 dark:bg-[#080b12] border-slate-200 dark:border-slate-800 hover:bg-white dark:hover:bg-[#0c111a]' :
@@ -493,11 +523,14 @@
                             } ${isExpanded ? 'rounded-b-none border-b-0' : ''}`}
                         >
                             {!isMinor && !isCompleted && !isClosed && (
-                                <div className={`hidden md:flex shrink-0 w-8 h-8 mr-3 rounded-full items-center justify-center text-xs font-black shadow-sm transition-all z-10 ${
-                                    ride.isPriority ? 'bg-emerald-500 text-white dark:text-black border-2 border-white dark:border-[#05070a]' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-2 border-white dark:border-[#05070a]'
-                                }`}>
-                                    {globalStep}
-                                </div>
+                                <>
+                                    <div className="absolute -left-8 top-1/2 w-8 h-[2px] bg-slate-300 dark:bg-slate-800 group-hover:bg-emerald-400 dark:group-hover:bg-emerald-500/50 transition-colors z-0 hidden md:block"></div>
+                                    <div className={`absolute -left-[45px] top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-lg transition-all z-10 hidden md:flex ${
+                                        ride.isPriority ? 'bg-emerald-500 text-white dark:text-black border-2 border-white dark:border-[#05070a] scale-110 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-2 border-white dark:border-[#05070a]'
+                                    }`}>
+                                        {globalStep}
+                                    </div>
+                                </>
                             )}
 
                             <div className="mr-3 flex shrink-0">
@@ -526,26 +559,23 @@
                                         {ride.name}
                                     </h4>
                                 </div>
-                                
                                 {ride.isPriority && !isCompleted && !isClosed && (
                                     <span className="inline-flex items-center gap-1 mt-1 text-[8px] font-black bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded uppercase tracking-wider">
                                         <Icon path={I.Target} size={8} /> Priority Target
                                     </span>
                                 )}
-                                
                                 {(isCompleted || isMinor || isClosed) && (
                                     <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase mt-1 line-clamp-1">{ride.parkName} - {ride.landName}</p>
                                 )}
-                                
                                 {!isCompleted && !isMinor && !isClosed && (
                                     <div className="flex flex-col gap-1 mt-2">
                                         <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[8px] font-mono text-slate-600 dark:text-slate-500 bg-white dark:bg-[#05070a] px-2 py-1.5 rounded border border-slate-200 dark:border-slate-800/50 w-fit shadow-sm dark:shadow-inner">
-                                            <span title="Arrival Rate (People joining per min)">λ: {ride.lambda.toFixed(1)}/m</span>
+                                            <span title="Arrival Speed">λ: {ride.lambda}/m</span>
                                             <span className="text-slate-300 dark:text-slate-700">|</span>
-                                            <span title="Effective Capacity (Throughput × Uptime)">μ: {ride.mu.toFixed(1)}/m</span>
+                                            <span title="Ride Capacity">μ: {ride.mu}/m</span>
                                             <span className="text-slate-300 dark:text-slate-700">|</span>
-                                            <span title="Traffic Intensity (Arrivals / Capacity)" className={ride.rho > 1.0 ? 'text-rose-500 dark:text-rose-400 font-bold bg-rose-100 dark:bg-rose-500/10 px-1 rounded' : 'text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-100 dark:bg-emerald-500/10 px-1 rounded'}>
-                                                ρ: {ride.rho.toFixed(2)}
+                                            <span title="Traffic Intensity" className={ride.rho > 1.0 ? 'text-rose-500 dark:text-rose-400 font-bold bg-rose-100 dark:bg-rose-500/10 px-1 rounded' : 'text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-100 dark:bg-emerald-500/10 px-1 rounded'}>
+                                                ρ: {ride.rho}
                                             </span>
                                         </div>
                                     </div>
@@ -563,7 +593,6 @@
                                             </div>
                                             <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter w-4">MIN</span>
                                         </div>
-                                        
                                         {!isCompleted && !isMinor && (
                                             <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.velocity > 0.1 ? 'text-rose-500 dark:text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
                                                 {ride.velocity > 0.1 ? <Icon path={I.TrendingUp} size={10} /> : ride.velocity < -0.1 ? <Icon path={I.TrendingDown} size={10} /> : <Icon path={I.Minus} size={10} />}
@@ -585,7 +614,7 @@
                                             <h5 className="text-[10px] text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
                                                 <Icon path={I.Info} size={10} /> Tactical Briefing
                                             </h5>
-                                            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-white dark:bg-[#0c111a] p-2 rounded border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
+                                            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-white dark:bg-[#0c111a] p-2 rounded border border-slate-200 dark:border-slate-800 shadow-sm">
                                                 {intel.brief}
                                             </p>
                                         </div>
@@ -593,7 +622,7 @@
                                             <h5 className="text-[10px] text-blue-500 dark:text-blue-400 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
                                                 <Icon path={I.Cpu} size={10} /> Operational Intel
                                             </h5>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed bg-white dark:bg-[#0c111a] p-2 rounded border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none">
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed bg-white dark:bg-[#0c111a] p-2 rounded border border-slate-200 dark:border-slate-800 shadow-sm">
                                                 {intel.intel}
                                             </p>
                                         </div>
@@ -604,11 +633,10 @@
                                         </div>
                                     </div>
 
-                                    <div className="space-y-3 bg-white dark:bg-[#0c111a] p-3 rounded-lg border border-slate-200 dark:border-slate-800/50 shadow-sm dark:shadow-inner">
+                                    <div className="space-y-3 bg-white dark:bg-[#0c111a] p-3 rounded-lg border border-slate-200 dark:border-slate-800/50 shadow-inner">
                                         <h5 className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1 mb-2 border-b border-slate-100 dark:border-slate-800 pb-1">
-                                            <Icon path={I.BarChart} size={10} /> System Diagnostics
+                                            <Icon path={I.BarChart} size={10} /> Live Diagnostics
                                         </h5>
-                                        
                                         {!isClosed && ride.velocity !== undefined ? (
                                             <>
                                                 <div>
@@ -625,32 +653,18 @@
                                                         )}
                                                     </div>
                                                 </div>
-
                                                 <div className="grid grid-cols-2 gap-2 mt-3">
                                                     <div className="bg-slate-50 dark:bg-[#05070a] p-2 rounded border border-slate-200 dark:border-slate-800/50">
                                                         <span className="text-[8px] text-slate-500 uppercase block mb-1">Throughput (μ)</span>
-                                                        <span className="text-xs text-slate-700 dark:text-slate-300 font-mono">{ride.mu.toFixed(1)} riders/min</span>
-                                                        <p className="text-[8px] text-slate-500 dark:text-slate-600 mt-1 leading-tight">Physical vehicle loading capacity.</p>
+                                                        <span className="text-xs text-slate-700 dark:text-slate-300 font-mono">{ride.mu} /m</span>
                                                     </div>
                                                     <div className="bg-slate-50 dark:bg-[#05070a] p-2 rounded border border-slate-200 dark:border-slate-800/50">
-                                                        <span className="text-[8px] text-slate-500 uppercase block mb-1">Traffic (ρ)</span>
-                                                        <span className={`text-xs font-mono font-bold ${ride.rho > 1 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{ride.rho.toFixed(2)}</span>
-                                                        <p className="text-[8px] text-slate-500 dark:text-slate-600 mt-1 leading-tight">{ride.rho > 1 ? 'Queue expanding faster than capacity.' : 'System handling volume efficiently.'}</p>
+                                                        <span className="text-[8px] text-slate-500 uppercase block mb-1">Intensity (ρ)</span>
+                                                        <span className={`text-xs font-mono font-bold ${ride.rho > 1 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{ride.rho}</span>
                                                     </div>
                                                 </div>
-                                                
-                                                {ride.uptime < 0.95 && (
-                                                    <div className="mt-2 flex items-center gap-2 text-[9px] font-mono text-amber-600 dark:text-amber-500 bg-amber-100 dark:bg-amber-500/10 px-2 py-1.5 rounded border border-amber-200 dark:border-amber-500/20">
-                                                        <Icon path={I.ShieldAlert} size={12} /> 
-                                                        <span><strong>WARNING:</strong> {(ride.uptime * 100).toFixed(0)}% Historical Uptime. Elevated mechanical risk.</span>
-                                                    </div>
-                                                )}
                                             </>
-                                        ) : (
-                                            <div className="py-4 text-center text-slate-400 dark:text-slate-500 text-xs font-mono">
-                                                TELEMETRY OFFLINE
-                                            </div>
-                                        )}
+                                        ) : <div className="py-4 text-center text-slate-400 text-xs font-mono">TELEMETRY OFFLINE</div>}
                                     </div>
                                 </div>
                             </div>
@@ -660,27 +674,16 @@
             };
 
             const TacticalMap = () => {
-                if (activePark === 'all') {
-                    return (
-                        <div className="h-48 w-full bg-slate-100 dark:bg-[#080b12] rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center p-4 text-center shadow-inner">
-                            <p className="text-xs text-slate-500 font-mono flex flex-col items-center gap-2">
-                                <Icon path={I.Crosshair} size={20} className="text-slate-400 dark:text-slate-600 animate-pulse" />
-                                Tactical Map requires a specific Sector.<br/>Please select a single park.
-                            </p>
-                        </div>
-                    );
-                }
-
-                const routePoints = masterSequence
-                    .filter(r => r.parkId.toString() === activePark)
-                    .map(r => ({ x: r.coords.x, y: r.coords.y, step: r.globalStep, label: r.name }));
+                if (activePark === 'all') return null;
+                const mapData = TACTICAL_COORDS[activePark];
+                const parkItinerary = itinerary.filter(zone => zone.parkId.toString() === activePark);
+                const routePoints = parkItinerary.map((zone, idx) => {
+                    const coord = mapData.find(c => zone.landName.toLowerCase().includes(c.match));
+                    return coord ? { ...coord, step: idx + 1 } : null;
+                }).filter(Boolean);
 
                 return (
-                    <div className="relative w-full aspect-[4/3] bg-white dark:bg-[#05070a] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-inner group">
-                        <div className="absolute inset-0 opacity-20 dark:opacity-20 pointer-events-none" 
-                             style={{ backgroundImage: 'linear-gradient(var(--grid-color) 1px, transparent 1px), linear-gradient(90deg, var(--grid-color) 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
-                        </div>
-                        
+                    <div className="relative w-full aspect-[4/3] bg-white dark:bg-[#05070a] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-inner">
                         <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
                             {routePoints.map((point, idx) => {
                                 if (idx === routePoints.length - 1) return null;
@@ -693,328 +696,132 @@
                                 );
                             })}
                         </svg>
-
-                        {routePoints.map((node, i) => (
-                            <div key={`node-${i}`} className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${node.x}%`, top: `${node.y}%` }}>
-                                <div className="w-6 h-6 rounded-full border-2 flex items-center justify-center font-black text-[10px] z-10 shadow-lg bg-emerald-500 border-emerald-300 dark:border-emerald-300 text-white dark:text-black">
-                                    {node.step}
+                        {mapData.map((node, i) => {
+                            const activeNode = routePoints.find(p => p.match === node.match);
+                            return (
+                                <div key={`node-${i}`} className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${node.x}%`, top: `${node.y}%` }}>
+                                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-black text-xs z-10 ${
+                                        activeNode ? 'bg-emerald-500 border-emerald-300 text-white dark:text-black scale-110 shadow-md' : 'bg-slate-100 dark:bg-[#0f172a] border-slate-300 dark:border-slate-700 text-slate-400'
+                                    }`}>
+                                        {activeNode ? activeNode.step : '•'}
+                                    </div>
                                 </div>
-                                <span className="mt-1 text-[7px] uppercase tracking-wider font-bold bg-white/90 dark:bg-[#05070a]/90 px-1 rounded text-emerald-600 dark:text-emerald-400 max-w-[60px] text-center leading-tight line-clamp-2">
-                                    {node.label}
-                                </span>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 );
             };
 
             return (
-                <div className="min-h-screen text-slate-800 dark:text-slate-300 font-sans p-4 md:p-8 flex flex-col items-center pb-32 transition-colors duration-300">
+                <div className="min-h-screen text-slate-800 dark:text-slate-300 font-sans p-4 md:p-8 flex flex-col items-center pb-32">
                     <div className="w-full max-w-6xl">
                         
                         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-l-4 border-emerald-500 pl-6 py-2 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-r-xl">
                             <div>
                                 <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tighter flex items-center gap-2">
-                                    <Icon path={I.Navigation} size={32} className="text-emerald-600 dark:text-emerald-500 animate-pulse" />
+                                    <Icon path={I.Navigation} size={32} className="text-emerald-600 dark:text-emerald-500" />
                                     DLP TOURING PLAN <span className="text-emerald-600/50 dark:text-emerald-500/50 text-sm font-mono">{buildHash}</span>
                                 </h1>
-                                <p className="text-xs font-mono text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mt-1">
-                                    Unified Queue Logistics Engine
-                                </p>
+                                <p className="text-xs font-mono text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mt-1">Unified Queue Logistics Engine</p>
                             </div>
-                            <div className="flex items-center gap-2 sm:gap-4 flex-wrap sm:flex-nowrap">
-                                <button 
-                                    onClick={toggleGPS}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-xs transition-all border ${
-                                        gpsEnabled 
-                                        ? 'bg-blue-600 border-blue-500 text-white shadow-sm dark:shadow-[0_0_10px_rgba(59,130,246,0.3)]' 
-                                        : 'bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                                    }`}
-                                >
-                                    <Icon path={I.Crosshair} size={14} className={gpsEnabled ? "animate-pulse" : ""} /> 
-                                    <span className="hidden sm:inline">GPS {gpsEnabled ? 'ON' : 'OFF'}</span>
+                            <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+                                <button onClick={toggleGPS} className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-xs border ${gpsEnabled ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}>
+                                    <Icon path={I.MapPin} size={14} /> <span>GPS {gpsEnabled ? 'ON' : 'OFF'}</span>
                                 </button>
-                                <button 
-                                    onClick={cycleTheme}
-                                    className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs transition-all border border-slate-300 dark:border-slate-700"
-                                    title={`Theme: ${theme.toUpperCase()}`}
-                                >
-                                    <Icon path={getThemeIcon()} size={14} /> 
-                                    <span className="hidden md:inline">{theme.toUpperCase()}</span>
+                                <button onClick={cycleTheme} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs border border-slate-300 dark:border-slate-700">
+                                    <Icon path={getThemeIcon()} size={14} /> <span>{theme.toUpperCase()}</span>
                                 </button>
-                                <button 
-                                    onClick={() => setShowPrimer(!showPrimer)}
-                                    className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs transition-all border border-slate-300 dark:border-slate-700"
-                                >
-                                    <Icon path={I.BookOpen} size={14} /> {showPrimer ? 'HIDE MANUAL' : 'FIELD MANUAL'}
+                                <button onClick={() => setShowPrimer(!showPrimer)} className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs border border-slate-300 dark:border-slate-700">
+                                    <Icon path={I.BookOpen} size={14} /> <span>MANUAL</span>
                                 </button>
-                                <button 
-                                    onClick={() => bootSystem(true)}
-                                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold text-xs transition-all border border-emerald-500 shadow-sm dark:shadow-[0_0_10px_rgba(16,185,129,0.2)]"
-                                >
-                                    <Icon path={I.RefreshCw} size={14} /> <span className="hidden sm:inline">SYNC</span>
+                                <button onClick={() => bootSystem(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold text-xs border border-emerald-500">
+                                    <Icon path={I.RefreshCw} size={14} /> <span>SYNC</span>
                                 </button>
-                                <div className="flex flex-col items-end hidden lg:flex ml-2">
-                                    {lastSync && <span className="text-[10px] font-mono text-slate-500">LAST SYNC: {lastSync}</span>}
-                                    <span className="text-[8px] font-mono text-emerald-600 dark:text-emerald-500 flex items-center gap-1">
-                                         <Icon path={I.Activity} size={8} className="animate-pulse" /> AUTO (300s)
-                                    </span>
-                                </div>
                             </div>
                         </header>
 
                         {showPrimer && (
-                            <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
-                                <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">
-                                     <h2 className="text-lg font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
-                                         <Icon path={I.BookOpen} size={20} /> Operational Field Manual
-                                     </h2>
-                                     <button onClick={() => setShowPrimer(false)} className="text-slate-400 hover:text-slate-800 dark:text-slate-500 dark:hover:text-white transition-colors">
-                                        <Icon path={I.X} size={20} />
-                                    </button>
-                                </div>
-                                
-                                <div className="space-y-8 text-sm text-slate-600 dark:text-slate-300">
-                                    <p className="leading-relaxed text-base">
-                                        Welcome to the Unified Queue Logistics Engine. This system is explicitly built to outmaneuver standard theme park traffic. By calculating real-time queue velocity against physical walking distances, it eliminates the need for paid skip-the-line passes. Here is how you, Emma, and Ruby should execute your day.
-                                    </p>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="space-y-4">
-                                            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">I. Squad Deployment & Routing</h3>
-                                            <ul className="space-y-3">
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Follow the Master Sequence:</strong> The system automatically groups rides by land to prevent physical exhaustion. It evaluates wait times, predicts 60-minute surges, and clusters your route to avoid walking back and forth across the park.</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Log Completed Targets:</strong> Once you enter a queue, <strong>check the box</strong>. The system will log it to the archive, set your current location as the new <em>Dynamic Origin</em>, and instantly recalculate the optimal route to your next objective.</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.Crosshair} size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Toggle GPS Tracking:</strong> After taking a break for lunch, tap the <strong>GPS</strong> button. The engine will triangulate your actual location and build a new path. Turn it back off to save battery when you resume the route.</span>
-                                                </li>
-                                            </ul>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">II. HUD Diagnostics</h3>
-                                            <p className="text-xs">Tap anywhere on a ride's card (except the checkbox) to run an AI Deep-Scan, revealing tactical briefings and throughput charts based on these core variables:</p>
-                                            
-                                            <div className="bg-slate-50 dark:bg-[#05070a] p-3 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-[10px] space-y-2">
-                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">λ (Lambda)</span><span className="text-slate-800 dark:text-white">People joining queue per min</span></div>
-                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">Ar (Availability)</span><span className="text-slate-800 dark:text-white">Historical uptime %</span></div>
-                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">μ (Mu)</span><span className="text-slate-800 dark:text-white">Effective hardware capacity/min</span></div>
-                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">ρ (Rho)</span><span className="text-slate-800 dark:text-white">Ratio of λ / μ (Danger metric)</span></div>
-                                                <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">PRED</span><span className="text-slate-800 dark:text-white">Velocity Forecast in 60 mins</span></div>
-                                            </div>
-                                            
-                                            <div className="text-xs space-y-2 pt-2">
-                                                <p><span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">ρ &lt; 1.0 (Green):</span> The physical ride is loading people faster than they are arriving. The queue is shrinking. Safe to delay riding.</p>
-                                                <p><span className="text-rose-500 dark:text-rose-400 font-bold font-mono">ρ &gt; 1.0 (Red):</span> People are flooding the queue faster than the ride can load them. Wait time is exploding. Route here immediately.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                            <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl">
+                                <h2 className="text-lg font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-4">Operational Manual</h2>
+                                <p className="leading-relaxed">This terminal utilizes <strong>Live Data Delta Tracking</strong>. Every 5 minutes, the engine pulls the current queue times and compares them to the historic ledger cached on your device. By measuring the absolute difference between the old wait time and the new wait time, it calculates a mathematically precise Live Arrival Velocity ($\lambda$). It no longer guesses crowds based on the time of day; it responds directly to empirical data drops.</p>
                             </div>
                         )}
 
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                             <div className="lg:col-span-1 space-y-4">
-                                <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl">
-                                    <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                        <Icon path={I.Layers} size={12} /> Zone Selection
-                                    </h2>
+                                <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
                                     <div className="grid grid-cols-1 gap-2">
-                                        {[
-                                            { id: '4', label: 'Disneyland Park' },
-                                            { id: '28', label: 'Disney Adventure World' },
-                                            { id: 'all', label: 'Full Resort' }
-                                        ].map(p => (
-                                            <button
-                                                key={p.id}
-                                                onClick={() => setActivePark(p.id)}
-                                                className={`text-left px-4 py-2 rounded-xl text-xs font-bold transition-all border flex justify-between items-center ${
-                                                    activePark === p.id ? 'bg-emerald-600 border-emerald-500 text-white shadow-md dark:shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300'
-                                                }`}
-                                            >
-                                                {p.label}
-                                                {activePark === p.id && <Icon path={I.ChevronRight} size={14} />}
+                                        {[{ id: '4', label: 'Disneyland Park' }, { id: '28', label: 'Disney Adventure World' }, { id: 'all', label: 'Full Resort' }].map(p => (
+                                            <button key={p.id} onClick={() => setActivePark(p.id)} className={`text-left px-4 py-2 rounded-xl text-xs font-bold border flex justify-between items-center ${activePark === p.id ? 'bg-emerald-600 border-emerald-500 text-white' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'}`}>
+                                                {p.label} <Icon path={I.ChevronRight} size={14} />
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-
-                                <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-sm dark:shadow-xl hidden md:block">
-                                     <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 ml-2 flex items-center gap-2">
-                                        <Icon path={I.MapIcon} size={12} /> Live Route Map
-                                    </h2>
+                                <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-3 hidden md:block">
                                     <TacticalMap />
                                 </div>
                             </div>
 
                             <div className="lg:col-span-3 space-y-6">
-                                {loading ? (
-                                    <div className="flex flex-col items-center justify-center py-24 bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm">
-                                        <Icon path={I.Database} size={40} className="text-emerald-500 animate-bounce mb-4" />
-                                        <p className="text-slate-800 dark:text-white font-bold tracking-widest animate-pulse uppercase text-xs">Parsing Topological Data...</p>
-                                    </div>
-                                ) : error ? (
-                                    <div className="bg-rose-50 dark:bg-red-900/20 border border-rose-200 dark:border-red-500/50 rounded-3xl p-10 text-center">
-                                        <Icon path={I.ShieldAlert} size={48} className="mx-auto text-rose-500 mb-4" />
-                                        <p className="text-rose-800 dark:text-red-300 text-sm">{error}</p>
-                                    </div>
-                                ) : (
+                                {loading ? <div className="text-center py-24">Parsing Topological Telemetry Data...</div> : (
                                     <div className="space-y-6">
-                                        
                                         {masterSequence.length > 0 && (
-                                            <div className="bg-white dark:bg-[#0c111a] border-l-4 border-emerald-500 rounded-r-2xl p-4 shadow-sm dark:shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-slate-200 dark:border-transparent dark:border-l-emerald-500">
-                                                
-                                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-3 bg-slate-100 dark:bg-slate-800/50 rounded-xl text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
-                                                            <Icon path={I.Timer} size={24} />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Est. Total Queue Time</p>
-                                                            <h3 className="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1">
-                                                                {Math.floor(metrics.totalQueueTimeMins / 60)}<span className="text-sm text-slate-500">H</span> {Math.round(metrics.totalQueueTimeMins % 60)}<span className="text-sm text-slate-500">M</span>
-                                                            </h3>
-                                                        </div>
+                                            <div className="bg-white dark:bg-[#0c111a] rounded-2xl p-4 flex flex-col md:flex-row justify-between border border-slate-200 dark:border-slate-800 gap-4">
+                                                <div className="flex gap-6">
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase">Est. Queue Time</p>
+                                                        <h3 className="text-2xl font-black">{Math.floor(metrics.totalQueueTimeMins / 60)}H {metrics.totalQueueTimeMins % 60}M</h3>
                                                     </div>
-
-                                                    <div className="hidden sm:block w-px h-10 bg-slate-200 dark:bg-slate-800"></div>
-
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
-                                                            <Icon path={I.Hourglass} size={24} className="animate-pulse" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Projected Efficiency Gain</p>
-                                                            <h3 className="text-2xl font-black text-slate-900 dark:text-white flex items-baseline gap-1">
-                                                                {Math.floor(metrics.totalSavedMins / 60)}<span className="text-sm text-emerald-600 dark:text-emerald-500">H</span> {Math.round(metrics.totalSavedMins % 60)}<span className="text-sm text-emerald-600 dark:text-emerald-500">M</span>
-                                                            </h3>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="text-right text-[10px] font-mono text-slate-600 dark:text-slate-400 space-y-1 bg-slate-50 dark:bg-[#05070a] p-2 rounded-lg border border-slate-200 dark:border-slate-800 w-full md:w-auto">
-                                                    <div className="flex justify-between md:justify-end gap-4">
-                                                        <span>QUEUE EVASION:</span>
-                                                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{metrics.queueEvasionSaved}m</span>
-                                                    </div>
-                                                    <div className="flex justify-between md:justify-end gap-4">
-                                                        <span>TSP ROUTING:</span>
-                                                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{metrics.walkSaved}m</span>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase">Efficiency Saved</p>
+                                                        <h3 className="text-2xl font-black text-emerald-500">{Math.floor(metrics.totalSavedMins / 60)}H {metrics.totalSavedMins % 60}M</h3>
                                                     </div>
                                                 </div>
                                             </div>
                                         )}
 
-                                        <div className="flex justify-between items-end px-2 mb-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-                                            <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">MASTER SEQUENCE</h2>
-                                            <span className="text-xs font-mono text-emerald-600 dark:text-emerald-500">{masterSequence.length} OBJECTIVES</span>
+                                        <div className="space-y-0 w-full">
+                                            {masterSequence.map(ride => <RideCard key={ride.id} ride={ride} globalStep={ride.globalStep} />)}
                                         </div>
 
-                                        {masterSequence.length === 0 ? (
-                                            <div className="p-8 bg-white dark:bg-[#0c111a] border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl text-center text-slate-500 text-sm flex flex-col items-center my-8 shadow-sm">
-                                                 <Icon path={I.Activity} size={32} className="text-emerald-500 mb-3 opacity-50" />
-                                                 <p className="font-bold text-slate-800 dark:text-white mb-1">Queue Empty</p>
-                                                 <p>All active elite objectives have been logged.<br/>Untick items in the optional bank below to route secondary targets.</p>
-                                             </div>
-                                        ) : (
-                                            <div className="space-y-0 w-full">
-                                                {masterSequence.map((ride, idx) => (
-                                                    <RideCard key={ride.id} ride={ride} globalStep={ride.globalStep} />
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {/* COMPLETED OBJECTIVES ZONE */}
                                         {completedSequence.length > 0 && (
                                             <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
-                                                <div className="flex items-center gap-2 mb-4 px-2">
-                                                    <Icon path={I.CheckCircle} size={18} className="text-slate-400 dark:text-slate-500" />
-                                                    <h2 className="text-sm font-black text-slate-500 uppercase tracking-widest">Completed Objectives</h2>
-                                                    <span className="text-xs font-mono text-slate-500 dark:text-slate-600 bg-white dark:bg-[#05070a] px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 ml-auto">
-                                                        {completedSequence.length} LOGGED
-                                                    </span>
-                                                </div>
-                                                <div className="opacity-60 space-y-3 w-full">
-                                                    {completedSequence.map((ride) => <RideCard key={ride.id} ride={ride} isCompleted={true} />)}
-                                                </div>
+                                                <h3 className="text-xs font-black uppercase mb-4 tracking-wider text-slate-400">Completed Archive</h3>
+                                                {completedSequence.map(ride => <RideCard key={ride.id} ride={ride} isCompleted={true} />)}
                                             </div>
                                         )}
 
-                                        {/* MINOR (OPTIONAL) ZONE */}
                                         {minorSequence.length > 0 && (
                                             <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
-                                                <div className="flex items-center gap-2 mb-4 px-2">
-                                                    <Icon path={I.List} size={18} className="text-slate-400 dark:text-slate-500" />
-                                                    <h2 className="text-sm font-black text-slate-500 uppercase tracking-widest">All Other Attractions (Optional)</h2>
-                                                    <span className="text-xs font-mono text-slate-500 dark:text-slate-600 bg-white dark:bg-[#05070a] px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 ml-auto">
-                                                        {minorSequence.length} HIDDEN
-                                                    </span>
-                                                </div>
-                                                <div className="opacity-80 space-y-3 w-full">
-                                                    {minorSequence.map((ride) => <RideCard key={ride.id} ride={ride} isMinor={true} />)}
-                                                </div>
+                                                <h3 className="text-xs font-black uppercase mb-4 tracking-wider text-slate-400">All Other Attractions (Optional)</h3>
+                                                {minorSequence.map(ride => <RideCard key={ride.id} ride={ride} isMinor={true} />)}
                                             </div>
                                         )}
 
-                                        {/* CLOSED ATTRACTIONS ZONE */}
                                         {closedSequence.length > 0 && (
                                             <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
-                                                <div className="flex items-center gap-2 mb-4 px-2">
-                                                    <Icon path={I.ShieldAlert} size={18} className="text-rose-500" />
-                                                    <h2 className="text-sm font-black text-rose-500 uppercase tracking-widest">Closed Attractions</h2>
-                                                    <span className="text-xs font-mono text-rose-600 dark:text-rose-500/70 bg-rose-50 dark:bg-[#05070a] px-2 py-0.5 rounded border border-rose-200 dark:border-rose-500/20 ml-auto">
-                                                        {closedSequence.length} OFFLINE
-                                                    </span>
-                                                </div>
-                                                <div className="opacity-80 dark:opacity-70 space-y-3 w-full">
-                                                    {closedSequence.map((ride) => <RideCard key={ride.id} ride={ride} isClosed={true} />)}
-                                                </div>
+                                                <h3 className="text-xs font-black uppercase mb-4 tracking-wider text-rose-500">Offline Attractions</h3>
+                                                {closedSequence.map(ride => <RideCard key={ride.id} ride={ride} isClosed={true} />)}
                                             </div>
                                         )}
-
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* TERMINAL LOG VIEWER */}
-                        <div className="mt-12 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#0c111a] overflow-hidden shadow-sm dark:shadow-xl mb-8">
-                            <button 
-                                onClick={() => setShowTerminal(!showTerminal)}
-                                className="w-full flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-transparent"
-                            >
-                                <div className="flex items-center gap-2">
-                                    <Icon path={I.Terminal} size={14} className="text-emerald-600 dark:text-emerald-500" /> System Network Logs
-                                </div>
-                                <Icon path={showTerminal ? I.ChevronUp : I.ChevronDown} size={14} className="text-slate-400" />
+                        {/* TERMINAL */}
+                        <div className="mt-12 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#0c111a] overflow-hidden">
+                            <button onClick={() => setShowTerminal(!showTerminal)} className="w-full flex justify-between p-3 text-[10px] font-mono tracking-widest text-slate-400 uppercase">
+                                <span>Network Daemon Logs</span> <span>[TOGGLE]</span>
                             </button>
-                            
                             {showTerminal && (
-                                <div className="p-4 bg-slate-100 dark:bg-[#020408] h-64 overflow-y-auto font-mono text-[10px] space-y-1.5 terminal-scroll shadow-inner">
-                                    {logs.length === 0 ? (
-                                        <p className="text-slate-500 dark:text-slate-600 italic">Initializing network daemon...</p>
-                                    ) : (
-                                        logs.map((log, i) => (
-                                            <div key={i} className="flex items-start gap-3">
-                                                <span className="text-slate-400 dark:text-slate-600 shrink-0">[{log.time}]</span>
-                                                <span className={`
-                                                    ${log.type === 'info' ? 'text-blue-600 dark:text-blue-400' : ''}
-                                                    ${log.type === 'success' ? 'text-emerald-600 dark:text-emerald-400' : ''}
-                                                    ${log.type === 'warn' ? 'text-amber-600 dark:text-amber-400' : ''}
-                                                    ${log.type === 'error' ? 'text-rose-600 dark:text-rose-500 font-bold' : ''}
-                                                `}>
-                                                    {log.msg}
-                                                </span>
-                                            </div>
-                                        ))
-                                    )}
+                                <div className="p-4 bg-slate-100 dark:bg-[#020408] h-48 overflow-y-auto font-mono text-[10px] terminal-scroll">
+                                    {logs.map((log, i) => (
+                                        <div key={i} className="flex gap-2 text-slate-500">
+                                            <span>[{log.time}]</span> <span className={log.type === 'success' ? 'text-emerald-500' : ''}>{log.msg}</span>
+                                        </div>
+                                    ))}
                                     <div ref={logsEndRef} />
                                 </div>
                             )}
