@@ -138,11 +138,11 @@
             
             // Persistent Storage Layers
             const [completedTargets, setCompletedTargets] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v4') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v5') || '[]'));
             });
             
             const [activatedMinors, setActivatedMinors] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v4') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v5') || '[]'));
             });
 
             const [logs, setLogs] = useState([]);
@@ -155,11 +155,11 @@
             }, [lastSync]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_completed_v4', JSON.stringify(Array.from(completedTargets)));
+                localStorage.setItem('dlp_completed_v5', JSON.stringify(Array.from(completedTargets)));
             }, [completedTargets]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_activated_v4', JSON.stringify(Array.from(activatedMinors)));
+                localStorage.setItem('dlp_activated_v5', JSON.stringify(Array.from(activatedMinors)));
             }, [activatedMinors]);
 
             const toggleRide = (rideId) => {
@@ -248,7 +248,7 @@
                                         parkId: park.id, 
                                         landName: land.name,
                                         isPriority: isPriority,
-                                        isMinor: !isPriority // STRICT MODE: If it's not explicitly elite, it's a minor attraction
+                                        isMinor: !isPriority
                                     };
                                 })
                             );
@@ -282,7 +282,7 @@
             }, []);
 
             const memoizedData = useMemo(() => {
-                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0 } };
+                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0 } };
 
                 const parisTimeStr = new Date().toLocaleString("en-US", {timeZone: "Europe/Paris"});
                 const now = new Date(parisTimeStr);
@@ -293,14 +293,18 @@
 
                 const completedSequence = [];
                 const minorSequence = [];
+                const closedSequence = [];
                 const activePool = [];
 
+                // Master Filtering Matrix - Strict Sequence Override
                 rides.forEach(r => {
                     const matchPark = activePark === 'all' || r.parkId === parseInt(activePark);
                     if (!matchPark) return;
 
                     if (completedTargets.has(r.id)) {
                         completedSequence.push(r);
+                    } else if (!r.is_open) {
+                        closedSequence.push(r); // Traps closed Priority AND Minor rides
                     } else if (r.isMinor && !activatedMinors.has(r.id)) {
                         minorSequence.push(r);
                     } else {
@@ -310,6 +314,7 @@
 
                 minorSequence.sort((a, b) => a.name.localeCompare(b.name));
                 completedSequence.sort((a, b) => a.name.localeCompare(b.name));
+                closedSequence.sort((a, b) => a.name.localeCompare(b.name));
 
                 const grouped = {};
                 activePool.forEach(ride => {
@@ -369,9 +374,8 @@
                 // DYNAMIC ORIGIN MATRIX CALCULATOR
                 Object.keys(parkGroups).forEach(pId => {
                    let unvisited = parkGroups[pId];
-                   let currentPos = { x: 50, y: 95 }; // Baseline entry gates
+                   let currentPos = { x: 50, y: 95 }; 
                    
-                   // Scans back in time to lock location to the last ride you checked off
                    const completedArray = Array.from(completedTargets);
                    for (let i = completedArray.length - 1; i >= 0; i--) {
                        const lastId = completedArray[i];
@@ -424,11 +428,12 @@
                     masterSequence: sequence,
                     completedSequence,
                     minorSequence,
+                    closedSequence,
                     metrics: { queueEvasionSaved, walkSaved, totalSavedMins }
                 };
             }, [rides, activePark, completedTargets, activatedMinors]);
 
-            const { itinerary, masterSequence, completedSequence, minorSequence, metrics } = memoizedData;
+            const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
 
             const TacticalMap = () => {
                 if (activePark === 'all') {
@@ -808,11 +813,39 @@
                                                                 <p className="text-[9px] font-mono text-slate-600 uppercase">{ride.parkName} - {ride.landName}</p>
                                                             </div>
                                                             <div className="shrink-0 text-right font-mono text-[10px] font-bold">
-                                                                {ride.is_open ? (
-                                                                    <span className="text-slate-400">{ride.wait_time} MIN</span>
-                                                                ) : (
-                                                                    <span className="text-rose-500">CLOSED</span>
-                                                                )}
+                                                                <span className="text-slate-400">{ride.wait_time} MIN</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* CLOSED ATTRACTIONS ZONE */}
+                                        {closedSequence.length > 0 && (
+                                            <div className="mt-8 border-t border-slate-800 pt-6">
+                                                <div className="flex items-center gap-2 mb-4 px-2">
+                                                    <Icon path={I.ShieldAlert} size={18} className="text-rose-500" />
+                                                    <h2 className="text-sm font-black text-rose-500 uppercase tracking-widest">Closed Attractions</h2>
+                                                    <span className="text-xs font-mono text-rose-500/70 bg-[#05070a] px-2 py-0.5 rounded border border-rose-500/20 ml-auto">
+                                                        {closedSequence.length} OFFLINE
+                                                    </span>
+                                                </div>
+                                                
+                                                <div className="space-y-2 px-2 opacity-70">
+                                                    {closedSequence.map((ride) => (
+                                                        <div key={ride.id} className="flex items-center p-3 rounded-xl bg-[#080b12] border border-rose-900/30">
+                                                            <div className="mr-3 flex shrink-0">
+                                                                <div className="w-5 h-5 rounded border border-rose-900/50 flex items-center justify-center bg-rose-950/20">
+                                                                    <Icon path={I.X} size={12} className="text-rose-500/50" />
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex-grow">
+                                                                <h4 className="text-sm font-bold text-slate-400">{ride.name}</h4>
+                                                                <p className="text-[9px] font-mono text-slate-600 uppercase">{ride.parkName} - {ride.landName}</p>
+                                                            </div>
+                                                            <div className="shrink-0 text-right font-mono text-[10px] font-bold">
+                                                                <span className="text-rose-500 bg-rose-500/10 px-2 py-1 rounded">CLOSED</span>
                                                             </div>
                                                         </div>
                                                     ))}
