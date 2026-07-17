@@ -61,7 +61,8 @@
             TrendingDown: '<polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline>',
             Minus: '<line x1="5" y1="12" x2="19" y2="12"></line>',
             RefreshCw: '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
-            CheckCircle: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>'
+            CheckCircle: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>',
+            List: '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>'
         };
 
         // --- DATA LOGISTICS ---
@@ -77,13 +78,14 @@
             "Phantom Manor", "Star Tours: The Adventures Continue", "Peter Pan's Flight", "Buzz Lightyear Laser Blast"
         ];
 
-        const EXCLUDED_KEYWORDS = [
+        // Minor attractions are no longer excluded, just flagged as "Minor" and hidden by default.
+        const MINOR_KEYWORDS = [
             'meet', 'character', 'show', 'vehicles', 'sing-along', 'greeting', 'spectacular', 'parade', 
             'cavalcade', 'fireworks', 'exhibition', 'play area', 'playground', 'band', 'orchestra', 
             'chorus', 'stage', 'theater', 'theatre', 'walkthrough', 'gallery', 'trolley', 'omnibus',
             'fire engine', 'horse-drawn', 'street car', 'railroad', 'passage', 'labyrinth', 'cabane', 
             'arcade', 'nautilus', 'galleon', 'isle', 'dragon', 'bois dormant', 'academy', 'riverboat', 
-            'village', 'galerie', 'single rider', 'single riders'
+            'village', 'galerie', 'single rider', 'single riders', 'stitch live'
         ];
 
         const UPTIME_STATS = {
@@ -116,7 +118,6 @@
             return coord || { x: 50, y: 50 };
         };
 
-        // --- UPDATED NETWORK ARCHITECTURE ---
         const PROXIES = [
             {
                 name: "CorsProxy.io (Primary)",
@@ -145,9 +146,14 @@
             const [lastSync, setLastSync] = useState(null);
             const [showPrimer, setShowPrimer] = useState(false);
             
-            // Persistent Memory State
+            // Persistent Memory States
             const [completedTargets, setCompletedTargets] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v2') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v3') || '[]'));
+            });
+            
+            // Tracks minor rides that the user has UNTICKED to add to the main planner
+            const [activatedMinors, setActivatedMinors] = useState(() => {
+                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v3') || '[]'));
             });
 
             // Terminal System States
@@ -160,10 +166,14 @@
                 return `BUILD ${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
             }, [lastSync]);
 
-            // Save checked off rides to local storage
+            // Save states to local storage
             useEffect(() => {
-                localStorage.setItem('dlp_completed_v2', JSON.stringify(Array.from(completedTargets)));
+                localStorage.setItem('dlp_completed_v3', JSON.stringify(Array.from(completedTargets)));
             }, [completedTargets]);
+
+            useEffect(() => {
+                localStorage.setItem('dlp_activated_v3', JSON.stringify(Array.from(activatedMinors)));
+            }, [activatedMinors]);
 
             const toggleRide = (rideId) => {
                 setCompletedTargets(prev => {
@@ -173,7 +183,21 @@
                         addLog(`[SYS] Objective restored to routing sequence.`, 'success');
                     } else {
                         next.add(rideId);
-                        addLog(`[SYS] Objective completed. Evading from routing.`, 'info');
+                        addLog(`[SYS] Objective completed. Recalculating Dynamic Origin.`, 'info');
+                    }
+                    return next;
+                });
+            };
+
+            const toggleMinor = (rideId) => {
+                setActivatedMinors(prev => {
+                    const next = new Set(prev);
+                    if (next.has(rideId)) {
+                        next.delete(rideId);
+                        addLog(`[SYS] Optional objective ignored. Removed from routing.`, 'info');
+                    } else {
+                        next.add(rideId);
+                        addLog(`[SYS] Optional objective activated. Adding to routing sequence.`, 'success');
                     }
                     return next;
                 });
@@ -230,20 +254,20 @@
                             
                             let ridesFound = 0;
                             const processed = data.lands.flatMap(land => 
-                                land.rides
-                                    .filter(r => r.is_open && !EXCLUDED_KEYWORDS.some(kw => r.name.toLowerCase().includes(kw)))
-                                    .map(r => {
-                                        ridesFound++;
-                                        return {
-                                            ...r, 
-                                            parkName: park.name, 
-                                            parkId: park.id, 
-                                            landName: land.name,
-                                            isPriority: PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase())),
-                                        };
-                                    })
+                                land.rides.map(r => {
+                                    ridesFound++;
+                                    const isMinor = MINOR_KEYWORDS.some(kw => r.name.toLowerCase().includes(kw)) || !r.is_open;
+                                    return {
+                                        ...r, 
+                                        parkName: park.name, 
+                                        parkId: park.id, 
+                                        landName: land.name,
+                                        isPriority: PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase())),
+                                        isMinor: isMinor
+                                    };
+                                })
                             );
-                            addLog(`[SYS] Parsed ${ridesFound} valid objectives from ${park.name}`, 'info');
+                            addLog(`[SYS] Parsed ${ridesFound} total objectives from ${park.name}`, 'info');
                             allFetchedRides.push(...processed);
                         } catch (e) { 
                             addLog(`[ERR] ${park.name} completely isolated. Connection blocked.`, 'error');
@@ -274,29 +298,39 @@
             }, []);
 
             const memoizedData = useMemo(() => {
-                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0 } };
+                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0 } };
 
                 const parisTimeStr = new Date().toLocaleString("en-US", {timeZone: "Europe/Paris"});
                 const now = new Date(parisTimeStr);
                 let t = (now.getHours() * 60 + now.getMinutes()) - 540;
                 if (t < 0) t = 0;
                 if (t > 720) t = 720; 
-
                 const R = 200 + 200 * Math.sin((t * Math.PI) / 720); 
 
-                // Isolate completed rides so they don't break the walking algorithm
-                const completedSequence = rides.filter(r => completedTargets.has(r.id) && (activePark === 'all' || r.parkId === parseInt(activePark)));
+                // Isolate completed and minor rides
+                const completedSequence = [];
+                const minorSequence = [];
+                const activePool = [];
 
-                // Filter for active itinerary
-                let filtered = rides.filter(r => {
+                rides.forEach(r => {
                     const matchPark = activePark === 'all' || r.parkId === parseInt(activePark);
-                    const matchWait = r.wait_time >= 20 || r.isPriority; 
-                    const isNotCompleted = !completedTargets.has(r.id);
-                    return matchPark && matchWait && isNotCompleted;
+                    if (!matchPark) return;
+
+                    if (completedTargets.has(r.id)) {
+                        completedSequence.push(r);
+                    } else if (r.isMinor && !activatedMinors.has(r.id)) {
+                        minorSequence.push(r);
+                    } else {
+                        activePool.push(r);
+                    }
                 });
 
+                // Sort lists for display
+                minorSequence.sort((a, b) => a.name.localeCompare(b.name));
+                completedSequence.sort((a, b) => a.name.localeCompare(b.name));
+
                 const grouped = {};
-                filtered.forEach(ride => {
+                activePool.forEach(ride => {
                     const zoneKey = `${ride.parkName} - ${ride.landName}`;
                     if (!grouped[zoneKey]) {
                         grouped[zoneKey] = {
@@ -350,10 +384,22 @@
                    parkGroups[z.parkId].push(z);
                 });
 
+                // DYNAMIC ORIGIN TSP ROUTING
                 Object.keys(parkGroups).forEach(pId => {
                    let unvisited = parkGroups[pId];
-                   let currentPos = { x: 50, y: 95 }; 
+                   let currentPos = { x: 50, y: 95 }; // Default entrance position
                    
+                   // Dynamic Origin: Find the most recently completed ride in THIS park and start routing from there.
+                   const completedArray = Array.from(completedTargets);
+                   for (let i = completedArray.length - 1; i >= 0; i--) {
+                       const lastId = completedArray[i];
+                       const lastRide = rides.find(r => r.id === lastId);
+                       if (lastRide && lastRide.parkId.toString() === pId) {
+                           currentPos = getCoords(pId, lastRide.landName);
+                           break; // Origin found
+                       }
+                   }
+
                    while(unvisited.length > 0) {
                       unvisited.forEach(zone => {
                          const dest = getCoords(pId, zone.landName);
@@ -369,7 +415,7 @@
                       const nextZone = unvisited.shift();
                       
                       tspSortedLands.push(nextZone);
-                      currentPos = nextZone.coords; 
+                      currentPos = nextZone.coords; // Move current position
                    }
                 });
 
@@ -395,11 +441,12 @@
                     itinerary: tspSortedLands, 
                     masterSequence: sequence,
                     completedSequence,
+                    minorSequence,
                     metrics: { queueEvasionSaved, walkSaved, totalSavedMins }
                 };
-            }, [rides, activePark, completedTargets]);
+            }, [rides, activePark, completedTargets, activatedMinors]);
 
-            const { itinerary, masterSequence, completedSequence, metrics } = memoizedData;
+            const { itinerary, masterSequence, completedSequence, minorSequence, metrics } = memoizedData;
 
             const TacticalMap = () => {
                 if (activePark === 'all') {
@@ -577,143 +624,148 @@
                                         <Icon path={I.ShieldAlert} size={48} className="mx-auto text-red-500 mb-4" />
                                         <p className="text-red-300 text-sm">{error}</p>
                                     </div>
-                                ) : masterSequence.length === 0 ? (
-                                     <div className="p-8 bg-[#0c111a] border border-dashed border-slate-800 rounded-2xl text-center text-slate-500 text-sm flex flex-col items-center">
-                                         <Icon path={I.Activity} size={32} className="text-emerald-500 mb-3 opacity-50" />
-                                         <p className="font-bold text-white mb-1">All Clear</p>
-                                         <p>All active rides are currently reporting under a 20-minute wait.<br/>Proceed at your own discretion!</p>
-                                     </div>
                                 ) : (
                                     <div className="space-y-6">
-                                        <div className="bg-[#0c111a] border-l-4 border-emerald-500 rounded-r-2xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
-                                                    <Icon path={I.Hourglass} size={24} className="animate-pulse" />
+                                        
+                                        {masterSequence.length > 0 && (
+                                            <div className="bg-[#0c111a] border-l-4 border-emerald-500 rounded-r-2xl p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+                                                        <Icon path={I.Hourglass} size={24} className="animate-pulse" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Projected Efficiency Gain</p>
+                                                        <h3 className="text-2xl font-black text-white flex items-baseline gap-1">
+                                                            {Math.floor(metrics.totalSavedMins / 60)}<span className="text-sm text-emerald-500">H</span> {metrics.totalSavedMins % 60}<span className="text-sm text-emerald-500">M</span>
+                                                        </h3>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Projected Efficiency Gain</p>
-                                                    <h3 className="text-2xl font-black text-white flex items-baseline gap-1">
-                                                        {Math.floor(metrics.totalSavedMins / 60)}<span className="text-sm text-emerald-500">H</span> {metrics.totalSavedMins % 60}<span className="text-sm text-emerald-500">M</span>
-                                                    </h3>
+                                                <div className="text-right text-[10px] font-mono text-slate-400 space-y-1 bg-[#05070a] p-2 rounded-lg border border-slate-800 w-full sm:w-auto">
+                                                    <div className="flex justify-between sm:justify-end gap-4">
+                                                        <span>QUEUE EVASION:</span>
+                                                        <span className="text-emerald-400 font-bold">+{metrics.queueEvasionSaved}m</span>
+                                                    </div>
+                                                    <div className="flex justify-between sm:justify-end gap-4">
+                                                        <span>TSP ROUTING:</span>
+                                                        <span className="text-emerald-400 font-bold">+{metrics.walkSaved}m</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="text-right text-[10px] font-mono text-slate-400 space-y-1 bg-[#05070a] p-2 rounded-lg border border-slate-800 w-full sm:w-auto">
-                                                <div className="flex justify-between sm:justify-end gap-4">
-                                                    <span>QUEUE EVASION:</span>
-                                                    <span className="text-emerald-400 font-bold">+{metrics.queueEvasionSaved}m</span>
-                                                </div>
-                                                <div className="flex justify-between sm:justify-end gap-4">
-                                                    <span>TSP ROUTING:</span>
-                                                    <span className="text-emerald-400 font-bold">+{metrics.walkSaved}m</span>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        )}
 
                                         <div className="flex justify-between items-end px-2 mb-2 border-b border-slate-800 pb-2">
                                             <h2 className="text-xl font-black text-white tracking-tight">MASTER SEQUENCE</h2>
                                             <span className="text-xs font-mono text-emerald-500">{masterSequence.length} OBJECTIVES</span>
                                         </div>
 
-                                        <div className="relative border-l-2 border-slate-800 ml-6 space-y-6 pb-8 mt-4">
-                                            {itinerary.map((zone, zoneIdx) => (
-                                                <div key={`${zone.parkId}-${zone.landName}`} className="relative">
-                                                    
-                                                    {zoneIdx > 0 && (
-                                                         <div className="absolute -left-[45px] -top-10 h-10 border-l-2 border-dashed border-emerald-500/30"></div>
-                                                    )}
+                                        {masterSequence.length === 0 ? (
+                                            <div className="p-8 bg-[#0c111a] border border-dashed border-slate-800 rounded-2xl text-center text-slate-500 text-sm flex flex-col items-center my-8">
+                                                 <Icon path={I.Activity} size={32} className="text-emerald-500 mb-3 opacity-50" />
+                                                 <p className="font-bold text-white mb-1">Queue Empty</p>
+                                                 <p>All active objectives have been completed.<br/>Untick items below to route to new targets.</p>
+                                             </div>
+                                        ) : (
+                                            <div className="relative border-l-2 border-slate-800 ml-6 space-y-6 pb-8 mt-4">
+                                                {itinerary.map((zone, zoneIdx) => (
+                                                    <div key={`${zone.parkId}-${zone.landName}`} className="relative">
+                                                        
+                                                        {zoneIdx > 0 && (
+                                                             <div className="absolute -left-[45px] -top-10 h-10 border-l-2 border-dashed border-emerald-500/30"></div>
+                                                        )}
 
-                                                    <div className="absolute -left-[64px] -top-8 bg-[#0c111a] border border-slate-700 rounded-full px-2 py-1 flex items-center gap-1 text-[9px] font-bold text-slate-400 z-10 shadow-lg">
-                                                        <Icon path={I.Footprints} size={10} className="text-emerald-500" /> Walk: ~{zone.travelTimeFromLast}m
-                                                    </div>
-                                                    
-                                                    <div className="absolute -left-[21px] top-0 bg-[#05070a] py-1 z-10">
-                                                        <div className="w-10 h-10 rounded-full bg-[#111827] border-2 border-slate-700 flex items-center justify-center">
-                                                            <Icon path={I.MapPin} size={16} className="text-slate-500" />
+                                                        <div className="absolute -left-[64px] -top-8 bg-[#0c111a] border border-slate-700 rounded-full px-2 py-1 flex items-center gap-1 text-[9px] font-bold text-slate-400 z-10 shadow-lg">
+                                                            <Icon path={I.Footprints} size={10} className="text-emerald-500" /> Walk: ~{zone.travelTimeFromLast}m
                                                         </div>
-                                                    </div>
-                                                    
-                                                    <div className="ml-10 mb-4 mt-2">
-                                                        <h3 className="font-black text-slate-300 uppercase tracking-widest text-sm flex items-center gap-2">
-                                                            ENTER {zone.landName}
-                                                        </h3>
-                                                        <p className="text-[9px] font-mono text-slate-600 uppercase">{zone.parkName}</p>
-                                                    </div>
+                                                        
+                                                        <div className="absolute -left-[21px] top-0 bg-[#05070a] py-1 z-10">
+                                                            <div className="w-10 h-10 rounded-full bg-[#111827] border-2 border-slate-700 flex items-center justify-center">
+                                                                <Icon path={I.MapPin} size={16} className="text-slate-500" />
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="ml-10 mb-4 mt-2">
+                                                            <h3 className="font-black text-slate-300 uppercase tracking-widest text-sm flex items-center gap-2">
+                                                                ENTER {zone.landName}
+                                                            </h3>
+                                                            <p className="text-[9px] font-mono text-slate-600 uppercase">{zone.parkName}</p>
+                                                        </div>
 
-                                                    <div className="space-y-3 ml-8">
-                                                        {masterSequence.filter(r => r.landName === zone.landName && r.parkId === zone.parkId).map((ride) => (
-                                                            <div 
-                                                                key={ride.id} 
-                                                                className={`flex items-center p-3 rounded-xl transition-all group relative ${
-                                                                    ride.isPriority ? 'bg-emerald-900/10 border border-emerald-500/20 hover:border-emerald-500/50' : 'bg-[#0c111a] border border-slate-800 hover:border-slate-600'
-                                                                }`}
-                                                            >
-                                                                <div className="absolute -left-8 top-1/2 w-8 h-[2px] bg-slate-800 group-hover:bg-emerald-500/50 transition-colors z-0"></div>
+                                                        <div className="space-y-3 ml-8">
+                                                            {masterSequence.filter(r => r.landName === zone.landName && r.parkId === zone.parkId).map((ride) => (
+                                                                <div 
+                                                                    key={ride.id} 
+                                                                    className={`flex items-center p-3 rounded-xl transition-all group relative ${
+                                                                        ride.isPriority ? 'bg-emerald-900/10 border border-emerald-500/20 hover:border-emerald-500/50' : 'bg-[#0c111a] border border-slate-800 hover:border-slate-600'
+                                                                    }`}
+                                                                >
+                                                                    <div className="absolute -left-8 top-1/2 w-8 h-[2px] bg-slate-800 group-hover:bg-emerald-500/50 transition-colors z-0"></div>
 
-                                                                <div className={`absolute -left-[45px] top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-lg transition-all z-10 ${
-                                                                    ride.isPriority ? 'bg-emerald-500 text-black border-2 border-[#05070a] scale-110 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-800 text-slate-300 border-2 border-[#05070a]'
-                                                                }`}>
-                                                                    {ride.globalStep}
-                                                                </div>
-
-                                                                <div className="mr-3 flex shrink-0">
-                                                                    <input 
-                                                                        type="checkbox" 
-                                                                        checked={completedTargets.has(ride.id)} 
-                                                                        onChange={() => toggleRide(ride.id)}
-                                                                        className="w-5 h-5 accent-emerald-500 rounded border-slate-700 bg-slate-800 cursor-pointer" 
-                                                                    />
-                                                                </div>
-
-                                                                <div className="ml-2 flex-grow">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <h4 className={`text-sm font-bold leading-tight ${ride.isPriority ? 'text-emerald-50' : 'text-slate-200 group-hover:text-white'}`}>
-                                                                            {ride.name}
-                                                                        </h4>
+                                                                    <div className={`absolute -left-[45px] top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-lg transition-all z-10 ${
+                                                                        ride.isPriority ? 'bg-emerald-500 text-black border-2 border-[#05070a] scale-110 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-800 text-slate-300 border-2 border-[#05070a]'
+                                                                    }`}>
+                                                                        {ride.globalStep}
                                                                     </div>
-                                                                    {ride.isPriority && (
-                                                                        <span className="inline-flex items-center gap-1 mt-1 text-[8px] font-black bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                                                                            <Icon path={I.Target} size={8} /> Priority Target
-                                                                        </span>
-                                                                    )}
-                                                                    
-                                                                    <div className="flex flex-col gap-1 mt-2">
-                                                                        <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[8px] font-mono text-slate-500 bg-[#05070a] px-2 py-1.5 rounded border border-slate-800/50 w-fit shadow-inner">
-                                                                            <span title="Arrival Rate (People joining per min)">λ: {ride.lambda.toFixed(1)}/m</span>
-                                                                            <span className="text-slate-700">|</span>
-                                                                            <span title="Effective Capacity (Throughput × Uptime)">μ: {ride.mu.toFixed(1)}/m</span>
-                                                                            <span className="text-slate-700">|</span>
-                                                                            <span title="Traffic Intensity (Arrivals / Capacity)" className={ride.rho > 1.0 ? 'text-rose-400 font-bold bg-rose-500/10 px-1 rounded' : 'text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded'}>
-                                                                                ρ: {ride.rho.toFixed(2)}
+
+                                                                    <div className="mr-3 flex shrink-0">
+                                                                        <input 
+                                                                            type="checkbox" 
+                                                                            checked={completedTargets.has(ride.id)} 
+                                                                            onChange={() => toggleRide(ride.id)}
+                                                                            className="w-5 h-5 accent-emerald-500 rounded border-slate-700 bg-slate-800 cursor-pointer" 
+                                                                        />
+                                                                    </div>
+
+                                                                    <div className="ml-2 flex-grow">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <h4 className={`text-sm font-bold leading-tight ${ride.isPriority ? 'text-emerald-50' : 'text-slate-200 group-hover:text-white'}`}>
+                                                                                {ride.name}
+                                                                            </h4>
+                                                                        </div>
+                                                                        {ride.isPriority && (
+                                                                            <span className="inline-flex items-center gap-1 mt-1 text-[8px] font-black bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                                                                <Icon path={I.Target} size={8} /> Priority Target
                                                                             </span>
+                                                                        )}
+                                                                        
+                                                                        <div className="flex flex-col gap-1 mt-2">
+                                                                            <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[8px] font-mono text-slate-500 bg-[#05070a] px-2 py-1.5 rounded border border-slate-800/50 w-fit shadow-inner">
+                                                                                <span title="Arrival Rate (People joining per min)">λ: {ride.lambda.toFixed(1)}/m</span>
+                                                                                <span className="text-slate-700">|</span>
+                                                                                <span title="Effective Capacity (Throughput × Uptime)">μ: {ride.mu.toFixed(1)}/m</span>
+                                                                                <span className="text-slate-700">|</span>
+                                                                                <span title="Traffic Intensity (Arrivals / Capacity)" className={ride.rho > 1.0 ? 'text-rose-400 font-bold bg-rose-500/10 px-1 rounded' : 'text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded'}>
+                                                                                    ρ: {ride.rho.toFixed(2)}
+                                                                                </span>
+                                                                            </div>
+                                                                            
+                                                                            {ride.uptime < 0.95 && (
+                                                                                <div className="flex items-center gap-1 text-[8px] font-mono text-amber-500 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20 w-fit">
+                                                                                    <Icon path={I.ShieldAlert} size={8} /> HISTORICAL UPTIME: {(ride.uptime * 100).toFixed(0)}% (BREAKDOWN RISK)
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="flex flex-col items-end justify-center shrink-0 ml-4 bg-[#05070a] px-3 py-2 rounded-lg border border-slate-800/50 shadow-inner">
+                                                                        <div className="flex items-center gap-1 text-right mb-0.5">
+                                                                            <div className={`font-black text-lg flex items-center gap-1 ${ride.wait_time <= 30 ? 'text-emerald-400' : ride.wait_time <= 60 ? 'text-amber-400' : 'text-rose-500'}`}>
+                                                                                <Icon path={I.Timer} size={14} /> {ride.wait_time}
+                                                                            </div>
+                                                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter w-4">MIN</span>
                                                                         </div>
                                                                         
-                                                                        {ride.uptime < 0.95 && (
-                                                                            <div className="flex items-center gap-1 text-[8px] font-mono text-amber-500 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20 w-fit">
-                                                                                <Icon path={I.ShieldAlert} size={8} /> HISTORICAL UPTIME: {(ride.uptime * 100).toFixed(0)}% (BREAKDOWN RISK)
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="flex flex-col items-end justify-center shrink-0 ml-4 bg-[#05070a] px-3 py-2 rounded-lg border border-slate-800/50 shadow-inner">
-                                                                    <div className="flex items-center gap-1 text-right mb-0.5">
-                                                                        <div className={`font-black text-lg flex items-center gap-1 ${ride.wait_time <= 30 ? 'text-emerald-400' : ride.wait_time <= 60 ? 'text-amber-400' : 'text-rose-500'}`}>
-                                                                            <Icon path={I.Timer} size={14} /> {ride.wait_time}
+                                                                        <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.velocity > 0.1 ? 'text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                                                            {ride.velocity > 0.1 ? <Icon path={I.TrendingUp} size={10} /> : ride.velocity < -0.1 ? <Icon path={I.TrendingDown} size={10} /> : <Icon path={I.Minus} size={10} />}
+                                                                            PRED: {ride.predictedWait}m
                                                                         </div>
-                                                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter w-4">MIN</span>
-                                                                    </div>
-                                                                    
-                                                                    <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.velocity > 0.1 ? 'text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                                                                        {ride.velocity > 0.1 ? <Icon path={I.TrendingUp} size={10} /> : ride.velocity < -0.1 ? <Icon path={I.TrendingDown} size={10} /> : <Icon path={I.Minus} size={10} />}
-                                                                        PRED: {ride.predictedWait}m
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        ))}
+                                                            ))}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
-                                        </div>
+                                                ))}
+                                            </div>
+                                        )}
 
                                         {/* COMPLETED OBJECTIVES ZONE */}
                                         {completedSequence.length > 0 && (
@@ -728,7 +780,7 @@
                                                 
                                                 <div className="space-y-2 px-2 opacity-50">
                                                     {completedSequence.map((ride) => (
-                                                        <div key={ride.id} className="flex items-center p-3 rounded-xl bg-[#080b12] border border-slate-800">
+                                                        <div key={ride.id} className="flex items-center p-3 rounded-xl bg-[#080b12] border border-slate-800 transition-colors hover:bg-[#0c111a]">
                                                             <div className="mr-3 flex shrink-0">
                                                                 <input 
                                                                     type="checkbox" 
@@ -746,6 +798,46 @@
                                                 </div>
                                             </div>
                                         )}
+
+                                        {/* ALL OTHER ATTRACTIONS (OPTIONAL) ZONE */}
+                                        {minorSequence.length > 0 && (
+                                            <div className="mt-8 border-t border-slate-800 pt-6">
+                                                <div className="flex items-center gap-2 mb-4 px-2">
+                                                    <Icon path={I.List} size={18} className="text-slate-500" />
+                                                    <h2 className="text-sm font-black text-slate-500 uppercase tracking-widest">All Other Attractions (Optional)</h2>
+                                                    <span className="text-xs font-mono text-slate-600 bg-[#05070a] px-2 py-0.5 rounded border border-slate-800 ml-auto">
+                                                        {minorSequence.length} HIDDEN
+                                                    </span>
+                                                </div>
+                                                
+                                                <div className="space-y-2 px-2 opacity-60">
+                                                    {minorSequence.map((ride) => (
+                                                        <div key={ride.id} className="flex items-center p-3 rounded-xl bg-[#080b12] border border-slate-800 transition-colors hover:opacity-100 hover:bg-[#0c111a]">
+                                                            <div className="mr-3 flex shrink-0">
+                                                                <input 
+                                                                    type="checkbox" 
+                                                                    checked={!activatedMinors.has(ride.id)}
+                                                                    onChange={() => toggleMinor(ride.id)}
+                                                                    className="w-5 h-5 accent-slate-600 rounded border-slate-700 bg-slate-800 cursor-pointer" 
+                                                                />
+                                                            </div>
+                                                            <div className="flex-grow">
+                                                                <h4 className="text-sm font-bold text-slate-400">{ride.name}</h4>
+                                                                <p className="text-[9px] font-mono text-slate-600 uppercase">{ride.parkName} - {ride.landName}</p>
+                                                            </div>
+                                                            <div className="shrink-0 text-right font-mono text-[10px] font-bold">
+                                                                {ride.is_open ? (
+                                                                    <span className="text-slate-400">{ride.wait_time} MIN</span>
+                                                                ) : (
+                                                                    <span className="text-rose-500">CLOSED</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
                                     </div>
                                 )}
                             </div>
