@@ -22,7 +22,6 @@
         body { background-color: #05070a; color: #cbd5e1; -webkit-font-smoothing: antialiased; }
         .route-path-animation { stroke-dasharray: 6 6; animation: dash 3s linear infinite; }
         @keyframes dash { to { stroke-dashoffset: -24; } }
-        /* Terminal scrollbar styling */
         .terminal-scroll::-webkit-scrollbar { width: 6px; }
         .terminal-scroll::-webkit-scrollbar-track { background: #05070a; }
         .terminal-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
@@ -52,7 +51,7 @@
             MapIcon: '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line>',
             Crosshair: '<circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line>',
             Hourglass: '<path d="M5 22h14"></path><path d="M5 2h14"></path><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"></path><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"></path>',
-            Footprints: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"></path><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"></path><circle cx="12" cy="10" r="3"></circle>',
+            Footprints: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"></path><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"></path>',
             MapPin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle>',
             Target: '<circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle>',
             ShieldAlert: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
@@ -62,7 +61,52 @@
             Minus: '<line x1="5" y1="12" x2="19" y2="12"></line>',
             RefreshCw: '<polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>',
             CheckCircle: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>',
-            List: '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>'
+            List: '<line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>',
+            Cpu: '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line>',
+            BarChart: '<line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line>',
+            Zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>',
+            Info: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>'
+        };
+
+        // --- PROCEDURAL AI ANALYZER ---
+        const generateTacticalIntelligence = (ride) => {
+            const n = ride.name.toLowerCase();
+            let brief = "Standard objective. Normal operational protocols apply.";
+            let intel = "Secondary target. Queue density is generally stable.";
+            let type = "Standard Ride";
+            let env = "Mixed Architecture";
+
+            if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana")) {
+                brief = "High-velocity kinetic experience. Endorphin spike expected. Secure all loose equipment prior to launch.";
+                intel = "High-value tactical target. Traffic surges rapidly after park opening. Strike early or late.";
+                type = "Thrill / High-G";
+                env = "Dynamic / Outdoor Track";
+            } else if (n.includes("phantom") || n.includes("tower")) {
+                brief = "Atmospheric and psychological simulation. Low-light environment navigation required.";
+                intel = "Hardware capacity is highly efficient. Wait times often stabilize in the mid-afternoon.";
+                type = "Dark Ride / Drop";
+                env = "Climate-Controlled Indoors";
+            } else if (n.includes("peter pan") || n.includes("ratatouille") || n.includes("crush")) {
+                brief = "High-value narrative track. Heavy civilian foot-traffic expected in this sector.";
+                intel = "Capacity bottlenecks are common. Optimum execution time is during parade operations or meal hours.";
+                type = "Scenic / Tracked";
+                env = "Immersive Indoors";
+            } else if (n.includes("pirates") || n.includes("small world") || n.includes("buzz") || n.includes("star tours")) {
+                brief = "High-capacity continuous-load system. Rapid troop movement through the facility.";
+                intel = "Excellent omnimover throughput. Even long physical lines will clear faster than expected.";
+                type = "Omnimover / Boat";
+                env = "Massive Indoor Show Building";
+            } else if (ride.isMinor) {
+                brief = "Secondary atmospheric objective. Ideal for operational cooldown and stamina recovery.";
+                intel = "Low priority. Engage only if in the immediate vicinity and queue is minimal.";
+                type = "Leisure / Viewing";
+                env = "General Architecture";
+            }
+
+            // Pseudo-random duration based on ID for consistency
+            const duration = ((ride.id % 6) + 2) + " mins"; 
+
+            return { brief, intel, type, env, duration };
         };
 
         // --- ELITE TARGET REPOSITORY ---
@@ -136,13 +180,16 @@
             const [lastSync, setLastSync] = useState(null);
             const [showPrimer, setShowPrimer] = useState(false);
             
+            // Expanded Ride State (UI)
+            const [expandedRideId, setExpandedRideId] = useState(null);
+
             // Persistent Storage Layers
             const [completedTargets, setCompletedTargets] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v5') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v6') || '[]'));
             });
             
             const [activatedMinors, setActivatedMinors] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v5') || '[]'));
+                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v6') || '[]'));
             });
 
             const [logs, setLogs] = useState([]);
@@ -155,14 +202,19 @@
             }, [lastSync]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_completed_v5', JSON.stringify(Array.from(completedTargets)));
+                localStorage.setItem('dlp_completed_v6', JSON.stringify(Array.from(completedTargets)));
             }, [completedTargets]);
 
             useEffect(() => {
-                localStorage.setItem('dlp_activated_v5', JSON.stringify(Array.from(activatedMinors)));
+                localStorage.setItem('dlp_activated_v6', JSON.stringify(Array.from(activatedMinors)));
             }, [activatedMinors]);
 
-            const toggleRide = (rideId) => {
+            const toggleExpand = (id) => {
+                setExpandedRideId(prev => prev === id ? null : id);
+            };
+
+            const toggleRide = (e, rideId) => {
+                e.stopPropagation(); // Prevent row click
                 setCompletedTargets(prev => {
                     const next = new Set(prev);
                     if (next.has(rideId)) {
@@ -176,7 +228,8 @@
                 });
             };
 
-            const toggleMinor = (rideId) => {
+            const toggleMinor = (e, rideId) => {
+                e.stopPropagation(); // Prevent row click
                 setActivatedMinors(prev => {
                     const next = new Set(prev);
                     if (next.has(rideId)) {
@@ -203,7 +256,6 @@
 
             const fetchWithCascade = async (targetUrl, description) => {
                 addLog(`[NET] Fetching telemetry block for ${description}`, 'info');
-                
                 for (const proxy of PROXIES) {
                     try {
                         addLog(`[NET] Engaging node: ${proxy.name}...`, 'info');
@@ -217,7 +269,6 @@
                         addLog(`[WARN] Node failure (${proxy.name}): ${err.message}`, 'warn');
                     }
                 }
-                
                 addLog(`[FATAL] All network nodes exhausted for ${description}.`, 'error');
                 throw new Error(`All network nodes exhausted for ${description}.`);
             };
@@ -225,7 +276,6 @@
             const bootSystem = async (isSilent = false) => {
                 if (!isSilent) setLoading(true);
                 setError(null);
-                
                 addLog(`[SYS] Boot sequence initialized. Silent refresh: ${isSilent}`, 'info');
 
                 try {
@@ -296,7 +346,6 @@
                 const closedSequence = [];
                 const activePool = [];
 
-                // Master Filtering Matrix - Strict Sequence Override
                 rides.forEach(r => {
                     const matchPark = activePark === 'all' || r.parkId === parseInt(activePark);
                     if (!matchPark) return;
@@ -304,7 +353,7 @@
                     if (completedTargets.has(r.id)) {
                         completedSequence.push(r);
                     } else if (!r.is_open) {
-                        closedSequence.push(r); // Traps closed Priority AND Minor rides
+                        closedSequence.push(r);
                     } else if (r.isMinor && !activatedMinors.has(r.id)) {
                         minorSequence.push(r);
                     } else {
@@ -354,6 +403,7 @@
                     ride.mu = mu_eff;
                     ride.rho = rho;
                     ride.uptime = Ar; 
+                    ride.aiIntel = generateTacticalIntelligence(ride);
 
                     grouped[zoneKey].rides.push(ride);
                 });
@@ -371,7 +421,6 @@
                    parkGroups[z.parkId].push(z);
                 });
 
-                // DYNAMIC ORIGIN MATRIX CALCULATOR
                 Object.keys(parkGroups).forEach(pId => {
                    let unvisited = parkGroups[pId];
                    let currentPos = { x: 50, y: 95 }; 
@@ -435,6 +484,201 @@
 
             const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
 
+            // --- REUSABLE RIDE CARD COMPONENT WITH EXPANSION ---
+            const RideCard = ({ ride, isCompleted, isMinor, isClosed, globalStep }) => {
+                const isExpanded = expandedRideId === ride.id;
+                const intel = ride.aiIntel || generateTacticalIntelligence(ride);
+
+                return (
+                    <div className="relative group mb-3">
+                        <div 
+                            onClick={() => toggleExpand(ride.id)}
+                            className={`flex items-center p-3 rounded-xl transition-all cursor-pointer border ${
+                                isClosed ? 'bg-[#080b12] border-rose-900/30' :
+                                isCompleted ? 'bg-[#080b12] border-slate-800 hover:bg-[#0c111a]' :
+                                isMinor ? 'bg-[#080b12] border-slate-800 hover:bg-[#0c111a]' :
+                                ride.isPriority ? 'bg-emerald-900/10 border-emerald-500/20 hover:border-emerald-500/50' : 
+                                'bg-[#0c111a] border-slate-800 hover:border-slate-600'
+                            } ${isExpanded ? 'rounded-b-none border-b-0' : ''}`}
+                        >
+                            {!isMinor && !isCompleted && !isClosed && (
+                                <>
+                                    <div className="absolute -left-8 top-1/2 w-8 h-[2px] bg-slate-800 group-hover:bg-emerald-500/50 transition-colors z-0 hidden md:block"></div>
+                                    <div className={`absolute -left-[45px] top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-lg transition-all z-10 hidden md:flex ${
+                                        ride.isPriority ? 'bg-emerald-500 text-black border-2 border-[#05070a] scale-110 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-800 text-slate-300 border-2 border-[#05070a]'
+                                    }`}>
+                                        {globalStep}
+                                    </div>
+                                </>
+                            )}
+
+                            <div className="mr-3 flex shrink-0">
+                                {isClosed ? (
+                                    <div className="w-5 h-5 rounded border border-rose-900/50 flex items-center justify-center bg-rose-950/20">
+                                        <Icon path={I.X} size={12} className="text-rose-500/50" />
+                                    </div>
+                                ) : (
+                                    <input 
+                                        type="checkbox" 
+                                        checked={isCompleted || (!isMinor && !masterSequence.find(r=>r.id===ride.id) && !isCompleted)}
+                                        onChange={(e) => isMinor ? toggleMinor(e, ride.id) : toggleRide(e, ride.id)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={`w-5 h-5 rounded cursor-pointer ${isMinor ? 'accent-slate-600 bg-slate-800 border-slate-700' : 'accent-emerald-500 bg-slate-800 border-slate-700'}`} 
+                                    />
+                                )}
+                            </div>
+
+                            <div className={`flex-grow ${isCompleted ? 'opacity-50' : ''}`}>
+                                <div className="flex items-center gap-2">
+                                    <h4 className={`text-sm font-bold leading-tight ${
+                                        isCompleted ? 'text-slate-500 line-through decoration-slate-600' : 
+                                        isClosed ? 'text-slate-400' :
+                                        ride.isPriority ? 'text-emerald-50' : 'text-slate-200 group-hover:text-white'
+                                    }`}>
+                                        {ride.name}
+                                    </h4>
+                                </div>
+                                
+                                {ride.isPriority && !isCompleted && !isClosed && (
+                                    <span className="inline-flex items-center gap-1 mt-1 text-[8px] font-black bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                                        <Icon path={I.Target} size={8} /> Priority Target
+                                    </span>
+                                )}
+                                
+                                {(isCompleted || isMinor || isClosed) && (
+                                    <p className="text-[9px] font-mono text-slate-600 uppercase mt-1">{ride.parkName} - {ride.landName}</p>
+                                )}
+                                
+                                {!isCompleted && !isMinor && !isClosed && (
+                                    <div className="flex flex-col gap-1 mt-2">
+                                        <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[8px] font-mono text-slate-500 bg-[#05070a] px-2 py-1.5 rounded border border-slate-800/50 w-fit shadow-inner">
+                                            <span title="Arrival Rate (People joining per min)">λ: {ride.lambda.toFixed(1)}/m</span>
+                                            <span className="text-slate-700">|</span>
+                                            <span title="Effective Capacity (Throughput × Uptime)">μ: {ride.mu.toFixed(1)}/m</span>
+                                            <span className="text-slate-700">|</span>
+                                            <span title="Traffic Intensity (Arrivals / Capacity)" className={ride.rho > 1.0 ? 'text-rose-400 font-bold bg-rose-500/10 px-1 rounded' : 'text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded'}>
+                                                ρ: {ride.rho.toFixed(2)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex flex-col items-end justify-center shrink-0 ml-4 px-2">
+                                {isClosed ? (
+                                    <span className="text-rose-500 bg-rose-500/10 px-2 py-1 rounded text-[10px] font-bold font-mono">CLOSED</span>
+                                ) : (
+                                    <>
+                                        <div className="flex items-center gap-1 text-right mb-0.5">
+                                            <div className={`font-black text-lg flex items-center gap-1 ${isCompleted ? 'text-slate-500' : ride.wait_time <= 30 ? 'text-emerald-400' : ride.wait_time <= 60 ? 'text-amber-400' : 'text-rose-500'}`}>
+                                                <Icon path={I.Timer} size={14} /> {ride.wait_time}
+                                            </div>
+                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter w-4">MIN</span>
+                                        </div>
+                                        
+                                        {!isCompleted && !isMinor && (
+                                            <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.velocity > 0.1 ? 'text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                                                {ride.velocity > 0.1 ? <Icon path={I.TrendingUp} size={10} /> : ride.velocity < -0.1 ? <Icon path={I.TrendingDown} size={10} /> : <Icon path={I.Minus} size={10} />}
+                                                PRED: {ride.predictedWait}m
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* EXPANDED AI DEEP-SCAN PANEL */}
+                        {isExpanded && (
+                            <div className={`p-4 bg-[#05070a] border border-t-0 rounded-b-xl animate-in slide-in-from-top-2 ${
+                                isClosed ? 'border-rose-900/30' : ride.isPriority ? 'border-emerald-500/20' : 'border-slate-800'
+                            }`}>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    
+                                    {/* AI Tactical Brief */}
+                                    <div className="space-y-3">
+                                        <div>
+                                            <h5 className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
+                                                <Icon path={I.Info} size={10} /> Tactical Briefing
+                                            </h5>
+                                            <p className="text-xs text-slate-300 leading-relaxed bg-[#0c111a] p-2 rounded border border-slate-800">
+                                                {intel.brief}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <h5 className="text-[10px] text-blue-400 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
+                                                <Icon path={I.Cpu} size={10} /> Operational Intel
+                                            </h5>
+                                            <p className="text-xs text-slate-400 leading-relaxed bg-[#0c111a] p-2 rounded border border-slate-800">
+                                                {intel.intel}
+                                            </p>
+                                        </div>
+                                        <div className="flex gap-2 text-[9px] font-mono text-slate-500 uppercase tracking-wider mt-2">
+                                            <span className="bg-[#161b22] px-2 py-1 rounded">TYPE: {intel.type}</span>
+                                            <span className="bg-[#161b22] px-2 py-1 rounded">ENV: {intel.env}</span>
+                                            <span className="bg-[#161b22] px-2 py-1 rounded">EST: {intel.duration}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* System Diagnostics */}
+                                    <div className="space-y-3 bg-[#0c111a] p-3 rounded-lg border border-slate-800/50 shadow-inner">
+                                        <h5 className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1 mb-2 border-b border-slate-800 pb-1">
+                                            <Icon path={I.BarChart} size={10} /> System Diagnostics
+                                        </h5>
+                                        
+                                        {!isClosed && ride.velocity !== undefined ? (
+                                            <>
+                                                {/* Wait Time Forecast Bar */}
+                                                <div>
+                                                    <div className="flex justify-between text-[10px] font-mono mb-1">
+                                                        <span className="text-slate-400">Current Vector</span>
+                                                        <span className={ride.velocity > 0 ? 'text-rose-400' : 'text-emerald-400'}>
+                                                            60m Forecast: {ride.predictedWait}m
+                                                        </span>
+                                                    </div>
+                                                    <div className="h-1.5 w-full bg-[#05070a] rounded-full overflow-hidden relative border border-slate-800">
+                                                        {/* Base wait bar */}
+                                                        <div className="absolute top-0 left-0 h-full bg-slate-500" style={{ width: `${Math.min(100, (ride.wait_time / 120) * 100)}%` }}></div>
+                                                        {/* Predicted expansion (red) or shrinkage (green outline) */}
+                                                        {ride.velocity > 0 && (
+                                                            <div className="absolute top-0 h-full bg-rose-500/50" style={{ left: `${(ride.wait_time / 120) * 100}%`, width: `${Math.min(100, ((ride.predictedWait - ride.wait_time) / 120) * 100)}%` }}></div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2 mt-3">
+                                                    <div className="bg-[#05070a] p-2 rounded border border-slate-800/50">
+                                                        <span className="text-[8px] text-slate-500 uppercase block mb-1">Throughput (μ)</span>
+                                                        <span className="text-xs text-slate-300 font-mono">{ride.mu.toFixed(1)} riders/min</span>
+                                                        <p className="text-[8px] text-slate-600 mt-1 leading-tight">Physical vehicle loading capacity.</p>
+                                                    </div>
+                                                    <div className="bg-[#05070a] p-2 rounded border border-slate-800/50">
+                                                        <span className="text-[8px] text-slate-500 uppercase block mb-1">Traffic (ρ)</span>
+                                                        <span className={`text-xs font-mono font-bold ${ride.rho > 1 ? 'text-rose-400' : 'text-emerald-400'}`}>{ride.rho.toFixed(2)}</span>
+                                                        <p className="text-[8px] text-slate-600 mt-1 leading-tight">{ride.rho > 1 ? 'Queue is expanding faster than it loads.' : 'System handling volume efficiently.'}</p>
+                                                    </div>
+                                                </div>
+                                                
+                                                {ride.uptime < 0.95 && (
+                                                    <div className="mt-2 flex items-center gap-2 text-[9px] font-mono text-amber-500 bg-amber-500/10 px-2 py-1.5 rounded border border-amber-500/20">
+                                                        <Icon path={I.ShieldAlert} size={12} /> 
+                                                        <span><strong>WARNING:</strong> {(ride.uptime * 100).toFixed(0)}% Historical Uptime. Elevated risk of mid-queue mechanical failure.</span>
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div className="py-4 text-center text-slate-500 text-xs font-mono">
+                                                TELEMETRY OFFLINE
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            // ... (TacticalMap component remains exactly the same)
             const TacticalMap = () => {
                 if (activePark === 'all') {
                     return (
@@ -497,6 +741,7 @@
                 <div className="min-h-screen bg-[#05070a] text-slate-300 font-sans p-4 md:p-8 flex flex-col items-center pb-32">
                     <div className="w-full max-w-6xl">
                         
+                        {/* HEADER */}
                         <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-l-4 border-emerald-500 pl-6 py-2 bg-emerald-500/5 rounded-r-xl">
                             <div>
                                 <h1 className="text-3xl font-black text-white tracking-tighter flex items-center gap-2">
@@ -529,6 +774,7 @@
                             </div>
                         </header>
 
+                        {/* PRIMER */}
                         {showPrimer && (
                             <div className="mb-6 bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
                                 <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
@@ -556,10 +802,9 @@
                                             <li><span className="text-emerald-400 font-bold font-mono">ρ &lt; 1.0</span> <strong>Green:</strong> Queue shrinking. Safe to delay.</li>
                                             <li><span className="text-rose-400 font-bold font-mono">ρ &gt; 1.0</span> <strong>Red:</strong> Queue expanding. Explosion imminent.</li>
                                         </ul>
-                                        <h3 className="text-xs font-bold text-white uppercase tracking-wider text-emerald-500 border-t border-slate-800 pt-3">How to read PRED (Forecast)</h3>
+                                        <h3 className="text-xs font-bold text-white uppercase tracking-wider text-emerald-500 border-t border-slate-800 pt-3">Deep-Scan Modules</h3>
                                         <ul className="space-y-2 text-xs text-slate-300">
-                                            <li className="flex items-center gap-2"><Icon path={I.TrendingUp} size={14} className="text-rose-400" /> High Opportunity Cost. Route here immediately.</li>
-                                            <li className="flex items-center gap-2"><Icon path={I.TrendingDown} size={14} className="text-emerald-400" /> Queue naturally shrinking. Delay.</li>
+                                            <li className="flex items-center gap-2"><Icon path={I.Zap} size={14} className="text-emerald-400" /> Tap any ride row to expand its AI Tactical Brief and visualize its physical loading capacity constraints.</li>
                                         </ul>
                                     </div>
                                 </div>
@@ -567,6 +812,8 @@
                         )}
 
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            
+                            {/* LEFT SIDEBAR (MAP & ZONE) */}
                             <div className="lg:col-span-1 space-y-4">
                                 <div className="bg-[#0c111a] border border-slate-800 rounded-2xl p-5 shadow-xl">
                                     <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
@@ -600,6 +847,7 @@
                                 </div>
                             </div>
 
+                            {/* MAIN ROUTING UI */}
                             <div className="lg:col-span-3 space-y-6">
                                 {loading ? (
                                     <div className="flex flex-col items-center justify-center py-24 bg-[#0c111a] border border-slate-800 rounded-3xl">
@@ -645,6 +893,7 @@
                                             <span className="text-xs font-mono text-emerald-500">{masterSequence.length} OBJECTIVES</span>
                                         </div>
 
+                                        {/* ACTIVE ROUTE */}
                                         {masterSequence.length === 0 ? (
                                             <div className="p-8 bg-[#0c111a] border border-dashed border-slate-800 rounded-2xl text-center text-slate-500 text-sm flex flex-col items-center my-8">
                                                  <Icon path={I.Activity} size={32} className="text-emerald-500 mb-3 opacity-50" />
@@ -677,76 +926,9 @@
                                                             <p className="text-[9px] font-mono text-slate-600 uppercase">{zone.parkName}</p>
                                                         </div>
 
-                                                        <div className="space-y-3 ml-8">
+                                                        <div className="ml-8">
                                                             {masterSequence.filter(r => r.landName === zone.landName && r.parkId === zone.parkId).map((ride) => (
-                                                                <div 
-                                                                    key={ride.id} 
-                                                                    className={`flex items-center p-3 rounded-xl transition-all group relative ${
-                                                                        ride.isPriority ? 'bg-emerald-900/10 border border-emerald-500/20 hover:border-emerald-500/50' : 'bg-[#0c111a] border border-slate-800 hover:border-slate-600'
-                                                                    }`}
-                                                                >
-                                                                    <div className="absolute -left-8 top-1/2 w-8 h-[2px] bg-slate-800 group-hover:bg-emerald-500/50 transition-colors z-0"></div>
-
-                                                                    <div className={`absolute -left-[45px] top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-lg transition-all z-10 ${
-                                                                        ride.isPriority ? 'bg-emerald-500 text-black border-2 border-[#05070a] scale-110 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-800 text-slate-300 border-2 border-[#05070a]'
-                                                                    }`}>
-                                                                        {ride.globalStep}
-                                                                    </div>
-
-                                                                    <div className="mr-3 flex shrink-0">
-                                                                        <input 
-                                                                            type="checkbox" 
-                                                                            checked={completedTargets.has(ride.id)} 
-                                                                            onChange={() => toggleRide(ride.id)}
-                                                                            className="w-5 h-5 accent-emerald-500 rounded border-slate-700 bg-slate-800 cursor-pointer" 
-                                                                        />
-                                                                    </div>
-
-                                                                    <div className="ml-2 flex-grow">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <h4 className={`text-sm font-bold leading-tight ${ride.isPriority ? 'text-emerald-50' : 'text-slate-200 group-hover:text-white'}`}>
-                                                                                {ride.name}
-                                                                            </h4>
-                                                                        </div>
-                                                                        {ride.isPriority && (
-                                                                            <span className="inline-flex items-center gap-1 mt-1 text-[8px] font-black bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                                                                                <Icon path={I.Target} size={8} /> Priority Target
-                                                                            </span>
-                                                                        )}
-                                                                        
-                                                                        <div className="flex flex-col gap-1 mt-2">
-                                                                            <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[8px] font-mono text-slate-500 bg-[#05070a] px-2 py-1.5 rounded border border-slate-800/50 w-fit shadow-inner">
-                                                                                <span title="Arrival Rate (People joining per min)">λ: {ride.lambda.toFixed(1)}/m</span>
-                                                                                <span className="text-slate-700">|</span>
-                                                                                <span title="Effective Capacity (Throughput × Uptime)">μ: {ride.mu.toFixed(1)}/m</span>
-                                                                                <span className="text-slate-700">|</span>
-                                                                                <span title="Traffic Intensity (Arrivals / Capacity)" className={ride.rho > 1.0 ? 'text-rose-400 font-bold bg-rose-500/10 px-1 rounded' : 'text-emerald-400 font-bold bg-emerald-500/10 px-1 rounded'}>
-                                                                                    ρ: {ride.rho.toFixed(2)}
-                                                                                </span>
-                                                                            </div>
-                                                                            
-                                                                            {ride.uptime < 0.95 && (
-                                                                                <div className="flex items-center gap-1 text-[8px] font-mono text-amber-500 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20 w-fit">
-                                                                                    <Icon path={I.ShieldAlert} size={8} /> HISTORICAL UPTIME: {(ride.uptime * 100).toFixed(0)}% (BREAKDOWN RISK)
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-
-                                                                    <div className="flex flex-col items-end justify-center shrink-0 ml-4 bg-[#05070a] px-3 py-2 rounded-lg border border-slate-800/50 shadow-inner">
-                                                                        <div className="flex items-center gap-1 text-right mb-0.5">
-                                                                            <div className={`font-black text-lg flex items-center gap-1 ${ride.wait_time <= 30 ? 'text-emerald-400' : ride.wait_time <= 60 ? 'text-amber-400' : 'text-rose-500'}`}>
-                                                                                <Icon path={I.Timer} size={14} /> {ride.wait_time}
-                                                                            </div>
-                                                                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter w-4">MIN</span>
-                                                                        </div>
-                                                                        
-                                                                        <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.velocity > 0.1 ? 'text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                                                                            {ride.velocity > 0.1 ? <Icon path={I.TrendingUp} size={10} /> : ride.velocity < -0.1 ? <Icon path={I.TrendingDown} size={10} /> : <Icon path={I.Minus} size={10} />}
-                                                                            PRED: {ride.predictedWait}m
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
+                                                                <RideCard key={ride.id} ride={ride} globalStep={ride.globalStep} />
                                                             ))}
                                                         </div>
                                                     </div>
@@ -764,29 +946,13 @@
                                                         {completedSequence.length} LOGGED
                                                     </span>
                                                 </div>
-                                                
-                                                <div className="space-y-2 px-2 opacity-50">
-                                                    {completedSequence.map((ride) => (
-                                                        <div key={ride.id} className="flex items-center p-3 rounded-xl bg-[#080b12] border border-slate-800 transition-colors hover:bg-[#0c111a]">
-                                                            <div className="mr-3 flex shrink-0">
-                                                                <input 
-                                                                    type="checkbox" 
-                                                                    checked={true}
-                                                                    onChange={() => toggleRide(ride.id)}
-                                                                    className="w-5 h-5 accent-emerald-500 rounded border-slate-700 bg-slate-800 cursor-pointer" 
-                                                                />
-                                                            </div>
-                                                            <div className="flex-grow">
-                                                                <h4 className="text-sm font-bold text-slate-500 line-through decoration-slate-600">{ride.name}</h4>
-                                                                <p className="text-[9px] font-mono text-slate-600 uppercase">{ride.parkName} - {ride.landName}</p>
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                                                <div className="px-2 opacity-60">
+                                                    {completedSequence.map((ride) => <RideCard key={ride.id} ride={ride} isCompleted={true} />)}
                                                 </div>
                                             </div>
                                         )}
 
-                                        {/* ALL OTHER ATTRACTIONS (OPTIONAL) ZONE */}
+                                        {/* MINOR (OPTIONAL) ZONE */}
                                         {minorSequence.length > 0 && (
                                             <div className="mt-8 border-t border-slate-800 pt-6">
                                                 <div className="flex items-center gap-2 mb-4 px-2">
@@ -796,27 +962,8 @@
                                                         {minorSequence.length} HIDDEN
                                                     </span>
                                                 </div>
-                                                
-                                                <div className="space-y-2 px-2 opacity-60">
-                                                    {minorSequence.map((ride) => (
-                                                        <div key={ride.id} className="flex items-center p-3 rounded-xl bg-[#080b12] border border-slate-800 transition-colors hover:opacity-100 hover:bg-[#0c111a]">
-                                                            <div className="mr-3 flex shrink-0">
-                                                                <input 
-                                                                    type="checkbox" 
-                                                                    checked={!activatedMinors.has(ride.id)}
-                                                                    onChange={() => toggleMinor(ride.id)}
-                                                                    className="w-5 h-5 accent-slate-600 rounded border-slate-700 bg-slate-800 cursor-pointer" 
-                                                                />
-                                                            </div>
-                                                            <div className="flex-grow">
-                                                                <h4 className="text-sm font-bold text-slate-400">{ride.name}</h4>
-                                                                <p className="text-[9px] font-mono text-slate-600 uppercase">{ride.parkName} - {ride.landName}</p>
-                                                            </div>
-                                                            <div className="shrink-0 text-right font-mono text-[10px] font-bold">
-                                                                <span className="text-slate-400">{ride.wait_time} MIN</span>
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                                                <div className="px-2 opacity-80">
+                                                    {minorSequence.map((ride) => <RideCard key={ride.id} ride={ride} isMinor={true} />)}
                                                 </div>
                                             </div>
                                         )}
@@ -831,24 +978,8 @@
                                                         {closedSequence.length} OFFLINE
                                                     </span>
                                                 </div>
-                                                
-                                                <div className="space-y-2 px-2 opacity-70">
-                                                    {closedSequence.map((ride) => (
-                                                        <div key={ride.id} className="flex items-center p-3 rounded-xl bg-[#080b12] border border-rose-900/30">
-                                                            <div className="mr-3 flex shrink-0">
-                                                                <div className="w-5 h-5 rounded border border-rose-900/50 flex items-center justify-center bg-rose-950/20">
-                                                                    <Icon path={I.X} size={12} className="text-rose-500/50" />
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex-grow">
-                                                                <h4 className="text-sm font-bold text-slate-400">{ride.name}</h4>
-                                                                <p className="text-[9px] font-mono text-slate-600 uppercase">{ride.parkName} - {ride.landName}</p>
-                                                            </div>
-                                                            <div className="shrink-0 text-right font-mono text-[10px] font-bold">
-                                                                <span className="text-rose-500 bg-rose-500/10 px-2 py-1 rounded">CLOSED</span>
-                                                            </div>
-                                                        </div>
-                                                    ))}
+                                                <div className="px-2 opacity-70">
+                                                    {closedSequence.map((ride) => <RideCard key={ride.id} ride={ride} isClosed={true} />)}
                                                 </div>
                                             </div>
                                         )}
@@ -858,7 +989,7 @@
                             </div>
                         </div>
 
-                        {/* --- TERMINAL LOG VIEWER --- */}
+                        {/* TERMINAL LOG VIEWER */}
                         <div className="mt-12 border border-slate-800 rounded-xl bg-[#0c111a] overflow-hidden shadow-xl mb-8">
                             <button 
                                 onClick={() => setShowTerminal(!showTerminal)}
