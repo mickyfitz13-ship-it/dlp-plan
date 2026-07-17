@@ -31,7 +31,6 @@
         .terminal-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .dark .terminal-scroll::-webkit-scrollbar-thumb { background: #1e293b; }
 
-        /* Dynamic Map Grid Variables */
         :root { --grid-color: #e2e8f0; }
         .dark { --grid-color: #1e293b; }
         
@@ -44,7 +43,6 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- INLINE ICONS ---
         const Icon = ({ path, size = 24, className = "" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} dangerouslySetInnerHTML={{ __html: path }} />
         );
@@ -82,7 +80,73 @@
             CheckSquare: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>'
         };
 
-        // --- PROCEDURAL AI ANALYZER ---
+        const PARK_IDS = [
+            { id: 4, name: "Disneyland Park", slug: "disneyland-park" },
+            { id: 28, name: "Disney Adventure World", slug: "walt-disney-studios" }
+        ];
+
+        // --- SPECIFIC RIDE DATABASE (UI Coords + Real Lat/Long + Run Time) ---
+        const RIDE_DB = {
+            "big thunder mountain": { priority: true, x: 15, y: 60, duration: 4, uptime: 0.85 },
+            "phantom manor": { priority: true, x: 10, y: 70, duration: 6, uptime: 0.96 },
+            "pirates of the caribbean": { priority: true, x: 20, y: 30, duration: 10, uptime: 0.95 },
+            "indiana jones": { priority: true, x: 10, y: 20, duration: 2, uptime: 0.86 },
+            "peter pan's flight": { priority: true, x: 45, y: 20, duration: 3, uptime: 0.97 },
+            "star wars hyperspace mountain": { priority: true, x: 85, y: 45, duration: 3, uptime: 0.90 },
+            "star tours": { priority: true, x: 90, y: 55, duration: 5, uptime: 0.98 },
+            "buzz lightyear": { priority: true, x: 80, y: 65, duration: 5, uptime: 0.98 },
+            "tower of terror": { priority: true, x: 40, y: 50, duration: 5, uptime: 0.98 },
+            "ratatouille": { priority: true, x: 80, y: 20, duration: 5, uptime: 0.91 },
+            "crush's coaster": { priority: true, x: 75, y: 40, duration: 3, uptime: 0.88 },
+            "spider-man": { priority: true, x: 20, y: 30, duration: 4, uptime: 0.92 },
+            "flight force": { priority: true, x: 15, y: 20, duration: 2, uptime: 0.89 }
+        };
+
+        // Added Latitude and Longitude to cross-reference physical location via Haversine
+        const TACTICAL_COORDS = {
+            4: [
+                { match: "main street", x: 50, y: 85, label: "Main St.", lat: 48.8716, lng: 2.7779 },
+                { match: "fantasy", x: 50, y: 20, label: "Fantasyland", lat: 48.8741, lng: 2.7758 },
+                { match: "discovery", x: 85, y: 50, label: "Discoveryland", lat: 48.8735, lng: 2.7788 },
+                { match: "adventure", x: 25, y: 35, label: "Adventureland", lat: 48.8732, lng: 2.7738 },
+                { match: "frontier", x: 15, y: 65, label: "Frontierland", lat: 48.8717, lng: 2.7744 }
+            ],
+            28: [
+                { match: "front lot", x: 50, y: 85, label: "Front Lot", lat: 48.8681, lng: 2.7808 },
+                { match: "production", x: 30, y: 60, label: "Prod. Courtyard", lat: 48.8685, lng: 2.7797 },
+                { match: "toon", x: 70, y: 60, label: "Toon Studio", lat: 48.8683, lng: 2.7813 },
+                { match: "pixar", x: 80, y: 25, label: "Worlds of Pixar", lat: 48.8672, lng: 2.7806 },
+                { match: "avengers", x: 20, y: 30, label: "Avengers Campus", lat: 48.8678, lng: 2.7783 }
+            ]
+        };
+
+        const getCoords = (parkId, landName) => {
+            const mapData = TACTICAL_COORDS[parkId];
+            if (!mapData) return { x: 50, y: 50 };
+            const coord = mapData.find(c => landName.toLowerCase().includes(c.match));
+            return coord || { x: 50, y: 50 };
+        };
+
+        // GPS Math Logic
+        const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
+            const R = 6371; // Earth Radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        };
+
+        const getRideMetrics = (rideName, landName) => {
+            const n = rideName.toLowerCase();
+            const match = Object.keys(RIDE_DB).find(key => n.includes(key));
+            if (match) return { isPriority: true, ...RIDE_DB[match] };
+            const coords = getCoords(4, landName); 
+            return { isPriority: false, x: coords.x, y: coords.y, duration: 3, uptime: 0.98 };
+        };
+
         const generateTacticalIntelligence = (ride) => {
             const n = ride.name.toLowerCase();
             let brief = "Standard objective. Normal operational protocols apply.";
@@ -116,72 +180,12 @@
                 type = "Leisure / Viewing";
                 env = "General Architecture";
             }
-
-            const duration = ((ride.id % 6) + 2) + " mins"; 
-            return { brief, intel, type, env, duration };
-        };
-
-        // --- ELITE TARGET REPOSITORY ---
-        const PARK_IDS = [
-            { id: 4, name: "Disneyland Park", slug: "disneyland-park" },
-            { id: 28, name: "Disney Adventure World", slug: "walt-disney-studios" }
-        ];
-
-        const PRIORITY_RIDES = [
-            "Star Wars Hyperspace Mountain", "Big Thunder Mountain", "The Twilight Zone Tower of Terror",
-            "Spider-Man W.E.B. Adventure", "Avengers Assemble: Flight Force", "Ratatouille: The Adventure",
-            "Crush's Coaster", "Pirates of the Caribbean", "Indiana Jones and the Temple of Peril",
-            "Phantom Manor", "Star Tours: The Adventures Continue", "Peter Pan's Flight", "Buzz Lightyear Laser Blast"
-        ];
-
-        const UPTIME_STATS = {
-            "big thunder mountain": 0.85, "indiana jones": 0.86, "star wars hyperspace mountain": 0.90,
-            "crush's coaster": 0.88, "spider-man w.e.b. adventure": 0.92, "avengers assemble: flight force": 0.89,
-            "phantom manor": 0.96, "pirates of the caribbean": 0.95, "peter pan's flight": 0.97, "ratatouille": 0.91
-        };
-
-        const TACTICAL_COORDS = {
-            4: [
-                { match: "main street", x: 50, y: 85, label: "Main St." },
-                { match: "fantasy", x: 50, y: 20, label: "Fantasyland" },
-                { match: "discovery", x: 85, y: 50, label: "Discoveryland" },
-                { match: "adventure", x: 25, y: 35, label: "Adventureland" },
-                { match: "frontier", x: 15, y: 65, label: "Frontierland" }
-            ],
-            28: [
-                { match: "front lot", x: 50, y: 85, label: "Front Lot" },
-                { match: "production", x: 30, y: 60, label: "Prod. Courtyard" },
-                { match: "toon", x: 70, y: 60, label: "Toon Studio" },
-                { match: "pixar", x: 80, y: 25, label: "Worlds of Pixar" },
-                { match: "avengers", x: 20, y: 30, label: "Avengers Campus" }
-            ]
-        };
-
-        const getCoords = (parkId, landName) => {
-            const mapData = TACTICAL_COORDS[parkId];
-            if (!mapData) return { x: 50, y: 50 };
-            const coord = mapData.find(c => landName.toLowerCase().includes(c.match));
-            return coord || { x: 50, y: 50 };
+            return { brief, intel, type, env, duration: ride.duration + " mins" };
         };
 
         const PROXIES = [
-            {
-                name: "CorsProxy.io (Primary)",
-                fetch: async (target) => {
-                    const res = await fetch(`https://corsproxy.io/?${encodeURIComponent(target)}`);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    return await res.json();
-                }
-            },
-            {
-                name: "AllOrigins GET (Fallback)",
-                fetch: async (target) => {
-                    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(target)}`);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    const data = await res.json();
-                    return JSON.parse(data.contents);
-                }
-            }
+            { name: "CorsProxy.io (Primary)", fetch: async (t) => await (await fetch(`https://corsproxy.io/?${encodeURIComponent(t)}`)).json() },
+            { name: "AllOrigins GET (Fallback)", fetch: async (t) => JSON.parse((await (await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(t)}`)).json()).contents) }
         ];
 
         const App = () => {
@@ -190,45 +194,18 @@
             const [error, setError] = useState(null);
             const [activePark, setActivePark] = useState('4'); 
             const [lastSync, setLastSync] = useState(null);
-            
-            // UI States
             const [showPrimer, setShowPrimer] = useState(false);
             const [expandedRideId, setExpandedRideId] = useState(null);
 
             // Theme Management
-            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v13') || 'system');
-
+            const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v14') || 'system');
+            
             useEffect(() => {
-                localStorage.setItem('dlp_theme_v13', theme);
+                localStorage.setItem('dlp_theme_v14', theme);
                 const root = window.document.documentElement;
-                
-                if (theme === 'dark') {
-                    root.classList.add('dark');
-                } else if (theme === 'light') {
-                    root.classList.remove('dark');
-                } else {
-                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                        root.classList.add('dark');
-                    } else {
-                        root.classList.remove('dark');
-                    }
-                }
-            }, [theme]);
-
-            useEffect(() => {
-                const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-                const handleChange = () => {
-                    if (theme === 'system') {
-                        const root = window.document.documentElement;
-                        if (mediaQuery.matches) {
-                            root.classList.add('dark');
-                        } else {
-                            root.classList.remove('dark');
-                        }
-                    }
-                };
-                mediaQuery.addEventListener('change', handleChange);
-                return () => mediaQuery.removeEventListener('change', handleChange);
+                if (theme === 'dark') root.classList.add('dark');
+                else if (theme === 'light') root.classList.remove('dark');
+                else window.matchMedia('(prefers-color-scheme: dark)').matches ? root.classList.add('dark') : root.classList.remove('dark');
             }, [theme]);
 
             const cycleTheme = () => {
@@ -237,21 +214,33 @@
                 else setTheme('system');
             };
 
-            const getThemeIcon = () => {
-                if (theme === 'system') return I.Monitor;
-                if (theme === 'dark') return I.Moon;
-                return I.Sun;
-            };
+            const getThemeIcon = () => theme === 'system' ? I.Monitor : (theme === 'dark' ? I.Moon : I.Sun);
 
-            // Persistent Storage
-            const [completedTargets, setCompletedTargets] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_completed_v13') || '[]'));
-            });
-            
-            const [activatedMinors, setActivatedMinors] = useState(() => {
-                return new Set(JSON.parse(localStorage.getItem('dlp_activated_v13') || '[]'));
-            });
+            // GPS Logic
+            const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v14') || 'false'));
+            const [userGPS, setUserGPS] = useState(null);
 
+            useEffect(() => {
+                localStorage.setItem('dlp_gps_v14', JSON.stringify(gpsEnabled));
+                let watchId;
+                if (gpsEnabled) {
+                    watchId = navigator.geolocation.watchPosition(
+                        (pos) => setUserGPS({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                        (err) => addLog(`[WARN] GPS Signal lost or denied: ${err.message}`, 'warn'),
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                    );
+                    addLog(`[SYS] Satellite Tracking active. Syncing Dynamic Origin.`, 'success');
+                } else {
+                    setUserGPS(null);
+                    addLog(`[SYS] Satellite Tracking offline. Reverting to manual sequencing.`, 'info');
+                }
+                return () => { if(watchId) navigator.geolocation.clearWatch(watchId); };
+            }, [gpsEnabled]);
+
+            const toggleGPS = () => setGpsEnabled(!gpsEnabled);
+
+            const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v14') || '[]')));
+            const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v14') || '[]')));
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(false);
             const logsEndRef = useRef(null);
@@ -261,29 +250,17 @@
                 return `BUILD ${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
             }, [lastSync]);
 
-            useEffect(() => {
-                localStorage.setItem('dlp_completed_v13', JSON.stringify(Array.from(completedTargets)));
-            }, [completedTargets]);
+            useEffect(() => localStorage.setItem('dlp_completed_v14', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
+            useEffect(() => localStorage.setItem('dlp_activated_v14', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
 
-            useEffect(() => {
-                localStorage.setItem('dlp_activated_v13', JSON.stringify(Array.from(activatedMinors)));
-            }, [activatedMinors]);
-
-            const toggleExpand = (id) => {
-                setExpandedRideId(prev => prev === id ? null : id);
-            };
-
+            const toggleExpand = (id) => setExpandedRideId(prev => prev === id ? null : id);
+            
             const toggleRide = (e, rideId) => {
                 e.stopPropagation(); 
                 setCompletedTargets(prev => {
                     const next = new Set(prev);
-                    if (next.has(rideId)) {
-                        next.delete(rideId);
-                        addLog(`[SYS] Objective restored to active tracking sequence.`, 'success');
-                    } else {
-                        next.add(rideId);
-                        addLog(`[SYS] Objective complete. Updating Dynamic Origin vector.`, 'info');
-                    }
+                    if (next.has(rideId)) { next.delete(rideId); addLog(`[SYS] Objective restored to active tracking sequence.`, 'success'); } 
+                    else { next.add(rideId); addLog(`[SYS] Objective complete. Updating Dynamic Origin vector.`, 'info'); }
                     return next;
                 });
             };
@@ -292,13 +269,8 @@
                 e.stopPropagation(); 
                 setActivatedMinors(prev => {
                     const next = new Set(prev);
-                    if (next.has(rideId)) {
-                        next.delete(rideId);
-                        addLog(`[SYS] Demoting attraction back to the background repository.`, 'info');
-                    } else {
-                        next.add(rideId);
-                        addLog(`[SYS] Promoting attraction into active routing matrix.`, 'success');
-                    }
+                    if (next.has(rideId)) { next.delete(rideId); addLog(`[SYS] Demoting attraction back to the background repository.`, 'info'); } 
+                    else { next.add(rideId); addLog(`[SYS] Promoting attraction into active routing matrix.`, 'success'); }
                     return next;
                 });
             };
@@ -308,35 +280,12 @@
                 setLogs(prev => [...prev, { time, msg, type }]);
             };
 
-            useEffect(() => {
-                if (showTerminal && logsEndRef.current) {
-                    logsEndRef.current.scrollIntoView({ behavior: "smooth" });
-                }
-            }, [logs, showTerminal]);
-
-            const fetchWithCascade = async (targetUrl, description) => {
-                addLog(`[NET] Fetching telemetry block for ${description}`, 'info');
-                for (const proxy of PROXIES) {
-                    try {
-                        addLog(`[NET] Engaging node: ${proxy.name}...`, 'info');
-                        const data = await proxy.fetch(targetUrl);
-                        if (data && data.lands) {
-                            addLog(`[NET] Success via ${proxy.name}. Payload valid.`, 'success');
-                            return data;
-                        }
-                        throw new Error("Payload corrupt: Missing 'lands' array.");
-                    } catch (err) { 
-                        addLog(`[WARN] Node failure (${proxy.name}): ${err.message}`, 'warn');
-                    }
-                }
-                addLog(`[FATAL] All network nodes exhausted for ${description}.`, 'error');
-                throw new Error(`All network nodes exhausted for ${description}.`);
-            };
+            useEffect(() => { if (showTerminal && logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: "smooth" }); }, [logs, showTerminal]);
 
             const bootSystem = async (isSilent = false) => {
                 if (!isSilent) setLoading(true);
                 setError(null);
-                addLog(`[SYS] Boot sequence initialized. Stamina logic active.`, 'info');
+                addLog(`[SYS] Boot sequence initialized. Stamina and GPS logic active.`, 'info');
 
                 try {
                     const allFetchedRides = [];
@@ -344,42 +293,47 @@
 
                     for (const park of PARK_IDS) {
                         try {
-                            const data = await fetchWithCascade(`https://queue-times.com/parks/${park.id}/queue_times.json`, park.name);
-                            parksOnline++;
+                            let data = null;
+                            for (const proxy of PROXIES) {
+                                try {
+                                    addLog(`[NET] Engaging node: ${proxy.name} for ${park.name}...`, 'info');
+                                    data = await proxy.fetch(`https://queue-times.com/parks/${park.id}/queue_times.json`);
+                                    if (data && data.lands) break;
+                                } catch(e) { addLog(`[WARN] Node failure: ${e.message}`, 'warn'); }
+                            }
+                            if (!data || !data.lands) throw new Error("All network nodes exhausted.");
                             
+                            parksOnline++;
                             let ridesFound = 0;
+                            
                             const processed = data.lands.flatMap(land => 
                                 land.rides
                                     .filter(r => !r.name.toLowerCase().includes('single rider'))
                                     .map(r => {
                                         ridesFound++;
-                                        const isPriority = PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
-                                        
+                                        const metrics = getRideMetrics(r.name, land.name);
                                         return {
                                             ...r, 
                                             parkName: park.name, 
                                             parkId: park.id, 
                                             landName: land.name,
-                                            isPriority: isPriority,
-                                            isMinor: !isPriority
+                                            isPriority: metrics.isPriority,
+                                            isMinor: !metrics.isPriority,
+                                            coords: { x: metrics.x, y: metrics.y },
+                                            duration: metrics.duration,
+                                            uptime: metrics.uptime
                                         };
                                     })
                             );
-                            addLog(`[SYS] Parsed ${ridesFound} total data layers from ${park.name}`, 'info');
+                            addLog(`[SYS] Parsed ${ridesFound} objectives from ${park.name}`, 'info');
                             allFetchedRides.push(...processed);
-                        } catch (e) { 
-                            addLog(`[ERR] ${park.name} completely isolated. Connection blocked.`, 'error');
-                        }
+                        } catch (e) { addLog(`[ERR] ${park.name} completely isolated.`, 'error'); }
                     }
 
-                    if (parksOnline === 0 || allFetchedRides.length === 0) {
-                        addLog(`[FATAL] Zero operational telemetry returned from endpoint nodes.`, 'error');
-                        throw new Error("No operational telemetry returned from endpoint nodes. Check network connection.");
-                    }
-
+                    if (parksOnline === 0) throw new Error("No operational telemetry returned from endpoint nodes. Check network connection.");
+                    
                     setRides(allFetchedRides);
                     setLastSync(new Date().toLocaleTimeString('en-GB', { hour12: false }));
-                    addLog(`[SYS] Math engine processing ${allFetchedRides.length} active variables. Routing updated.`, 'success');
                 } catch (err) {
                     addLog(`[SYS] Boot failure: ${err.message}`, 'error');
                     if (!isSilent) setError(err.message);
@@ -395,45 +349,29 @@
             }, []);
 
             const memoizedData = useMemo(() => {
-                if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0, totalQueueTimeMins: 0 } };
+                if (rides.length === 0) return { masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0, totalQueueTimeMins: 0 } };
 
                 const parisTimeStr = new Date().toLocaleString("en-US", {timeZone: "Europe/Paris"});
                 const now = new Date(parisTimeStr);
                 let t = (now.getHours() * 60 + now.getMinutes()) - 540;
-                if (t < 0) t = 0;
-                if (t > 720) t = 720; 
+                if (t < 0) t = 0; if (t > 720) t = 720; 
                 const R = 200 + 200 * Math.sin((t * Math.PI) / 720); 
 
                 rides.forEach(ride => {
-                    let mu_base = 20; 
-                    const rideNameLower = ride.name.toLowerCase();
-                    if (rideNameLower.includes('phantom manor') || rideNameLower.includes('pirates') || rideNameLower.includes('buzz') || rideNameLower.includes('star tours') || rideNameLower.includes('small world')) mu_base = 33; 
-                    else if (rideNameLower.includes('crush') || rideNameLower.includes('peter pan') || rideNameLower.includes('parachutes') || rideNameLower.includes('rc racer')) mu_base = 13; 
-                    else if (rideNameLower.includes('thunder') || rideNameLower.includes('hyperspace') || rideNameLower.includes('avengers')) mu_base = 25; 
+                    let mu_base = ride.isPriority ? 25 : 15;
+                    const n = ride.name.toLowerCase();
+                    if (n.includes('phantom') || n.includes('pirates') || n.includes('buzz') || n.includes('small world')) mu_base = 33; 
+                    else if (n.includes('crush') || n.includes('peter pan')) mu_base = 13; 
 
-                    const Ar = Object.keys(UPTIME_STATS).find(key => rideNameLower.includes(key)) 
-                               ? UPTIME_STATS[Object.keys(UPTIME_STATS).find(key => rideNameLower.includes(key))] : 0.98;
-                    
-                    const mu_standby_raw = ride.isPriority ? mu_base * 0.6 : mu_base; 
-                    const mu_eff = mu_standby_raw * Ar;
-                    
+                    const mu_eff = (ride.isPriority ? mu_base * 0.6 : mu_base) * ride.uptime;
                     const baseAttraction = ride.isPriority ? 0.08 : 0.04;
-                    const repulsion = baseAttraction / 150; 
-                    const lambda = Math.max(0, R * (baseAttraction - (repulsion * ride.wait_time))); 
+                    const lambda = Math.max(0, R * (baseAttraction - ((baseAttraction/150) * ride.wait_time))); 
                     
-                    const rho = mu_eff > 0 ? lambda / mu_eff : 0;
-                    const velocity = rho - 1; 
-                    const predictedWait = Math.max(0, ride.wait_time + (velocity * 60));
-                    
-                    const benefitOfRidingNow = predictedWait - ride.wait_time;
-                    ride.routingScore = ride.wait_time - benefitOfRidingNow;
-                    
-                    ride.velocity = Number(velocity.toFixed(2));
-                    ride.predictedWait = Math.round(predictedWait);
-                    ride.lambda = Number(lambda.toFixed(1));
-                    ride.mu = Number(mu_eff.toFixed(1));
-                    ride.rho = Number(rho.toFixed(2));
-                    ride.uptime = Ar; 
+                    ride.rho = mu_eff > 0 ? lambda / mu_eff : 0;
+                    ride.velocity = ride.rho - 1; 
+                    ride.predictedWait = Math.max(0, ride.wait_time + (ride.velocity * 60));
+                    ride.lambda = lambda;
+                    ride.mu = mu_eff;
                     ride.aiIntel = generateTacticalIntelligence(ride);
                 });
 
@@ -443,82 +381,16 @@
                 const activePool = [];
 
                 rides.forEach(r => {
-                    const matchPark = activePark === 'all' || r.parkId === parseInt(activePark);
-                    if (!matchPark) return;
-
-                    if (completedTargets.has(r.id)) {
-                        completedSequence.push(r);
-                    } else if (!r.is_open) {
-                        closedSequence.push(r);
-                    } else if (r.isMinor && !activatedMinors.has(r.id)) {
-                        minorSequence.push(r);
-                    } else {
-                        activePool.push(r);
-                    }
+                    if (activePark !== 'all' && r.parkId !== parseInt(activePark)) return;
+                    if (completedTargets.has(r.id)) completedSequence.push(r);
+                    else if (!r.is_open) closedSequence.push(r);
+                    else if (r.isMinor && !activatedMinors.has(r.id)) minorSequence.push(r);
+                    else activePool.push(r);
                 });
 
                 minorSequence.sort((a, b) => a.name.localeCompare(b.name));
                 completedSequence.sort((a, b) => a.name.localeCompare(b.name));
                 closedSequence.sort((a, b) => a.name.localeCompare(b.name));
-
-                // STAMINA GROUPING
-                const grouped = {};
-                activePool.forEach(ride => {
-                    const zoneKey = `${ride.parkName} - ${ride.landName}`;
-                    if (!grouped[zoneKey]) {
-                        grouped[zoneKey] = {
-                            zoneKey, parkId: ride.parkId, parkName: ride.parkName, landName: ride.landName, rides: [], avgScore: 0
-                        };
-                    }
-                    grouped[zoneKey].rides.push(ride);
-                });
-
-                Object.values(grouped).forEach(zone => {
-                    zone.rides.sort((a, b) => a.routingScore - b.routingScore);
-                    const totalScore = zone.rides.reduce((sum, r) => sum + r.routingScore, 0);
-                    zone.avgScore = totalScore / zone.rides.length;
-                });
-
-                let tspSortedLands = [];
-                const parkGroups = {};
-                Object.values(grouped).forEach(z => {
-                   if(!parkGroups[z.parkId]) parkGroups[z.parkId] = [];
-                   parkGroups[z.parkId].push(z);
-                });
-
-                Object.keys(parkGroups).forEach(pId => {
-                   let unvisited = parkGroups[pId];
-                   let currentPos = { x: 50, y: 95 }; 
-                   
-                   const completedArray = Array.from(completedTargets);
-                   for (let i = completedArray.length - 1; i >= 0; i--) {
-                       const lastId = completedArray[i];
-                       const lastRide = rides.find(r => r.id === lastId);
-                       if (lastRide && lastRide.parkId.toString() === pId) {
-                           currentPos = getCoords(pId, lastRide.landName);
-                           break; 
-                       }
-                   }
-
-                   while(unvisited.length > 0) {
-                      unvisited.forEach(zone => {
-                         const dest = getCoords(pId, zone.landName);
-                         const physicalDistance = Math.sqrt(Math.pow(dest.x - currentPos.x, 2) + Math.pow(dest.y - currentPos.y, 2));
-                         const travelTimeMins = Math.max(2, Math.round(physicalDistance * 0.15)); 
-                         
-                         zone.travelTimeFromLast = travelTimeMins;
-                         // STAMINA MULTIPLIER (3.5x penalty to force land grouping)
-                         zone.tspCostScore = zone.avgScore + (travelTimeMins * 3.5); 
-                         zone.coords = dest;
-                      });
-                      
-                      unvisited.sort((a,b) => a.tspCostScore - b.tspCostScore);
-                      const nextZone = unvisited.shift();
-                      
-                      tspSortedLands.push(nextZone);
-                      currentPos = nextZone.coords; 
-                   }
-                });
 
                 let sequence = [];
                 let counter = 1;
@@ -526,46 +398,93 @@
                 let queueEvasionSaved = 0;
                 let totalQueueTimeMins = 0;
 
-                tspSortedLands.forEach(zone => {
-                    tspTotalWalk += (zone.travelTimeFromLast || 0);
-                    zone.rides.forEach(ride => {
-                        sequence.push({ ...ride, globalStep: counter++, zoneInfo: zone });
-                        totalQueueTimeMins += Math.round(ride.wait_time);
-                        if (ride.velocity > 0) {
-                           queueEvasionSaved += Math.round(ride.predictedWait - ride.wait_time);
-                        }
-                    });
+                const parkGroups = {};
+                activePool.forEach(r => { if(!parkGroups[r.parkId]) parkGroups[r.parkId] = []; parkGroups[r.parkId].push(r); });
+
+                Object.keys(parkGroups).forEach(pId => {
+                   let unvisited = parkGroups[pId];
+                   let currentPos = { x: 50, y: 95 }; // Default Gates
+                   
+                   // Dynamic Origin Selection: GPS Overrides Manual Checked Boxes
+                   if (gpsEnabled && userGPS) {
+                       let closestLand = null;
+                       let minDistance = Infinity;
+                       TACTICAL_COORDS[pId].forEach(land => {
+                           const d = getHaversineDistance(userGPS.lat, userGPS.lng, land.lat, land.lng);
+                           if (d < minDistance) { minDistance = d; closestLand = land; }
+                       });
+                       if (closestLand) currentPos = { x: closestLand.x, y: closestLand.y };
+                   } else {
+                       const completedArray = Array.from(completedTargets);
+                       for (let i = completedArray.length - 1; i >= 0; i--) {
+                           const lastRide = rides.find(r => r.id === completedArray[i]);
+                           if (lastRide && lastRide.parkId.toString() === pId) {
+                               currentPos = lastRide.coords; break; 
+                           }
+                       }
+                   }
+
+                   while(unvisited.length > 0) {
+                      unvisited.forEach(ride => {
+                         const distance = Math.sqrt(Math.pow(ride.coords.x - currentPos.x, 2) + Math.pow(ride.coords.y - currentPos.y, 2));
+                         const walkTimeMins = Math.max(2, Math.round(distance * 0.18)); 
+                         const futureQueue = Math.max(0, ride.wait_time + (ride.velocity * walkTimeMins));
+                         
+                         // 3.5x Walking Penalty ensures you don't run around unnecessarily
+                         const walkPenalty = walkTimeMins * 3.5;
+                         const urgencyBonus = ride.velocity > 0 ? (ride.velocity * 20) : 0;
+                         
+                         ride.travelTimeFromLast = walkTimeMins;
+                         ride.projectedWaitAtArrival = Math.round(futureQueue);
+                         ride.tacticalScore = ride.projectedWaitAtArrival + walkPenalty - urgencyBonus;
+                      });
+                      
+                      unvisited.sort((a,b) => a.tacticalScore - b.tacticalScore);
+                      const nextRide = unvisited.shift();
+                      
+                      nextRide.globalStep = counter++;
+                      sequence.push(nextRide);
+                      
+                      tspTotalWalk += nextRide.travelTimeFromLast;
+                      totalQueueTimeMins += nextRide.projectedWaitAtArrival;
+                      if (nextRide.velocity > 0) queueEvasionSaved += Math.round(nextRide.predictedWait - nextRide.wait_time);
+                      
+                      currentPos = nextRide.coords; 
+                   }
                 });
 
-                let walkSaved = Math.round(tspTotalWalk * 0.8);
+                let walkSaved = Math.round(tspTotalWalk * 0.6); 
                 let totalSavedMins = Math.round(walkSaved + queueEvasionSaved);
 
                 return { 
-                    itinerary: tspSortedLands, 
                     masterSequence: sequence,
-                    completedSequence,
-                    minorSequence,
-                    closedSequence,
-                    metrics: { 
-                        queueEvasionSaved: Math.round(queueEvasionSaved), 
-                        walkSaved: Math.round(walkSaved), 
-                        totalSavedMins: Math.round(totalSavedMins), 
-                        totalQueueTimeMins: Math.round(totalQueueTimeMins) 
-                    }
+                    completedSequence, minorSequence, closedSequence,
+                    metrics: { queueEvasionSaved: Math.round(queueEvasionSaved), walkSaved, totalSavedMins, totalQueueTimeMins: Math.round(totalQueueTimeMins) }
                 };
-            }, [rides, activePark, completedTargets, activatedMinors]);
+            }, [rides, activePark, completedTargets, activatedMinors, gpsEnabled, userGPS]);
 
-            const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
+            const { masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
 
             const RideCard = ({ ride, isCompleted, isMinor, isClosed, globalStep }) => {
                 const isExpanded = expandedRideId === ride.id;
                 const intel = ride.aiIntel;
+                const showWalkBadge = globalStep !== undefined && !isCompleted && !isClosed && !isMinor;
 
                 return (
-                    <div className="relative group mb-3">
+                    <div className="relative group mb-3 w-full">
+                        {showWalkBadge && (
+                            <div className="flex flex-col items-center justify-center w-full mb-3 mt-1">
+                                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
+                                <div className="bg-white dark:bg-[#0c111a] border border-slate-300 dark:border-slate-700 rounded-full px-3 py-1 flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400 z-10 shadow-sm">
+                                    <Icon path={I.Footprints} size={10} className="text-emerald-500" /> Walk to {ride.landName}: ~{ride.travelTimeFromLast}m
+                                </div>
+                                <div className="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
+                            </div>
+                        )}
+
                         <div 
                             onClick={() => toggleExpand(ride.id)}
-                            className={`flex items-center p-3 rounded-xl transition-all cursor-pointer border ${
+                            className={`flex items-center p-3 rounded-xl transition-all cursor-pointer border relative z-20 ${
                                 isClosed ? 'bg-white dark:bg-[#080b12] border-rose-200 dark:border-rose-900/30' :
                                 isCompleted ? 'bg-slate-100 dark:bg-[#080b12] border-slate-200 dark:border-slate-800 hover:bg-white dark:hover:bg-[#0c111a]' :
                                 isMinor ? 'bg-slate-100 dark:bg-[#080b12] border-slate-200 dark:border-slate-800 hover:bg-white dark:hover:bg-[#0c111a]' :
@@ -574,14 +493,11 @@
                             } ${isExpanded ? 'rounded-b-none border-b-0' : ''}`}
                         >
                             {!isMinor && !isCompleted && !isClosed && (
-                                <>
-                                    <div className="absolute -left-8 top-1/2 w-8 h-[2px] bg-slate-300 dark:bg-slate-800 group-hover:bg-emerald-400 dark:group-hover:bg-emerald-500/50 transition-colors z-0 hidden md:block"></div>
-                                    <div className={`absolute -left-[45px] top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shadow-lg transition-all z-10 hidden md:flex ${
-                                        ride.isPriority ? 'bg-emerald-500 text-white dark:text-black border-2 border-white dark:border-[#05070a] scale-110 shadow-[0_0_10px_rgba(16,185,129,0.4)]' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-2 border-white dark:border-[#05070a]'
-                                    }`}>
-                                        {globalStep}
-                                    </div>
-                                </>
+                                <div className={`hidden md:flex shrink-0 w-8 h-8 mr-3 rounded-full items-center justify-center text-xs font-black shadow-sm transition-all z-10 ${
+                                    ride.isPriority ? 'bg-emerald-500 text-white dark:text-black border-2 border-white dark:border-[#05070a]' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-2 border-white dark:border-[#05070a]'
+                                }`}>
+                                    {globalStep}
+                                </div>
                             )}
 
                             <div className="mr-3 flex shrink-0">
@@ -755,13 +671,9 @@
                     );
                 }
 
-                const mapData = TACTICAL_COORDS[activePark];
-                const parkItinerary = itinerary.filter(zone => zone.parkId.toString() === activePark);
-
-                const routePoints = parkItinerary.map((zone, idx) => {
-                    const coord = mapData.find(c => zone.landName.toLowerCase().includes(c.match));
-                    return coord ? { ...coord, step: idx + 1, originalZone: zone } : null;
-                }).filter(Boolean);
+                const routePoints = masterSequence
+                    .filter(r => r.parkId.toString() === activePark)
+                    .map(r => ({ x: r.coords.x, y: r.coords.y, step: r.globalStep, label: r.name }));
 
                 return (
                     <div className="relative w-full aspect-[4/3] bg-white dark:bg-[#05070a] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-inner group">
@@ -782,21 +694,16 @@
                             })}
                         </svg>
 
-                        {mapData.map((node, i) => {
-                            const isActivePoint = routePoints.find(p => p.match === node.match);
-                            return (
-                                <div key={`node-${i}`} className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${node.x}%`, top: `${node.y}%` }}>
-                                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center font-black text-xs z-10 transition-all duration-500 shadow-lg ${
-                                        isActivePoint ? 'bg-emerald-500 border-emerald-300 dark:border-emerald-300 text-white dark:text-black scale-110 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-slate-100 dark:bg-[#0f172a] border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-600 scale-90'
-                                    }`}>
-                                        {isActivePoint ? isActivePoint.step : '•'}
-                                    </div>
-                                    <span className={`mt-1 text-[8px] uppercase tracking-wider font-bold bg-white/80 dark:bg-[#05070a]/80 px-1 rounded ${isActivePoint ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-600'}`}>
-                                        {node.label}
-                                    </span>
+                        {routePoints.map((node, i) => (
+                            <div key={`node-${i}`} className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center" style={{ left: `${node.x}%`, top: `${node.y}%` }}>
+                                <div className="w-6 h-6 rounded-full border-2 flex items-center justify-center font-black text-[10px] z-10 shadow-lg bg-emerald-500 border-emerald-300 dark:border-emerald-300 text-white dark:text-black">
+                                    {node.step}
                                 </div>
-                            );
-                        })}
+                                <span className="mt-1 text-[7px] uppercase tracking-wider font-bold bg-white/90 dark:bg-[#05070a]/90 px-1 rounded text-emerald-600 dark:text-emerald-400 max-w-[60px] text-center leading-tight line-clamp-2">
+                                    {node.label}
+                                </span>
+                            </div>
+                        ))}
                     </div>
                 );
             };
@@ -816,6 +723,17 @@
                                 </p>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-4 flex-wrap sm:flex-nowrap">
+                                <button 
+                                    onClick={toggleGPS}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-xs transition-all border ${
+                                        gpsEnabled 
+                                        ? 'bg-blue-600 border-blue-500 text-white shadow-sm dark:shadow-[0_0_10px_rgba(59,130,246,0.3)]' 
+                                        : 'bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
+                                    }`}
+                                >
+                                    <Icon path={I.Crosshair} size={14} className={gpsEnabled ? "animate-pulse" : ""} /> 
+                                    <span className="hidden sm:inline">GPS {gpsEnabled ? 'ON' : 'OFF'}</span>
+                                </button>
                                 <button 
                                     onClick={cycleTheme}
                                     className="flex items-center gap-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg font-bold text-xs transition-all border border-slate-300 dark:border-slate-700"
@@ -867,15 +785,15 @@
                                             <ul className="space-y-3">
                                                 <li className="flex items-start gap-2">
                                                     <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Follow the Master Sequence:</strong> The system automatically groups rides by land (Stamina Optimization) to prevent physical exhaustion. It evaluates wait times, predicts 60-minute surges, and clusters your route to avoid walking back and forth across the park.</span>
+                                                    <span><strong>Follow the Master Sequence:</strong> The system automatically groups rides by land to prevent physical exhaustion. It evaluates wait times, predicts 60-minute surges, and clusters your route to avoid walking back and forth across the park.</span>
                                                 </li>
                                                 <li className="flex items-start gap-2">
                                                     <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
                                                     <span><strong>Log Completed Targets:</strong> Once you enter a queue, <strong>check the box</strong>. The system will log it to the archive, set your current location as the new <em>Dynamic Origin</em>, and instantly recalculate the optimal route to your next objective.</span>
                                                 </li>
                                                 <li className="flex items-start gap-2">
-                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Add Custom Rides:</strong> Want to ride a minor attraction? Scroll down to the <em>"All Other Attractions"</em> bank and <strong>un-check</strong> the box. The engine will rip it out of the background and inject it into your live routing matrix.</span>
+                                                    <Icon path={I.Crosshair} size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                                                    <span><strong>Toggle GPS Tracking:</strong> After taking a break for lunch, tap the <strong>GPS</strong> button. The engine will triangulate your actual location and build a new path. Turn it back off to save battery when you resume the route.</span>
                                                 </li>
                                             </ul>
                                         </div>
@@ -1006,37 +924,9 @@
                                                  <p>All active elite objectives have been logged.<br/>Untick items in the optional bank below to route secondary targets.</p>
                                              </div>
                                         ) : (
-                                            <div className="relative border-l-2 border-slate-300 dark:border-slate-800 ml-6 space-y-6 pb-8 mt-4">
-                                                {itinerary.map((zone, zoneIdx) => (
-                                                    <div key={`${zone.parkId}-${zone.landName}`} className="relative">
-                                                        
-                                                        {zoneIdx > 0 && (
-                                                             <div className="absolute -left-[45px] -top-10 h-10 border-l-2 border-dashed border-emerald-500/30"></div>
-                                                        )}
-
-                                                        <div className="absolute -left-[64px] -top-8 bg-white dark:bg-[#0c111a] border border-slate-300 dark:border-slate-700 rounded-full px-2 py-1 flex items-center gap-1 text-[9px] font-bold text-slate-500 dark:text-slate-400 z-10 shadow-sm dark:shadow-lg">
-                                                            <Icon path={I.Footprints} size={10} className="text-emerald-500" /> Walk: ~{Math.round(zone.travelTimeFromLast)}m
-                                                        </div>
-                                                        
-                                                        <div className="absolute -left-[21px] top-0 bg-slate-100 dark:bg-[#05070a] py-1 z-10">
-                                                            <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-[#111827] border-2 border-slate-300 dark:border-slate-700 flex items-center justify-center">
-                                                                <Icon path={I.MapPin} size={16} className="text-slate-500" />
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        <div className="ml-10 mb-4 mt-2">
-                                                            <h3 className="font-black text-slate-800 dark:text-slate-300 uppercase tracking-widest text-sm flex items-center gap-2">
-                                                                ENTER {zone.landName}
-                                                            </h3>
-                                                            <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase">{zone.parkName}</p>
-                                                        </div>
-
-                                                        <div className="ml-8">
-                                                            {masterSequence.filter(r => r.landName === zone.landName && r.parkId === zone.parkId).map((ride) => (
-                                                                <RideCard key={ride.id} ride={ride} globalStep={ride.globalStep} />
-                                                            ))}
-                                                        </div>
-                                                    </div>
+                                            <div className="space-y-0 w-full">
+                                                {masterSequence.map((ride, idx) => (
+                                                    <RideCard key={ride.id} ride={ride} globalStep={ride.globalStep} />
                                                 ))}
                                             </div>
                                         )}
@@ -1051,7 +941,7 @@
                                                         {completedSequence.length} LOGGED
                                                     </span>
                                                 </div>
-                                                <div className="px-2 opacity-60">
+                                                <div className="opacity-60 space-y-3 w-full">
                                                     {completedSequence.map((ride) => <RideCard key={ride.id} ride={ride} isCompleted={true} />)}
                                                 </div>
                                             </div>
@@ -1067,7 +957,7 @@
                                                         {minorSequence.length} HIDDEN
                                                     </span>
                                                 </div>
-                                                <div className="px-2 opacity-80">
+                                                <div className="opacity-80 space-y-3 w-full">
                                                     {minorSequence.map((ride) => <RideCard key={ride.id} ride={ride} isMinor={true} />)}
                                                 </div>
                                             </div>
@@ -1083,7 +973,7 @@
                                                         {closedSequence.length} OFFLINE
                                                     </span>
                                                 </div>
-                                                <div className="px-2 opacity-80 dark:opacity-70">
+                                                <div className="opacity-80 dark:opacity-70 space-y-3 w-full">
                                                     {closedSequence.map((ride) => <RideCard key={ride.id} ride={ride} isClosed={true} />)}
                                                 </div>
                                             </div>
