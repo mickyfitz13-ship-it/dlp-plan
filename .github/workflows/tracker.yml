@@ -2,7 +2,6 @@ name: Telemetry Tracker
 
 on:
   schedule:
-    - cron: '*/15 * * * *'  # Cloud execution layer (15-minute fallback interval)
   workflow_dispatch: # Allows you to run it manually from the GitHub UI
 
 permissions:
