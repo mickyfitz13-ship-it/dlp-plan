@@ -292,7 +292,6 @@
                 });
             };
 
-            // --- NEW: Reset Progress Function ---
             const resetProgress = () => {
                 if(window.confirm("Clear all completed objectives and reset your daily sequence?")) {
                     setCompletedTargets(new Set());
@@ -455,6 +454,8 @@
 
                         let bestHourStr = "Calibrating";
                         let worstHourStr = "Calibrating";
+                        let timeSpanStr = "24 hours";
+                        
                         if (points.length > 0) {
                             const hourlyMap = {};
                             points.forEach(p => {
@@ -470,6 +471,11 @@
                                 if (avg < minAvg) { minAvg = avg; bestHourStr = `${h.padStart(2, '0')}h`; }
                                 if (avg > maxAvg) { maxAvg = avg; worstHourStr = `${h.padStart(2, '0')}h`; }
                             });
+                            
+                            if (points.length > 1) {
+                                const diffDays = (points[points.length - 1].t - points[0].t) / 86400000;
+                                if (diffDays >= 1) timeSpanStr = `${Math.round(diffDays)} days`;
+                            }
                         }
 
                         return {
@@ -483,7 +489,7 @@
                             projection60m: pred60,
                             routingScore: ride.wait_time - ((typeof predDisplay === 'number' ? predDisplay : 0) - ride.wait_time),
                             aiIntel: generateTacticalIntelligence(ride),
-                            analytics: { low: lowMarker, high: highMarker, avg: avgMarker, bestHour: bestHourStr, worstHour: worstHourStr, samples: points.length }
+                            analytics: { low: lowMarker, high: highMarker, avg: avgMarker, bestHour: bestHourStr, worstHour: worstHourStr, samples: points.length, timeSpan: timeSpanStr }
                         };
                     });
 
@@ -878,7 +884,7 @@
 
                                         <div className="bg-slate-200 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-300 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                                             <span className="font-bold text-slate-800 dark:text-slate-200">{ride.name} - {ride.parkName} {ride.landName}</span><br/><br/>
-                                            Average wait time for {ride.name} at {ride.parkName} is {ride.analytics.avg} minutes, peaking at {ride.analytics.high} minutes based on {ride.analytics.samples} historical data entries logged over the last 14 days.<br/><br/>
+                                            Average wait time for {ride.name} at {ride.parkName} is {ride.analytics.avg} minutes, peaking at {ride.analytics.high} minutes based on {ride.analytics.samples} historical data entries logged over the last {ride.analytics.timeSpan}.<br/><br/>
                                             The quietest hour observed on average is {ride.analytics.bestHour} (around {ride.analytics.low} min wait), and the busiest hour is {ride.analytics.worstHour} (around {ride.analytics.high} min). 
                                         </div>
                                     </div>
@@ -1134,7 +1140,6 @@
 
                                             {completedSequence.length > 0 && (
                                                 <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
-                                                    {/* --- FIXED: CLEAR COMPLETED BUTTON --- */}
                                                     <div className="flex justify-between items-center mb-4">
                                                         <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Completed Archive</h3>
                                                         <button onClick={resetProgress} className="flex items-center gap-1 text-[10px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-2 py-1 rounded transition-colors border border-rose-200 dark:border-rose-500/20">
