@@ -72,7 +72,7 @@
             Cpu: '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line>',
             Sun: '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>',
             Moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
-            Monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" py="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>',
+            Monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>',
             CheckSquare: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
             ThumbsUp: '<path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>',
             AlertTriangle: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>'
@@ -107,17 +107,18 @@
             "hyperspace mountain", "big thunder mountain", "tower of terror", "spider-man", "flight force", "ratatouille", "crush's coaster", "pirates of the caribbean", "indiana jones", "phantom manor", "peter pan", "buzz lightyear", "rise of the resistance", "smugglers run", "tron", "seven dwarfs mine train", "space mountain", "guardians of the galaxy", "slinky dog dash", "avatar flight of passage", "expedition everest", "test track", "soarin", "mickey & minnie", "radiator springs racers", "incredicoaster", "journey to the center of the earth", "beauty and the beast", "mystic manor", "iron man experience", "roaring rapids", "zootopia", "toy story mania", "frozen ever after", "raiponce tangled spin"
         ];
 
+        // --- EXPANDED COORDINATES INCLUDING NEW LANDS (WORLD OF FROZEN, ETC) ---
         const TACTICAL_COORDS = {
             4: [{match:"main street",x:50,y:85,label:"Main St."},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"discovery",x:85,y:50,label:"Discovery"},{match:"adventure",x:25,y:35,label:"Adventure"},{match:"frontier",x:15,y:65,label:"Frontier"}],
-            28: [{match:"front lot",x:50,y:85,label:"Front Lot"},{match:"production",x:30,y:60,label:"Prod."},{match:"toon",x:70,y:60,label:"Toon"},{match:"pixar",x:80,y:25,label:"Pixar"},{match:"avengers",x:20,y:30,label:"Avengers"}],
+            28: [{match:"front lot",x:50,y:85,label:"Front Lot"},{match:"premiere",x:50,y:60,label:"Premiere Plaza"},{match:"production",x:50,y:60,label:"Prod."},{match:"toon",x:70,y:60,label:"Toon"},{match:"pixar",x:80,y:25,label:"Pixar"},{match:"avengers",x:20,y:40,label:"Avengers"},{match:"adventure way",x:50,y:30,label:"Adv. Way"},{match:"frozen",x:50,y:10,label:"Frozen"}],
             6: [{match:"main street",x:50,y:85,label:"Main St."},{match:"adventure",x:25,y:60,label:"Adventure"},{match:"frontier",x:15,y:40,label:"Frontier"},{match:"liberty",x:35,y:35,label:"Liberty"},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"tomorrow",x:85,y:50,label:"Tomorrow"}],
             5: [{match:"celebration",x:50,y:75,label:"Celebration"},{match:"discovery",x:75,y:60,label:"Discovery"},{match:"nature",x:25,y:60,label:"Nature"},{match:"showcase",x:50,y:20,label:"Showcase"}],
             7: [{match:"hollywood",x:50,y:85,label:"Hollywood"},{match:"echo",x:25,y:60,label:"Echo"},{match:"grand",x:15,y:30,label:"Grand"},{match:"star wars",x:15,y:15,label:"Galaxy's Edge"},{match:"toy story",x:50,y:15,label:"Toy Story"},{match:"animation",x:75,y:40,label:"Animation"},{match:"sunset",x:85,y:60,label:"Sunset"}],
             8: [{match:"oasis",x:50,y:85,label:"Oasis"},{match:"discovery",x:50,y:60,label:"Discovery"},{match:"pandora",x:20,y:50,label:"Pandora"},{match:"africa",x:30,y:20,label:"Africa"},{match:"asia",x:70,y:25,label:"Asia"},{match:"dinoland",x:80,y:60,label:"Dinoland"}],
-            16: [{match:"main street",x:50,y:85,label:"Main St."},{match:"adventure",x:30,y:60,label:"Adventure"},{match:"new orleans",x:15,y:40,label:"New Orleans"},{match:"critter",x:10,y:30,label:"Critter"},{match:"frontier",x:35,y:35,label:"Frontier"},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"toontown",x:50,y:5,label:"Toontown"},{match:"tomorrow",x:80,y:50,label:"Tomorrow"},{match:"star wars",x:15,y:15,label:"Galaxy's Edge"}],
+            16: [{match:"main street",x:50,y:85,label:"Main St."},{match:"adventure",x:30,y:60,label:"Adventure"},{match:"new orleans",x:15,y:40,label:"New Orleans"},{match:"critter",x:10,y:30,label:"Critter"},{match:"bayou",x:10,y:30,label:"Bayou"},{match:"frontier",x:35,y:35,label:"Frontier"},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"toontown",x:50,y:5,label:"Toontown"},{match:"tomorrow",x:80,y:50,label:"Tomorrow"},{match:"star wars",x:15,y:15,label:"Galaxy's Edge"}],
             17: [{match:"buena",x:50,y:85,label:"Buena Vista"},{match:"hollywood",x:20,y:60,label:"Hollywood"},{match:"avengers",x:20,y:40,label:"Avengers"},{match:"cars",x:30,y:20,label:"Cars"},{match:"pacific",x:60,y:40,label:"Pacific"},{match:"san fransokyo",x:60,y:40,label:"San Fransokyo"},{match:"pixar",x:75,y:20,label:"Pixar"},{match:"grizzly",x:60,y:60,label:"Grizzly"}],
             274: [{match:"bazaar",x:50,y:85,label:"Bazaar"},{match:"adventure",x:25,y:60,label:"Adventure"},{match:"western",x:15,y:40,label:"Western"},{match:"critter",x:25,y:20,label:"Critter"},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"toontown",x:75,y:15,label:"Toontown"},{match:"tomorrow",x:85,y:50,label:"Tomorrow"}],
-            275: [{match:"mediterranean",x:50,y:80,label:"Mediterranean"},{match:"american",x:25,y:60,label:"American"},{match:"discovery",x:15,y:30,label:"Discovery"},{match:"lost river",x:50,y:15,label:"Lost River"},{match:"arabian",x:75,y:20,label:"Arabian"},{match:"mermaid",x:85,y:40,label:"Mermaid"},{match:"mysterious",x:50,y:45,label:"Mysterious"}],
+            275: [{match:"mediterranean",x:50,y:80,label:"Mediterranean"},{match:"american",x:25,y:60,label:"American"},{match:"discovery",x:15,y:30,label:"Discovery"},{match:"lost river",x:50,y:15,label:"Lost River"},{match:"arabian",x:75,y:20,label:"Arabian"},{match:"mermaid",x:85,y:40,label:"Mermaid"},{match:"mysterious",x:50,y:45,label:"Mysterious"},{match:"springs",x:85,y:10,label:"Fantasy Springs"}],
             31: [{match:"main street",x:50,y:85,label:"Main St."},{match:"adventure",x:25,y:60,label:"Adventure"},{match:"fantasy",x:50,y:30,label:"Fantasy"},{match:"tomorrow",x:80,y:50,label:"Tomorrow"},{match:"toy story",x:15,y:40,label:"Toy Story"},{match:"mystic",x:20,y:20,label:"Mystic"},{match:"grizzly",x:35,y:15,label:"Grizzly"},{match:"frozen",x:75,y:15,label:"Frozen"}],
             30: [{match:"mickey",x:50,y:85,label:"Mickey Ave"},{match:"imagination",x:50,y:60,label:"Imagination"},{match:"fantasy",x:50,y:30,label:"Fantasy"},{match:"treasure",x:80,y:40,label:"Treasure Cove"},{match:"adventure",x:80,y:60,label:"Adventure"},{match:"tomorrow",x:20,y:50,label:"Tomorrow"},{match:"toy story",x:25,y:30,label:"Toy Story"},{match:"zootopia",x:40,y:15,label:"Zootopia"}]
         };
@@ -430,7 +431,6 @@
                         if (ride.minsToClose <= 60 && ride.minsToClose > 0) predDisplay = "CLOSING";
                         else if (ride.minsToClose <= 0) predDisplay = "CLOSED";
 
-                        // Compile 24h specific analytics from log
                         const twentyFourHoursAgo = now - 86400000;
                         const todayPoints = points.filter(p => p.t >= twentyFourHoursAgo);
                         
@@ -445,7 +445,6 @@
                             avgMarker = Math.round((values.reduce((s, v) => s + v, 0) + ride.wait_time) / (values.length + 1));
                         }
 
-                        // --- NEW: LOG HOURS ANALYZER ---
                         let bestHourStr = "Calibrating";
                         let worstHourStr = "Calibrating";
                         if (points.length > 0) {
@@ -460,8 +459,8 @@
                             let maxAvg = -Infinity;
                             Object.keys(hourlyMap).forEach(h => {
                                 const avg = hourlyMap[h].sum / hourlyMap[h].count;
-                                if (avg < minAvg) { minAvg = avg; bestHourStr = `${h.padStart(2, '0')}:00`; }
-                                if (avg > maxAvg) { maxAvg = avg; worstHourStr = `${h.padStart(2, '0')}:00`; }
+                                if (avg < minAvg) { minAvg = avg; bestHourStr = `${h.padStart(2, '0')}h`; }
+                                if (avg > maxAvg) { maxAvg = avg; worstHourStr = `${h.padStart(2, '0')}h`; }
                             });
                         }
 
@@ -496,7 +495,6 @@
                 return () => clearInterval(syncInterval);
             }, [activeRegion]);
 
-            // --- FIXED: REGION SPECIFIC CALIBRATION LOCK METRICS ---
             const telemetryStats = useMemo(() => {
                 let oldest = Date.now();
                 let newest = 0;
@@ -646,9 +644,27 @@
                 let tspTotalWalk = 0;
                 let queueEvasionSaved = 0;
                 let totalQueueTimeMins = 0;
+                let previousZoneParkId = null;
 
                 tspSortedLands.forEach(zone => {
+                    let isParkHop = false;
+                    let displayTravelTime = zone.travelTimeFromLast;
+
+                    // OVERRIDE: If shifting to a completely different park in the same master itinerary
+                    if (previousZoneParkId && previousZoneParkId !== zone.parkId) {
+                        isParkHop = true;
+                        if (activeRegion === "Disneyland Paris") displayTravelTime = 15; 
+                        else if (activeRegion === "Disneyland Resort (California)") displayTravelTime = 10; 
+                        else if (activeRegion === "Walt Disney World (Florida)") displayTravelTime = 40; 
+                        else if (activeRegion === "Tokyo Disney Resort") displayTravelTime = 20; 
+                        else displayTravelTime = 20; 
+                        zone.travelTimeFromLast = displayTravelTime;
+                    }
+                    
+                    zone.isParkHop = isParkHop;
+                    previousZoneParkId = zone.parkId;
                     tspTotalWalk += zone.travelTimeFromLast;
+
                     zone.rides.forEach(ride => {
                         sequence.push({ ...ride, globalStep: counter++, zoneInfo: zone });
                         totalQueueTimeMins += Math.round(ride.wait_time);
@@ -666,7 +682,7 @@
                     completedSequence, minorSequence, closedSequence,
                     metrics: { queueEvasionSaved: Math.round(queueEvasionSaved), walkSaved, totalSavedMins, totalQueueTimeMins: Math.round(totalQueueTimeMins) }
                 };
-            }, [rides, activePark, completedTargets, activatedMinors, gpsEnabled, userGPS]);
+            }, [rides, activePark, completedTargets, activatedMinors, gpsEnabled, userGPS, activeRegion]);
 
             const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
 
@@ -784,8 +800,6 @@
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-4">
-                                        
-                                        {/* --- FIXED: GROUND-TRUTH HISTORICAL HIGH-PRECISION ANALYSIS LABELS --- */}
                                         <div className={`p-4 rounded-xl border ${recStyle}`}>
                                             <h5 className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Recommendation</h5>
                                             <div className="flex items-center gap-2 font-bold text-lg mb-2">
@@ -855,7 +869,6 @@
                                             </div>
                                         </div>
 
-                                        {/* --- FIXED: 100% DATA-GROUNDED SUMMARY INDEPENDENT OF GENERIC STRINGS --- */}
                                         <div className="bg-slate-200 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-300 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                                             <span className="font-bold text-slate-800 dark:text-slate-200">{ride.name} - {ride.parkName} {ride.landName}</span><br/><br/>
                                             Average wait time for {ride.name} at {ride.parkName} is {ride.analytics.avg} minutes, peaking at {ride.analytics.high} minutes based on {ride.analytics.samples} historical data entries logged over the last 14 days.<br/><br/>
@@ -1098,9 +1111,9 @@
                                                                     <div className="bg-slate-50 dark:bg-[#080b12] border border-emerald-500/40 rounded-full px-4 py-1.5 flex items-center gap-2 text-[10px] font-black text-emerald-700 dark:text-emerald-400 shadow-sm z-10 uppercase tracking-widest">
                                                                         <Icon path={I.MapPin} size={12} /> {ride.landName}
                                                                         {idx > 0 && ride.zoneInfo.travelTimeFromLast > 0 && (
-                                                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 bg-white dark:bg-[#05070a] px-2 py-0.5 rounded-full ml-1 border border-slate-200 dark:border-slate-800 flex items-center gap-1">
-                                                                                <Icon path={I.Footprints} size={10} />
-                                                                                {Math.round(ride.zoneInfo.travelTimeFromLast)}m
+                                                                            <span className={`text-[10px] ${ride.zoneInfo.isParkHop ? 'text-amber-600 dark:text-amber-500 border-amber-300 dark:border-amber-700/50' : 'text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800'} bg-white dark:bg-[#05070a] px-2 py-0.5 rounded-full ml-1 border flex items-center gap-1`}>
+                                                                                <Icon path={ride.zoneInfo.isParkHop ? I.Navigation : I.Footprints} size={10} />
+                                                                                {ride.zoneInfo.isParkHop ? 'PARK HOP: ' : ''}{Math.round(ride.zoneInfo.travelTimeFromLast)}m
                                                                             </span>
                                                                         )}
                                                                     </div>
@@ -1239,7 +1252,7 @@
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App/>);
+        root.render(<App />);
     </script>
 </body>
 </html>
