@@ -17,8 +17,8 @@ async function updateData() {
     }
 
     const now = Date.now();
-    // 86400000 milliseconds = 24 hours
-    const cutoff = now - 86400000; 
+    // 14 days * 24 hours * 60 minutes * 60 seconds * 1000 milliseconds
+    const cutoff = now - (14 * 86400000); 
 
     for (const parkId of PARKS) {
         try {
