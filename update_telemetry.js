@@ -1,7 +1,8 @@
 const fs = require('fs');
 
-// We will track Disneyland Park (4) and Disney Adventure World (28)
-const PARKS = [4, 28]; 
+// Expanded tracking array to include the entire global network
+// Paris (4,28), Florida (6,5,7,8), California (16,17), Tokyo (274,275), HK/Shanghai (31,30)
+const PARKS = [4, 28, 6, 5, 7, 8, 16, 17, 274, 275, 31, 30]; 
 const FILE_PATH = 'telemetry.json';
 
 async function updateData() {
@@ -49,7 +50,7 @@ async function updateData() {
     }
 
     fs.writeFileSync(FILE_PATH, JSON.stringify(history));
-    console.log('Telemetry updated and saved to telemetry.json');
+    console.log('Global Telemetry updated and saved to telemetry.json');
 }
 
 updateData();
