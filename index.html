@@ -473,21 +473,31 @@
                 return () => clearInterval(syncInterval);
             }, [activeRegion]);
 
-            // --- NEW: CALIBRATION LOCK METRICS ---
+            // --- NEW: CALIBRATION LOCK METRICS (REGION SPECIFIC) ---
             const telemetryStats = useMemo(() => {
                 let oldest = Date.now();
                 let newest = 0;
                 let totalPoints = 0;
                 
-                Object.values(globalTelemetryLog).forEach(points => {
-                    points.forEach(p => {
-                        if (p.t < oldest) oldest = p.t;
-                        if (p.t > newest) newest = p.t;
-                        totalPoints++;
-                    });
+                // Only evaluate data for rides in the currently active region
+                const activeRegionParkIds = GLOBAL_PARKS[activeRegion].map(p => p.id);
+
+                rides.forEach(r => {
+                    if (activeRegionParkIds.includes(r.parkId)) {
+                        const points = globalTelemetryLog[r.id] || [];
+                        points.forEach(p => {
+                            if (p.t < oldest) oldest = p.t;
+                            if (p.t > newest) newest = p.t;
+                            totalPoints++;
+                        });
+                    }
                 });
                 
                 if (totalPoints === 0) return { daysLogged: 0, isReady: false };
+                
+                const days = Math.max(0.1, (newest - oldest) / 86400000);
+                return { daysLogged: days, isReady: days >= 7 };
+            }, [globalTelemetryLog, activeRegion, rides]);
                 
                 // Calculate total days stored. Math.max(0.1) ensures UI shows *some* progress on day 1.
                 const days = Math.max(0.1, (newest - oldest) / 86400000);
