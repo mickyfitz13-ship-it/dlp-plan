@@ -194,9 +194,11 @@
             }
         };
 
+        // --- STABLE PROXY CHAIN FROM 9.8 ---
         const PROXIES = [
             { name: "CorsProxy.io (Primary)", fetch: async (t) => await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(t)}`) },
-            { name: "AllOrigins GET (Fallback)", fetch: async (t) => JSON.parse((await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(t)}`)).contents) }
+            { name: "CodeTabs (Fallback)", fetch: async (t) => await fetchWithTimeout(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(t)}`) },
+            { name: "AllOrigins (Secondary Fallback)", fetch: async (t) => await fetchWithTimeout(`https://api.allorigins.win/raw?url=${encodeURIComponent(t)}`) }
         ];
 
         const App = () => {
@@ -402,10 +404,11 @@
                             lambda = Math.max(0, mu_eff * (1 + velocity));
                             rho = mu_eff > 0 ? lambda / mu_eff : 0;
                         } else {
-                            const baseAttraction = ride.isPriority ? 0.25 : 0.12;
-                            lambda = Math.max(0, liveResortLoadFactor * (baseAttraction - ((baseAttraction / 180) * ride.wait_time))); 
+                            // IMPROVED PREDICTION MATH IMPLEMENTED HERE
+                            const velocityRaw = (ride.wait_time - liveResortLoadFactor) / 120; 
+                            velocity = Math.max(-0.5, Math.min(0.5, velocityRaw)); 
+                            lambda = Math.max(0, mu_eff * (1 + velocity));
                             rho = mu_eff > 0 ? lambda / mu_eff : 0;
-                            velocity = rho - 1; 
                         }
 
                         newHistory[ride.id] = { wait: ride.wait_time, timestamp: now };
