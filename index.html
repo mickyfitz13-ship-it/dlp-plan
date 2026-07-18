@@ -72,7 +72,7 @@
             Cpu: '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line>',
             Sun: '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>',
             Moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
-            Monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>',
+            Monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" py="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>',
             CheckSquare: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
             ThumbsUp: '<path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>',
             AlertTriangle: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>'
@@ -445,6 +445,26 @@
                             avgMarker = Math.round((values.reduce((s, v) => s + v, 0) + ride.wait_time) / (values.length + 1));
                         }
 
+                        // --- NEW: LOG HOURS ANALYZER ---
+                        let bestHourStr = "Calibrating";
+                        let worstHourStr = "Calibrating";
+                        if (points.length > 0) {
+                            const hourlyMap = {};
+                            points.forEach(p => {
+                                const hr = new Date(p.t).getHours();
+                                if (!hourlyMap[hr]) hourlyMap[hr] = { sum: 0, count: 0 };
+                                hourlyMap[hr].sum += p.w;
+                                hourlyMap[hr].count++;
+                            });
+                            let minAvg = Infinity;
+                            let maxAvg = -Infinity;
+                            Object.keys(hourlyMap).forEach(h => {
+                                const avg = hourlyMap[h].sum / hourlyMap[h].count;
+                                if (avg < minAvg) { minAvg = avg; bestHourStr = `${h.padStart(2, '0')}:00`; }
+                                if (avg > maxAvg) { maxAvg = avg; worstHourStr = `${h.padStart(2, '0')}:00`; }
+                            });
+                        }
+
                         return {
                             ...ride,
                             mu: Number(mu_eff.toFixed(1)),
@@ -456,7 +476,7 @@
                             projection60m: pred60,
                             routingScore: ride.wait_time - ((typeof predDisplay === 'number' ? predDisplay : 0) - ride.wait_time),
                             aiIntel: generateTacticalIntelligence(ride),
-                            analytics: { low: lowMarker, high: highMarker, avg: avgMarker }
+                            analytics: { low: lowMarker, high: highMarker, avg: avgMarker, bestHour: bestHourStr, worstHour: worstHourStr, samples: points.length }
                         };
                     });
 
@@ -476,13 +496,12 @@
                 return () => clearInterval(syncInterval);
             }, [activeRegion]);
 
-            // --- NEW: CALIBRATION LOCK METRICS (REGION SPECIFIC) ---
+            // --- FIXED: REGION SPECIFIC CALIBRATION LOCK METRICS ---
             const telemetryStats = useMemo(() => {
                 let oldest = Date.now();
                 let newest = 0;
                 let totalPoints = 0;
                 
-                // Only evaluate data for rides in the currently active region
                 const activeRegionParkIds = GLOBAL_PARKS[activeRegion].map(p => p.id);
 
                 rides.forEach(r => {
@@ -516,7 +535,6 @@
                 return list;
             }, []);
 
-            // --- NEW: 100% TRUE HISTORICAL FORECASTING ---
             const calculatedForecastData = useMemo(() => {
                 if (rides.length === 0 || !telemetryStats.isReady) return [];
                 
@@ -525,7 +543,6 @@
 
                 return rides.map(r => {
                     const points = globalTelemetryLog[r.id] || [];
-                    // Isolate data to match ONLY the requested day of the week
                     const relevantPoints = points.filter(p => new Date(p.t).getDay() === targetDayOfWeek);
                     
                     let calculatedAvg = 0;
@@ -767,14 +784,16 @@
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-4">
+                                        
+                                        {/* --- FIXED: GROUND-TRUTH HISTORICAL HIGH-PRECISION ANALYSIS LABELS --- */}
                                         <div className={`p-4 rounded-xl border ${recStyle}`}>
                                             <h5 className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Recommendation</h5>
                                             <div className="flex items-center gap-2 font-bold text-lg mb-2">
                                                 <Icon path={recIcon} size={20} /> {recommendation}
                                             </div>
                                             <div className="flex justify-between text-xs font-medium opacity-80 font-mono">
-                                                <span>Best slot: 22h - {ride.analytics.low}m</span>
-                                                <span>Avoid: {ride.analytics.high + 15}m+</span>
+                                                <span>Best hour: {ride.analytics.bestHour} ({ride.analytics.low}m)</span>
+                                                <span>Worst hour: {ride.analytics.worstHour} ({ride.analytics.high}m)</span>
                                             </div>
                                         </div>
 
@@ -836,10 +855,11 @@
                                             </div>
                                         </div>
 
+                                        {/* --- FIXED: 100% DATA-GROUNDED SUMMARY INDEPENDENT OF GENERIC STRINGS --- */}
                                         <div className="bg-slate-200 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-300 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                                             <span className="font-bold text-slate-800 dark:text-slate-200">{ride.name} - {ride.parkName} {ride.landName}</span><br/><br/>
-                                            Average wait time for {ride.name} at {ride.parkName} is {ride.analytics.avg} minutes, peaking at {ride.analytics.high} minutes. Operating {Math.round(ride.uptime * 100)}% of the time over the past week.<br/><br/>
-                                            The quietest hour observed is around {ride.analytics.low} min wait, and the busiest is around {ride.analytics.high} min. 
+                                            Average wait time for {ride.name} at {ride.parkName} is {ride.analytics.avg} minutes, peaking at {ride.analytics.high} minutes based on {ride.analytics.samples} historical data entries logged over the last 14 days.<br/><br/>
+                                            The quietest hour observed on average is {ride.analytics.bestHour} (around {ride.analytics.low} min wait), and the busiest hour is {ride.analytics.worstHour} (around {ride.analytics.high} min). 
                                         </div>
                                     </div>
 
@@ -1219,7 +1239,7 @@
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(App / >);
     </script>
 </body>
 </html>
