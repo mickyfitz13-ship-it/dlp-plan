@@ -16,7 +16,6 @@ async function updateData() {
 
     let now = Date.now();
 
-    // Fix cloud runner clock drift by forcing network time if running in GitHub Actions
     if (process.env.GITHUB_ACTIONS === 'true') {
         try {
             const timeRes = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
@@ -34,7 +33,7 @@ async function updateData() {
 
     for (const parkId of PARKS) {
         try {
-            const res = await fetch(`https://queue-times.com/parks/${parkId}/queue.json`);
+            const res = await fetch(`https://queue-times.com/parks/${parkId}/queue_times.json`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             
@@ -43,11 +42,9 @@ async function updateData() {
                 data.lands.forEach(land => rides.push(...land.rides));
             }
 
-            // Map and update telemetry data points
             rides.forEach(ride => {
                 if (!history[ride.id]) history[ride.id] = [];
                 history[ride.id].push({ t: now, w: ride.wait_time });
-                // Filter out records older than 14 days
                 history[ride.id] = history[ride.id].filter(item => item.t > cutoff);
             });
 
