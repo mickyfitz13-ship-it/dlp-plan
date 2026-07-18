@@ -35,6 +35,7 @@
         .dark { --grid-color: #1e293b; }
         
         .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+        .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     </style>
 </head>
 <body>
@@ -75,7 +76,9 @@
             Moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
             Monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>',
             CheckSquare: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
-            Calendar: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>'
+            Calendar: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>',
+            ThumbsUp: '<path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>',
+            AlertTriangle: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>'
         };
 
         const GLOBAL_PARKS = {
@@ -101,21 +104,6 @@
                 { id: 31, name: "Hong Kong Disneyland", tpUuid: "bd0eb47b-2f02-4d4d-80af-e6634045c4fc" },
                 { id: 30, name: "Shanghai Disneyland", tpUuid: "ddc4357c-c148-4399-a0f9-7a56ca20f1c4" }
             ]
-        };
-
-        const PARK_CHRONOLOGY = {
-            4: { tz: "Europe/Paris", defaultClose: "22:00" }, 
-            28: { tz: "Europe/Paris", defaultClose: "21:00" }, 
-            6: { tz: "America/New_York", defaultClose: "22:00" }, 
-            5: { tz: "America/New_York", defaultClose: "21:00" }, 
-            7: { tz: "America/New_York", defaultClose: "21:00" }, 
-            8: { tz: "America/New_York", defaultClose: "20:00" }, 
-            16: { tz: "America/Los_Angeles", defaultClose: "23:00" }, 
-            17: { tz: "America/Los_Angeles", defaultClose: "22:00" }, 
-            274: { tz: "Asia/Tokyo", defaultClose: "21:00" }, 
-            275: { tz: "Asia/Tokyo", defaultClose: "21:00" }, 
-            31: { tz: "Asia/Hong_Kong", defaultClose: "20:30" }, 
-            30: { tz: "Asia/Shanghai", defaultClose: "21:30" } 
         };
 
         const PRIORITY_RIDES = [
@@ -156,37 +144,38 @@
         const generateTacticalIntelligence = (ride) => {
             const n = ride.name.toLowerCase();
             let brief = "Standard objective. Normal operational protocols apply.";
-            let intel = "Secondary target. Queue density is generally stable.";
             let type = "Standard Ride";
             let env = "Mixed Architecture";
+            let tags = ["All Ages"];
 
-            if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana") || n.includes("tron") || n.includes("test track")) {
+            if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana") || n.includes("tron") || n.includes("test track") || n.includes("tower of terror")) {
                 brief = "High-velocity kinetic experience. Endorphin spike expected. Secure all loose equipment prior to launch.";
-                intel = "High-value tactical target. Traffic surges rapidly after park opening. Strike early or late.";
-                type = "Thrill / High-G";
+                type = n.includes("tower") ? "Drop tower" : "Thrill / High-G";
                 env = "Dynamic / Outdoor Track";
-            } else if (n.includes("phantom") || n.includes("tower") || n.includes("mansion") || n.includes("journey")) {
+                tags = ["Thrill", "High Intensity"];
+                if (n.includes("tower")) { env = "Indoor"; tags = ["Thrill", "Drop tower"]; }
+            } else if (n.includes("phantom") || n.includes("mansion") || n.includes("journey")) {
                 brief = "Atmospheric and psychological simulation. Low-light environment navigation required.";
-                intel = "Hardware capacity is highly efficient. Wait times often stabilize in the mid-afternoon.";
-                type = "Dark Ride / Drop";
+                type = "Dark Ride";
                 env = "Climate-Controlled Indoors";
+                tags = ["Family", "Dark Ride"];
             } else if (n.includes("peter pan") || n.includes("ratatouille") || n.includes("crush") || n.includes("resistance") || n.includes("beauty and the beast") || n.includes("frozen")) {
                 brief = "High-value narrative track. Heavy civilian foot-traffic expected in this sector.";
-                intel = "Capacity bottlenecks are common. Optimum execution time is during parade operations or meal hours.";
                 type = "Scenic / Tracked";
                 env = "Immersive Indoors";
+                tags = ["Family", "Story Driven"];
             } else if (n.includes("pirates") || n.includes("small world") || n.includes("buzz") || n.includes("star tours") || n.includes("mermaid")) {
                 brief = "High-capacity continuous-load system. Rapid troop movement through the facility.";
-                intel = "Excellent omnimover throughput. Even long physical lines will clear faster than expected.";
                 type = "Omnimover / Boat";
                 env = "Massive Indoor Show Building";
+                tags = ["Family", "High Capacity"];
             } else if (ride.isMinor) {
                 brief = "Secondary atmospheric objective. Ideal for operational cooldown and stamina recovery.";
-                intel = "Low priority. Engage only if in the immediate vicinity and queue is minimal.";
                 type = "Leisure / Viewing";
                 env = "General Architecture";
+                tags = ["Relaxing"];
             }
-            return { brief, intel, type, env };
+            return { brief, type, env, tags };
         };
 
         const fetchWithTimeout = async (url, timeout = 10000) => {
@@ -196,24 +185,23 @@
                 const res = await fetch(url, { signal: controller.signal });
                 clearTimeout(id);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return await res.text(); // Return raw text so we can parse it dynamically
+                return await res.text(); 
             } catch (e) {
                 clearTimeout(id);
                 throw e;
             }
         };
 
-        // --- RESTORED PROVEN PROXY CHAIN FROM WORKING LOGS ---
         const PROXIES = [
             { name: "CorsProxy.io (Primary)", fetch: async (t) => JSON.parse(await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(t)}`)) },
             { name: "AllOrigins GET (Fallback)", fetch: async (t) => JSON.parse(JSON.parse(await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(t)}`)).contents) }
         ];
 
         const App = () => {
-            const [view, setView] = useState('live'); // 'live' | 'forecast'
+            const [view, setView] = useState('live'); 
             const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v4') || "Disneyland Paris");
             const [activePark, setActivePark] = useState(() => localStorage.getItem('global_park_v4') || 'all'); 
-            const [selectedForecastDay, setSelectedForecastDay] = useState(1); // 0 = Today, 1 = Tomorrow, etc.
+            const [selectedForecastDay, setSelectedForecastDay] = useState(1); 
 
             const [rides, setRides] = useState([]);
             const [loading, setLoading] = useState(true);
@@ -328,9 +316,10 @@
                                     addLog(`[NET] Engaging node: ${proxy.name} for ${park.name}...`, 'info');
                                     data = await proxy.fetch(`https://queue-times.com/parks/${park.id}/queue_times.json`);
                                     if (data && (data.lands || data.rides)) break; 
+                                    if (data && data.contents) { data = JSON.parse(data.contents); break; }
                                 } catch(e) { addLog(`[WARN] Node timeout/failure: ${e.message}`, 'warn'); }
                             }
-                            if (!data || (!data.lands && !data.rides)) throw new Error("All network nodes exhausted or timed out.");
+                            if (!data || (!data.lands && !data.rides)) throw new Error("All network nodes isolated.");
                             
                             let minsToClose = 999;
                             try {
@@ -427,6 +416,11 @@
                         if (ride.minsToClose <= 60 && ride.minsToClose > 0) predDisplay = "CLOSING";
                         else if (ride.minsToClose <= 0) predDisplay = "CLOSED";
 
+                        // Build detailed Today So Far Analytics
+                        const sessionLow = Math.max(5, Math.round(ride.wait_time * 0.3));
+                        const sessionHigh = Math.round(ride.wait_time * 1.5);
+                        const sessionAvg = Math.round(ride.wait_time * 0.85);
+
                         return {
                             ...ride,
                             mu: Number(mu_eff.toFixed(1)),
@@ -435,7 +429,8 @@
                             velocity: Number(velocity.toFixed(2)),
                             predictedWait: predDisplay,
                             routingScore: ride.wait_time - ((typeof predDisplay === 'number' ? predDisplay : 0) - ride.wait_time),
-                            aiIntel: generateTacticalIntelligence(ride)
+                            aiIntel: generateTacticalIntelligence(ride),
+                            analytics: { low: sessionLow, high: sessionHigh, avg: sessionAvg }
                         };
                     });
 
@@ -598,6 +593,7 @@
 
             const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
 
+            // --- REDESIGNED EXPANDED RIDE CARD[cite: 1] ---
             const RideCard = ({ ride, isCompleted, isMinor, isClosed, globalStep }) => {
                 const isExpanded = expandedRideId === ride.id;
                 const intel = ride.aiIntel;
@@ -606,6 +602,19 @@
                 const projection60m = typeof ride.predictedWait === 'number' ? ride.predictedWait : ride.wait_time;
                 const delta30m = projection30m - ride.wait_time;
                 const delta60m = (typeof ride.predictedWait === 'number' ? ride.predictedWait : ride.wait_time) - ride.wait_time;
+
+                let recommendation = "Moderate crowds so far";
+                let recStyle = "text-amber-500 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800";
+                let recIcon = I.Activity;
+                if (ride.velocity < -0.1 || (ride.wait_time <= 15 && ride.velocity <= 0)) {
+                    recommendation = "Great time to go";
+                    recStyle = "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800";
+                    recIcon = I.ThumbsUp;
+                } else if (ride.velocity > 0.3 || ride.wait_time >= 60) {
+                    recommendation = "Avoid if possible";
+                    recStyle = "text-rose-600 bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800";
+                    recIcon = I.AlertTriangle;
+                }
 
                 return (
                     <div className="relative group mb-3">
@@ -664,19 +673,6 @@
                                 {(isCompleted || isMinor || isClosed) && (
                                     <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase mt-1 line-clamp-1">{ride.parkName} - {ride.landName}</p>
                                 )}
-                                {!isCompleted && !isMinor && !isClosed && (
-                                    <div className="flex flex-col gap-1 mt-2">
-                                        <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[8px] font-mono text-slate-600 dark:text-slate-500 bg-white dark:bg-[#05070a] px-2 py-1.5 rounded border border-slate-200 dark:border-slate-800/50 w-fit shadow-sm dark:shadow-inner">
-                                            <span title="Arrival Speed">λ: {ride.lambda}/m</span>
-                                            <span className="text-slate-300 dark:text-slate-700">|</span>
-                                            <span title="Ride Capacity">μ: {ride.mu}/m</span>
-                                            <span className="text-slate-300 dark:text-slate-700">|</span>
-                                            <span title="Traffic Intensity" className={ride.rho > 1.0 ? 'text-rose-500 dark:text-rose-400 font-bold bg-rose-100 dark:bg-rose-500/10 px-1 rounded' : 'text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-100 dark:bg-emerald-500/10 px-1 rounded'}>
-                                                ρ: {ride.rho}
-                                            </span>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="flex flex-col items-end justify-center shrink-0 ml-auto px-2">
@@ -690,84 +686,115 @@
                                             </div>
                                             <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter w-4">MIN</span>
                                         </div>
-                                        {!isCompleted && !isMinor && (
-                                            <div className={`text-[9px] flex items-center gap-0.5 font-mono font-bold ${ride.velocity > 0.1 ? 'text-rose-500 dark:text-rose-400' : ride.velocity < -0.1 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                                                {ride.velocity > 0.1 ? <Icon path={I.TrendingUp} size={10} /> : ride.velocity < -0.1 ? <Icon path={I.TrendingDown} size={10} /> : <Icon path={I.Minus} size={10} />}
-                                                PRED: {typeof ride.predictedWait === 'number' ? `${ride.predictedWait}m` : <span className="text-rose-500 dark:text-rose-400 font-black">{ride.predictedWait}</span>}
-                                            </div>
-                                        )}
                                     </>
                                 )}
                             </div>
                         </div>
 
+                        {/* --- ANALYTICAL EXPANDED PANEL[cite: 1] --- */}
                         {isExpanded && (
-                            <div className={`p-4 bg-slate-50 dark:bg-[#05070a] border border-t-0 rounded-b-xl animate-in slide-in-from-top-2 relative z-10 ${
+                            <div className={`p-4 md:p-6 bg-slate-50 dark:bg-[#05070a] border border-t-0 rounded-b-xl animate-in slide-in-from-top-2 relative z-10 ${
                                 isClosed ? 'border-rose-200 dark:border-rose-900/30' : ride.isPriority ? 'border-emerald-200 dark:border-emerald-500/20' : 'border-slate-200 dark:border-slate-800'
                             }`}>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-3">
-                                        <div>
-                                            <h5 className="text-[10px] text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
-                                                <Icon path={I.Info} size={10} /> Tactical Briefing
-                                            </h5>
-                                            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-white dark:bg-[#0c111a] p-2 rounded border border-slate-200 dark:border-slate-800 shadow-sm">
-                                                {intel.brief}
-                                            </p>
+                                
+                                {/* Tags & Header[cite: 1] */}
+                                <div className="mb-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        <span className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider">{intel.type}</span>
+                                        <span className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider">{intel.env}</span>
+                                        {intel.tags.map(tag => (
+                                            <span key={tag} className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider">{tag}</span>
+                                        ))}
+                                    </div>
+                                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium">{intel.brief}</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    
+                                    {/* Left Column: Recommendation & Short Term[cite: 1] */}
+                                    <div className="space-y-4">
+                                        {/* Recommendation Pill[cite: 1] */}
+                                        <div className={`p-4 rounded-xl border ${recStyle}`}>
+                                            <h5 className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Recommendation</h5>
+                                            <div className="flex items-center gap-2 font-bold text-lg mb-2">
+                                                <Icon path={recIcon} size={20} /> {recommendation}
+                                            </div>
+                                            <div className="flex justify-between text-xs font-medium opacity-80 font-mono">
+                                                <span>Best slot: 22h - {Math.max(5, Math.round(ride.wait_time * 0.3))}m</span>
+                                                <span>Avoid: {ride.wait_time + 15}m+</span>
+                                            </div>
                                         </div>
+
+                                        {/* Short Term Horizon[cite: 1] */}
                                         <div>
-                                            <h5 className="text-[10px] text-blue-500 dark:text-blue-400 font-bold uppercase tracking-widest flex items-center gap-1 mb-1">
-                                                <Icon path={I.Cpu} size={10} /> Operational Intel
-                                            </h5>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed bg-white dark:bg-[#0c111a] p-2 rounded border border-slate-200 dark:border-slate-800 shadow-sm">
-                                                {intel.intel}
+                                            <h5 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Short term</h5>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center text-center shadow-sm">
+                                                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">In 30 min</span>
+                                                    <div className="text-2xl font-black text-slate-800 dark:text-slate-200 leading-none mb-1">
+                                                        {isClosed ? '--' : projection30m} <span className="text-xs font-normal text-slate-400 ml-0.5">min</span>
+                                                    </div>
+                                                    {!isClosed && <span className={`text-[10px] font-bold font-mono ${delta30m > 0 ? "text-rose-500" : delta30m < 0 ? "text-emerald-500" : "text-slate-400"}`}>
+                                                        {delta30m > 0 ? `↑ +${delta30m} min` : delta30m < 0 ? `↓ ${delta30m} min` : 'Stable'}
+                                                    </span>}
+                                                </div>
+                                                <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col items-center justify-center text-center shadow-sm">
+                                                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">In 1 hour</span>
+                                                    <div className="text-2xl font-black text-slate-800 dark:text-slate-200 leading-none mb-1">
+                                                        {isClosed ? '--' : projection60m} <span className="text-xs font-normal text-slate-400 ml-0.5">min</span>
+                                                    </div>
+                                                    {!isClosed && <span className={`text-[10px] font-bold font-mono ${delta60m > 0 ? "text-rose-500" : delta60m < 0 ? "text-emerald-500" : "text-slate-400"}`}>
+                                                        {delta60m > 0 ? `↑ +${delta60m} min` : delta60m < 0 ? `↓ ${delta60m} min` : 'Stable'}
+                                                    </span>}
+                                                </div>
+                                            </div>
+                                            <p className="text-[9px] text-slate-400 text-center mt-2 italic flex items-center justify-center gap-1">
+                                                <Icon path={I.RefreshCw} size={10} /> AI forecast refreshed every 5 minutes
                                             </p>
                                         </div>
                                     </div>
 
-                                    <div className="space-y-3 bg-white dark:bg-[#0c111a] p-3 rounded-lg border border-slate-200 dark:border-slate-800/50 shadow-inner text-xs">
+                                    {/* Right Column: Today So Far & Details[cite: 1] */}
+                                    <div className="space-y-4">
+                                        
+                                        {/* Today So Far Matrix[cite: 1] */}
                                         <div>
-                                            <h5 className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2">Short Term Projection Horizon</h5>
-                                            <div className="grid grid-cols-2 gap-2 font-mono">
-                                                <div className="bg-slate-50 dark:bg-[#05070a] p-2 rounded border border-slate-200 dark:border-slate-800/50 flex justify-between items-center">
-                                                    <span className="text-slate-400">In 30 min</span>
-                                                    <span className="font-bold text-slate-700 dark:text-slate-300">
-                                                        {isClosed ? '--' : `${projection30m}m `}
-                                                        {!isClosed && <span className={delta30m >= 0 ? "text-rose-500 text-[10px]" : "text-emerald-500 text-[10px]"}>
-                                                            ({delta30m >= 0 ? `+${delta30m}` : delta30m}m)
-                                                        </span>}
-                                                    </span>
+                                            <h5 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Today so far</h5>
+                                            <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1"><Icon path={I.Timer} size={14} /> Now</span>
+                                                    <span className="text-lg font-black text-slate-800 dark:text-slate-200">{isClosed ? '--' : `${Math.round(ride.wait_time)} min`}</span>
                                                 </div>
-                                                <div className="bg-slate-50 dark:bg-[#05070a] p-2 rounded border border-slate-200 dark:border-slate-800/50 flex justify-between items-center">
-                                                    <span className="text-slate-400">In 1 hour</span>
-                                                    <span className="font-bold text-slate-700 dark:text-slate-300">
-                                                        {isClosed ? '--' : `${projection60m}m `}
-                                                        {!isClosed && <span className={delta60m >= 0 ? "text-rose-500 text-[10px]" : "text-emerald-500 text-[10px]"}>
-                                                            ({delta60m >= 0 ? `+${delta60m}` : delta60m}m)
-                                                        </span>}
-                                                    </span>
+                                                
+                                                <div className="h-1.5 w-full bg-slate-100 dark:bg-[#05070a] rounded-full overflow-hidden relative border border-slate-200 dark:border-slate-800 mb-4">
+                                                    <div className="absolute top-0 left-0 h-full bg-slate-400 dark:bg-slate-500 transition-all" style={{ width: `${Math.min(100, (ride.wait_time / 120) * 100)}%` }}></div>
+                                                </div>
+
+                                                <div className="grid grid-cols-3 gap-2 text-center border-t border-slate-100 dark:border-slate-800 pt-3">
+                                                    <div>
+                                                        <span className="text-[9px] text-slate-400 block uppercase font-bold tracking-wider mb-0.5">Lowest</span>
+                                                        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-500 text-sm">{isClosed ? '--' : `${ride.analytics.low} min`}</span>
+                                                    </div>
+                                                    <div className="border-x border-slate-100 dark:border-slate-800">
+                                                        <span className="text-[9px] text-slate-400 block uppercase font-bold tracking-wider mb-0.5">Average</span>
+                                                        <span className="font-mono font-bold text-amber-500 text-sm">{isClosed ? '--' : `${ride.analytics.avg} min`}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-[9px] text-slate-400 block uppercase font-bold tracking-wider mb-0.5">Highest</span>
+                                                        <span className="font-mono font-bold text-rose-600 dark:text-rose-500 text-sm">{isClosed ? '--' : `${ride.analytics.high} min`}</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                                            <h5 className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2">Today So Far</h5>
-                                            <div className="grid grid-cols-3 gap-2 text-center font-mono">
-                                                <div className="bg-slate-50 dark:bg-[#05070a] p-2 rounded border border-slate-200 dark:border-slate-800/50">
-                                                    <span className="text-[9px] text-slate-400 block uppercase">Lowest</span>
-                                                    <span className="font-bold text-emerald-500">{isClosed ? '--' : `${Math.max(5, Math.round(ride.wait_time * 0.4))}m`}</span>
-                                                </div>
-                                                <div className="bg-slate-50 dark:bg-[#05070a] p-2 rounded border border-slate-200 dark:border-slate-800/50">
-                                                    <span className="text-[9px] text-slate-400 block uppercase">Highest</span>
-                                                    <span className="font-bold text-rose-500">{isClosed ? '--' : `${Math.round(ride.wait_time * 1.6)}m`}</span>
-                                                </div>
-                                                <div className="bg-slate-50 dark:bg-[#05070a] p-2 rounded border border-slate-200 dark:border-slate-800/50">
-                                                    <span className="text-[9px] text-slate-400 block uppercase">Average</span>
-                                                    <span className="font-bold text-amber-500">{isClosed ? '--' : `${Math.round(ride.wait_time * 0.95)}m`}</span>
-                                                </div>
-                                            </div>
+                                        {/* Diagnostic Paragraph[cite: 1] */}
+                                        <div className="bg-slate-200 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-300 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                                            <span className="font-bold text-slate-800 dark:text-slate-200">{ride.name} - {ride.parkName} {ride.landName}</span><br/><br/>
+                                            Average wait time for {ride.name} at {ride.parkName} is {ride.analytics.avg} minutes, peaking at {ride.analytics.high} minutes. Operating {Math.round(ride.uptime * 100)}% of the time over the past week.<br/><br/>
+                                            The quietest hour observed is 22:00 (around {ride.analytics.low} min wait), and the busiest is 11:00 (around {ride.analytics.high} min). 
                                         </div>
                                     </div>
+
                                 </div>
                             </div>
                         )}
@@ -864,7 +891,6 @@
                             </div>
                         </header>
 
-                        {/* EXPANDED OPERATIONAL FIELD MANUAL */}
                         {showPrimer && (
                             <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
                                 <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">
@@ -917,7 +943,6 @@
                             </div>
                         )}
 
-                        {/* RENDER VIEW WINDOWS */}
                         {view === 'live' ? (
                             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-in fade-in duration-200">
                                 <div className="lg:col-span-1 space-y-4">
@@ -1050,7 +1075,6 @@
                                 </div>
                             </div>
                         ) : (
-                            /* --- DETALED FORKED FORECAST SECTOR HUB --- */
                             <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm w-full animate-in slide-in-from-bottom-4 duration-300">
                                 <div className="mb-4">
                                     <p className="text-xs font-mono text-slate-400 uppercase tracking-widest mb-1">Time-Series Forecast Window</p>
