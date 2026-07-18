@@ -54,6 +54,8 @@
             X: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
             Layers: '<polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline>',
             ChevronRight: '<polyline points="9 18 15 12 9 6"></polyline>',
+            ChevronDown: '<polyline points="6 9 12 15 18 9"></polyline>',
+            ChevronUp: '<polyline points="18 15 12 9 6 15"></polyline>',
             Terminal: '<polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line>',
             MapIcon: '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line>',
             Footprints: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"></path><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"></path>',
@@ -71,7 +73,7 @@
             Info: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line>',
             Sun: '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>',
             Moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>',
-            Monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" py="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>',
+            Monitor: '<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line>',
             CheckSquare: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
             Calendar: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>'
         };
@@ -134,6 +136,78 @@
             31: [{match:"main street",x:50,y:85,label:"Main St."},{match:"adventure",x:25,y:60,label:"Adventure"},{match:"fantasy",x:50,y:30,label:"Fantasy"},{match:"tomorrow",x:80,y:50,label:"Tomorrow"},{match:"toy story",x:15,y:40,label:"Toy Story"},{match:"mystic",x:20,y:20,label:"Mystic"},{match:"grizzly",x:35,y:15,label:"Grizzly"},{match:"frozen",x:75,y:15,label:"Frozen"}],
             30: [{match:"mickey",x:50,y:85,label:"Mickey Ave"},{match:"imagination",x:50,y:60,label:"Imagination"},{match:"fantasy",x:50,y:30,label:"Fantasy"},{match:"treasure",x:80,y:40,label:"Treasure Cove"},{match:"adventure",x:80,y:60,label:"Adventure"},{match:"tomorrow",x:20,y:50,label:"Tomorrow"},{match:"toy story",x:25,y:30,label:"Toy Story"},{match:"zootopia",x:40,y:15,label:"Zootopia"}]
         };
+
+        const getCoords = (parkId, landName) => {
+            const mapData = TACTICAL_COORDS[parkId];
+            if (!mapData) return { x: 50, y: 50 };
+            const safeLand = landName ? landName.toLowerCase() : "";
+            const coord = mapData.find(c => safeLand.includes(c.match));
+            return coord || { x: 50, y: 50 };
+        };
+
+        const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
+            const R = 6371; 
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        };
+
+        const generateTacticalIntelligence = (ride) => {
+            const n = ride.name.toLowerCase();
+            let brief = "Standard objective. Normal operational protocols apply.";
+            let intel = "Secondary target. Queue density is generally stable.";
+            let type = "Standard Ride";
+            let env = "Mixed Architecture";
+
+            if (n.includes("mountain") || n.includes("coaster") || n.includes("flight force") || n.includes("indiana") || n.includes("tron") || n.includes("test track")) {
+                brief = "High-velocity kinetic experience. Endorphin spike expected. Secure all loose equipment prior to launch.";
+                intel = "High-value tactical target. Traffic surges rapidly after park opening. Strike early or late.";
+                type = "Thrill / High-G";
+                env = "Dynamic / Outdoor Track";
+            } else if (n.includes("phantom") || n.includes("tower") || n.includes("mansion") || n.includes("journey")) {
+                brief = "Atmospheric and psychological simulation. Low-light environment navigation required.";
+                intel = "Hardware capacity is highly efficient. Wait times often stabilize in the mid-afternoon.";
+                type = "Dark Ride / Drop";
+                env = "Climate-Controlled Indoors";
+            } else if (n.includes("peter pan") || n.includes("ratatouille") || n.includes("crush") || n.includes("resistance") || n.includes("beauty and the beast") || n.includes("frozen")) {
+                brief = "High-value narrative track. Heavy civilian foot-traffic expected in this sector.";
+                intel = "Capacity bottlenecks are common. Optimum execution time is during parade operations or meal hours.";
+                type = "Scenic / Tracked";
+                env = "Immersive Indoors";
+            } else if (n.includes("pirates") || n.includes("small world") || n.includes("buzz") || n.includes("star tours") || n.includes("mermaid")) {
+                brief = "High-capacity continuous-load system. Rapid troop movement through the facility.";
+                intel = "Excellent omnimover throughput. Even long physical lines will clear faster than expected.";
+                type = "Omnimover / Boat";
+                env = "Massive Indoor Show Building";
+            } else if (ride.isMinor) {
+                brief = "Secondary atmospheric objective. Ideal for operational cooldown and stamina recovery.";
+                intel = "Low priority. Engage only if in the immediate vicinity and queue is minimal.";
+                type = "Leisure / Viewing";
+                env = "General Architecture";
+            }
+            return { brief, intel, type, env };
+        };
+
+        const fetchWithTimeout = async (url, timeout = 10000) => {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            try {
+                const res = await fetch(url, { signal: controller.signal });
+                clearTimeout(id);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return await res.text(); // Return raw text so we can parse it dynamically
+            } catch (e) {
+                clearTimeout(id);
+                throw e;
+            }
+        };
+
+        // --- RESTORED PROVEN PROXY CHAIN FROM WORKING LOGS ---
+        const PROXIES = [
+            { name: "CorsProxy.io (Primary)", fetch: async (t) => JSON.parse(await fetchWithTimeout(`https://corsproxy.io/?${encodeURIComponent(t)}`)) },
+            { name: "AllOrigins GET (Fallback)", fetch: async (t) => JSON.parse(JSON.parse(await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(t)}`)).contents) }
+        ];
 
         const App = () => {
             const [view, setView] = useState('live'); // 'live' | 'forecast'
@@ -254,16 +328,16 @@
                                     addLog(`[NET] Engaging node: ${proxy.name} for ${park.name}...`, 'info');
                                     data = await proxy.fetch(`https://queue-times.com/parks/${park.id}/queue_times.json`);
                                     if (data && (data.lands || data.rides)) break; 
-                                    if (data && data.contents) { data = JSON.parse(data.contents); break; }
                                 } catch(e) { addLog(`[WARN] Node timeout/failure: ${e.message}`, 'warn'); }
                             }
-                            if (!data || (!data.lands && !data.rides)) throw new Error("All network nodes isolated.");
+                            if (!data || (!data.lands && !data.rides)) throw new Error("All network nodes exhausted or timed out.");
                             
                             let minsToClose = 999;
                             try {
                                 const scheduleData = await fetchWithTimeout(`https://api.themeparks.wiki/v1/entity/${park.tpUuid}/schedule`);
-                                if (scheduleData && scheduleData.schedule) {
-                                    const activeSchedule = scheduleData.schedule.find(s => s.type === "OPERATING" && new Date(s.closingTime).getTime() > now);
+                                const scheduleJson = JSON.parse(scheduleData);
+                                if (scheduleJson && scheduleJson.schedule) {
+                                    const activeSchedule = scheduleJson.schedule.find(s => s.type === "OPERATING" && new Date(s.closingTime).getTime() > now);
                                     if (activeSchedule) {
                                         minsToClose = (new Date(activeSchedule.closingTime).getTime() - now) / 60000;
                                         addLog(`[SYS] Extracted Official Schedule for ${park.name}. Closes in ${Math.round(minsToClose)} mins.`, 'success');
@@ -383,7 +457,6 @@
                 return () => clearInterval(syncInterval);
             }, [activeRegion]);
 
-            // --- MULTI-DAY PREDICTIVE COMPONENT LOGIC ---
             const forecastDaysRow = useMemo(() => {
                 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
                 const list = [];
@@ -400,7 +473,7 @@
 
             const calculatedForecastData = useMemo(() => {
                 if (rides.length === 0) return [];
-                const dayWeight = [1.0, 1.15, 0.85, 0.90, 0.92, 0.95, 1.20][selectedForecastDay]; // Weekend weighting modifier
+                const dayWeight = [1.0, 1.15, 0.85, 0.90, 0.92, 0.95, 1.20][selectedForecastDay]; 
                 
                 return rides.map(r => {
                     let baseAvg = r.isPriority ? 35 : 15;
@@ -525,12 +598,10 @@
 
             const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
 
-            // --- SPLIT-ARCHITECTURE RIDE DISPLAY ROW CARD[cite: 1] ---
             const RideCard = ({ ride, isCompleted, isMinor, isClosed, globalStep }) => {
                 const isExpanded = expandedRideId === ride.id;
                 const intel = ride.aiIntel;
 
-                // Time slot calculation factors[cite: 1]
                 const projection30m = Math.max(5, Math.round(ride.wait_time + (ride.velocity * 30)));
                 const projection60m = typeof ride.predictedWait === 'number' ? ride.predictedWait : ride.wait_time;
                 const delta30m = projection30m - ride.wait_time;
@@ -630,7 +701,6 @@
                             </div>
                         </div>
 
-                        {/* SPLIT HORIZON PROJECTIONS & HISTORIC LIMIT MATRICES[cite: 1] */}
                         {isExpanded && (
                             <div className={`p-4 bg-slate-50 dark:bg-[#05070a] border border-t-0 rounded-b-xl animate-in slide-in-from-top-2 relative z-10 ${
                                 isClosed ? 'border-rose-200 dark:border-rose-900/30' : ride.isPriority ? 'border-emerald-200 dark:border-emerald-500/20' : 'border-slate-200 dark:border-slate-800'
@@ -655,10 +725,7 @@
                                         </div>
                                     </div>
 
-                                    {/* ALIGNED DESIGN MATRIX[cite: 1] */}
                                     <div className="space-y-3 bg-white dark:bg-[#0c111a] p-3 rounded-lg border border-slate-200 dark:border-slate-800/50 shadow-inner text-xs">
-                                        
-                                        {/* SECTION: Short Term Forecast Window[cite: 1] */}
                                         <div>
                                             <h5 className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2">Short Term Projection Horizon</h5>
                                             <div className="grid grid-cols-2 gap-2 font-mono">
@@ -683,7 +750,6 @@
                                             </div>
                                         </div>
 
-                                        {/* SECTION: Daily Context Analytics[cite: 1] */}
                                         <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
                                             <h5 className="text-[10px] text-slate-400 font-black uppercase tracking-wider mb-2">Today So Far</h5>
                                             <div className="grid grid-cols-3 gap-2 text-center font-mono">
@@ -701,7 +767,6 @@
                                                 </div>
                                             </div>
                                         </div>
-
                                     </div>
                                 </div>
                             </div>
@@ -798,6 +863,59 @@
                                 </button>
                             </div>
                         </header>
+
+                        {/* EXPANDED OPERATIONAL FIELD MANUAL */}
+                        {showPrimer && (
+                            <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
+                                <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">
+                                     <h2 className="text-lg font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                                         <Icon path={I.BookOpen} size={20} /> Operational Field Manual
+                                     </h2>
+                                     <button onClick={() => setShowPrimer(false)} className="text-slate-400 hover:text-slate-800 dark:text-slate-500 dark:hover:text-white transition-colors">
+                                        <Icon path={I.X} size={20} />
+                                    </button>
+                                </div>
+                                <div className="space-y-8 text-sm text-slate-600 dark:text-slate-300">
+                                    <p className="leading-relaxed text-base">
+                                        This terminal utilizes <strong>Live Data Delta Tracking</strong>. Every 5 minutes, the engine pulls the current queue times and compares them to the historic ledger cached on your device. By measuring the absolute difference between the old wait time and the new wait time, it calculates a mathematically precise Live Arrival Velocity ($\lambda$).
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-4">
+                                            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">I. Squad Deployment & Routing</h3>
+                                            <ul className="space-y-3">
+                                                <li className="flex items-start gap-2">
+                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                                                    <span><strong>Follow the Master Sequence:</strong> The system automatically groups rides by land to prevent physical exhaustion. It evaluates wait times, predicts 60-minute surges, and clusters your route.</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+                                                    <span><strong>Log Completed Targets:</strong> Once you enter a queue, <strong>check the box</strong>. The system will log it, set your current location as the new <em>Dynamic Origin</em>, and instantly recalculate the optimal route.</span>
+                                                </li>
+                                                <li className="flex items-start gap-2">
+                                                    <Icon path={I.MapPin} size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                                                    <span><strong>Toggle GPS Tracking:</strong> Tap the GPS button to triangulate your actual location and build a new path based on your physical coordinates.</span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <h3 className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">II. HUD Diagnostics</h3>
+                                            <p className="text-xs">Tap anywhere on a ride's card (except the checkbox) to run an AI Deep-Scan based on these core variables:</p>
+                                            <div className="bg-slate-50 dark:bg-[#05070a] p-3 rounded-xl border border-slate-200 dark:border-slate-800 font-mono text-[10px] space-y-2">
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">λ (Lambda)</span><span className="text-slate-800 dark:text-white">People joining queue per min</span></div>
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">Ar (Availability)</span><span className="text-slate-800 dark:text-white">Historical uptime %</span></div>
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">μ (Mu)</span><span className="text-slate-800 dark:text-white">Effective capacity/min</span></div>
+                                                <div className="flex justify-between border-b border-slate-200 dark:border-slate-800 pb-1"><span className="text-slate-500 dark:text-slate-400">ρ (Rho)</span><span className="text-slate-800 dark:text-white">Ratio of λ / μ</span></div>
+                                                <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">PRED</span><span className="text-slate-800 dark:text-white">Velocity Forecast in 60 mins</span></div>
+                                            </div>
+                                            <div className="text-xs space-y-2 pt-2">
+                                                <p><span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">ρ &lt; 1.0 (Green):</span> The queue is actively shrinking. Safe to delay riding.</p>
+                                                <p><span className="text-rose-500 dark:text-rose-400 font-bold font-mono">ρ &gt; 1.0 (Red):</span> Wait time is expanding rapidly. Route here immediately.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* RENDER VIEW WINDOWS */}
                         {view === 'live' ? (
@@ -909,19 +1027,36 @@
                                                     </div>
                                                 </div>
                                             )}
+
+                                            {minorSequence.length > 0 && (
+                                                <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
+                                                    <h3 className="text-xs font-black uppercase mb-4 tracking-widest text-slate-400">All Other Attractions (Optional)</h3>
+                                                    <div className="opacity-80 space-y-3">
+                                                        {minorSequence.map(ride => <RideCard key={ride.id} ride={ride} isMinor={true} />)}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {closedSequence.length > 0 && (
+                                                <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
+                                                    <h3 className="text-xs font-black uppercase mb-4 tracking-widest text-rose-500">Offline Attractions</h3>
+                                                    <div className="opacity-80 dark:opacity-70 space-y-3">
+                                                        {closedSequence.map(ride => <RideCard key={ride.id} ride={ride} isClosed={true} />)}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
                             </div>
                         ) : (
-                            /* --- DETALED FORKED FORECAST SECTOR HUB[cite: 2] --- */
+                            /* --- DETALED FORKED FORECAST SECTOR HUB --- */
                             <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm w-full animate-in slide-in-from-bottom-4 duration-300">
                                 <div className="mb-4">
                                     <p className="text-xs font-mono text-slate-400 uppercase tracking-widest mb-1">Time-Series Forecast Window</p>
                                     <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white uppercase">Resort Prediction Hub</h2>
                                 </div>
 
-                                {/* Horizontal Week Selector Tape[cite: 2] */}
                                 <div className="flex gap-2 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6 overflow-x-auto">
                                     {forecastDaysRow.map(day => (
                                         <button 
@@ -939,7 +1074,6 @@
                                     ))}
                                 </div>
 
-                                {/* Projected Attraction Array Grid[cite: 2] */}
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {calculatedForecastData
                                         .filter(r => activePark === 'all' || r.parkId.toString() === activePark)
@@ -949,7 +1083,6 @@
                                                     <h4 className="font-bold text-sm text-slate-900 dark:text-slate-200 truncate">{ride.name}</h4>
                                                     <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate">{ride.landName}</p>
                                                     
-                                                    {/* Verdict Pill[cite: 2] */}
                                                     <span className={`inline-block text-[9px] font-black uppercase rounded mt-2 px-1.5 py-0.5 ${
                                                         ride.verdict.includes("Very busy") ? "bg-rose-100 dark:bg-rose-950/30 text-rose-600" :
                                                         ride.verdict.includes("Busy") ? "bg-amber-100 dark:bg-amber-950/30 text-amber-600" :
