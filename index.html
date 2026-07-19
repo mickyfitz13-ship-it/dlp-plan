@@ -572,6 +572,22 @@
                                 if (diffDays >= 1) timeSpanStr = `${Math.round(diffDays)} days`;
                             }
                         }
+                        // ---- Routing score (lower = ride sooner). Four signals: ----
+                        // 1. trendGain  - regret of deferring: how much the queue will grow in 60m
+                        // 2. dealBonus  - how far the current wait sits BELOW its own daily average
+                        //                 (only trusted once >=8 telemetry samples exist)
+                        // 3. priority   - must-do rides are pulled forward
+                        // 4. wait*0.6   - mild shortest-first tiebreak
+                        const trendGain = Math.max(-30, Math.min(60, pred60 - ride.wait_time));
+                        const dealBonus = allPoints.length >= 8 ? Math.max(-20, Math.min(20, avgMarker - ride.wait_time)) : 0;
+                        const priorityBonus = ride.isPriority ? 18 : 0;
+                        const routingScore = (ride.wait_time * 0.6) - (trendGain * 1.2) - dealBonus - priorityBonus;
+                        let routingReason = "Steady queue";
+                        if (trendGain >= 10) routingReason = `Rising: +${Math.round(trendGain)}m expected within the hour`;
+                        else if (trendGain <= -10) routingReason = `Easing: -${Math.round(Math.abs(trendGain))}m expected soon`;
+                        else if (dealBonus >= 8) routingReason = `Bargain: ${Math.round(dealBonus)}m under its daily average`;
+                        else if (dealBonus <= -8) routingReason = `Inflated: ${Math.round(Math.abs(dealBonus))}m over its daily average`;
+                        else if (ride.isPriority) routingReason = "Priority target, queue steady";
                         return {
                             ...ride,
                             mu: Number(mu_eff.toFixed(1)),
@@ -581,7 +597,8 @@
                             predictedWait: predDisplay,
                             projection30m: pred30,
                             projection60m: pred60,
-                            routingScore: ride.wait_time - (pred60 - ride.wait_time),
+                            routingScore: routingScore,
+                            routingReason: routingReason,
                             aiIntel: generateTacticalIntelligence(ride),
                             analytics: { low: lowMarker, high: highMarker, avg: avgMarker, bestHour: bestHourStr, worstHour: worstHourStr, samples: allPoints.length, timeSpan: timeSpanStr }
                         };
@@ -693,13 +710,21 @@
                 activePool.forEach(ride => {
                     const zoneKey = `${ride.parkName} - ${ride.landName}`;
                     if (!grouped[zoneKey]) {
-                        grouped[zoneKey] = { zoneKey, parkId: ride.parkId, parkName: ride.parkName, landName: ride.landName, rides: [], avgScore: 0 };
+                        grouped[zoneKey] = { zoneKey, parkId: ride.parkId, parkName: ride.parkName, landName: ride.landName, rides: [], zoneScore: 0 };
                     }
                     grouped[zoneKey].rides.push(ride);
                 });
                 Object.values(grouped).forEach(zone => {
                     zone.rides.sort((a, b) => a.routingScore - b.routingScore);
-                    zone.avgScore = zone.rides.reduce((sum, r) => sum + r.routingScore, 0) / zone.rides.length;
+                    // Weighted zone score: priority targets count double, so a land holding
+                    // must-do rides with rising queues pulls the whole route toward it first.
+                    let wSum = 0, wTotal = 0;
+                    zone.rides.forEach(r => {
+                        const w = r.isPriority ? 2 : 1;
+                        wSum += r.routingScore * w;
+                        wTotal += w;
+                    });
+                    zone.zoneScore = wTotal > 0 ? wSum / wTotal : 0;
                 });
                 let tspSortedLands = [];
                 const parkGroups = {};
@@ -732,22 +757,68 @@
                            }
                        }
                    }
-                   while(unvisited.length > 0) {
-                      unvisited.forEach(zone => {
-                         const dest = getCoords(pId, zone.landName);
-                         const physicalDistance = Math.sqrt(Math.pow(dest.x - currentPos.x, 2) + Math.pow(dest.y - currentPos.y, 2));
-                         const travelTimeMins = Math.max(2, Math.round(physicalDistance * 0.15));
-
-                         zone.travelTimeFromLast = travelTimeMins;
-                         zone.tspCostScore = zone.avgScore + (travelTimeMins * 3.5);
-                         zone.coords = dest;
-                      });
-
-                      unvisited.sort((a,b) => a.tspCostScore - b.tspCostScore);
-                      const nextZone = unvisited.shift();
-                      tspSortedLands.push(nextZone);
-                      currentPos = nextZone.coords;
+                   // ---- Zone ordering: weighted-completion scheduling ----
+                   // Each land is a "job" whose cost is its opportunity score; walking is a
+                   // sequence-dependent setup that delays every land still to come. We minimize
+                   //   Sum over positions p of (landsRemaining) * (walkMins*2 + zoneScore)
+                   // so urgent lands (rising queues, bargains, priorities) are scheduled early
+                   // while the route stays geographically tight. Exact search over ALL orderings
+                   // up to 7 lands (always the case at DLP); greedy + local improvement beyond.
+                   unvisited.forEach(z => { z.coords = getCoords(pId, z.landName); });
+                   const zoneTravelMins = (from, to) => Math.max(2, Math.round(Math.sqrt(Math.pow(to.x - from.x, 2) + Math.pow(to.y - from.y, 2)) * 0.15));
+                   const orderCost = (order, startPos) => {
+                       let cost = 0, pos = startPos;
+                       const n = order.length;
+                       for (let p = 0; p < n; p++) {
+                           cost += (n - p) * (zoneTravelMins(pos, order[p].coords) * 2 + order[p].zoneScore);
+                           pos = order[p].coords;
+                       }
+                       return cost;
+                   };
+                   let chosenOrder = [];
+                   if (unvisited.length <= 7) {
+                       let bestCost = Infinity;
+                       const permute = (arr, m) => {
+                           if (arr.length === 0) {
+                               const c = orderCost(m, currentPos);
+                               if (c < bestCost) { bestCost = c; chosenOrder = m.slice(); }
+                               return;
+                           }
+                           for (let i = 0; i < arr.length; i++) {
+                               m.push(arr[i]);
+                               permute(arr.slice(0, i).concat(arr.slice(i + 1)), m);
+                               m.pop();
+                           }
+                       };
+                       permute(unvisited, []);
+                   } else {
+                       let pool = unvisited.slice();
+                       let pos = currentPos;
+                       while (pool.length > 0) {
+                           pool.sort((a, b) => (a.zoneScore + zoneTravelMins(pos, a.coords) * 3) - (b.zoneScore + zoneTravelMins(pos, b.coords) * 3));
+                           const nz = pool.shift();
+                           chosenOrder.push(nz);
+                           pos = nz.coords;
+                       }
+                       let improved = true;
+                       while (improved) {
+                           improved = false;
+                           for (let i = 0; i < chosenOrder.length - 1; i++) {
+                               const trial = chosenOrder.slice();
+                               const tmp = trial[i]; trial[i] = trial[i + 1]; trial[i + 1] = tmp;
+                               if (orderCost(trial, currentPos) < orderCost(chosenOrder, currentPos)) {
+                                   chosenOrder = trial;
+                                   improved = true;
+                               }
+                           }
+                       }
                    }
+                   let walkPos = currentPos;
+                   chosenOrder.forEach(z => {
+                       z.travelTimeFromLast = zoneTravelMins(walkPos, z.coords);
+                       walkPos = z.coords;
+                       tspSortedLands.push(z);
+                   });
                 });
                 let sequence = [];
                 let counter = 1;
@@ -864,6 +935,9 @@
                                         <Icon path={I.AlertTriangle} size={8} /> Data {ride.dataAgeMins}m old
                                     </span>
                                 )}
+                                {!isMinor && !isCompleted && !isClosed && ride.routingReason && (
+                                    <p className="text-[9px] font-mono text-slate-400 dark:text-slate-500 mt-1 line-clamp-1">{ride.routingReason}</p>
+                                )}
                                 {(isCompleted || isMinor || isClosed) && (
                                     <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase mt-1 line-clamp-1">{ride.parkName} - {ride.landName}</p>
                                 )}
@@ -879,6 +953,16 @@
                                             </div>
                                             <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter w-4">MIN</span>
                                         </div>
+                                        {!isCompleted && (
+                                            typeof ride.predictedWait === 'number' ? (
+                                                <span className={`text-[9px] font-bold font-mono flex items-center gap-1 ${ride.projection60m > ride.wait_time ? 'text-rose-500' : ride.projection60m < ride.wait_time ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                                                    <Icon path={ride.projection60m > ride.wait_time ? I.TrendingUp : ride.projection60m < ride.wait_time ? I.TrendingDown : I.Minus} size={10} />
+                                                    {ride.projection60m}m in 1h
+                                                </span>
+                                            ) : (
+                                                <span className="text-[9px] font-black font-mono text-amber-500 uppercase">{ride.predictedWait}</span>
+                                            )
+                                        )}
                                     </>
                                 )}
                             </div>
@@ -1097,7 +1181,7 @@
                                             <ul className="space-y-3">
                                                 <li className="flex items-start gap-2">
                                                     <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Follow the Master Sequence:</strong> The system automatically groups rides by land to prevent physical exhaustion. It evaluates wait times, predicts 60-minute surges, and clusters your route.</span>
+                                                    <span><strong>Follow the Master Sequence:</strong> Every ride is scored on four live signals: queues about to rise (ride now, regret later), waits sitting below their own daily average (bargains), priority-target weighting, and shortest-first as tiebreak. Lands are then sequenced by a scheduling optimizer that tests every possible ordering, front-loading urgent lands while keeping the walking route tight. The grey line under each ride tells you exactly why it earned its slot.</span>
                                                 </li>
                                                 <li className="flex items-start gap-2">
                                                     <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
