@@ -274,12 +274,29 @@
             
             const toggleRide = (e, rideId) => {
                 e.stopPropagation(); 
+                
+                const isCurrentlyCompleted = completedTargets.has(rideId);
+
                 setCompletedTargets(prev => {
                     const next = new Set(prev);
-                    if (next.has(rideId)) { next.delete(rideId); addLog(`[SYS] Objective restored to active sequence.`, 'success'); } 
-                    else { next.add(rideId); addLog(`[SYS] Objective complete. Updating Dynamic Origin vector.`, 'info'); }
+                    if (isCurrentlyCompleted) { 
+                        next.delete(rideId); 
+                        addLog(`[SYS] Objective restored from archive.`, 'success'); 
+                    } 
+                    else { 
+                        next.add(rideId); 
+                        addLog(`[SYS] Objective complete. Updating Dynamic Origin vector.`, 'info'); 
+                    }
                     return next;
                 });
+
+                if (isCurrentlyCompleted) {
+                    setActivatedMinors(prev => {
+                        const next = new Set(prev);
+                        next.delete(rideId);
+                        return next;
+                    });
+                }
             };
 
             const toggleMinor = (e, rideId) => {
@@ -1240,7 +1257,7 @@
                                                             <div className="text-[9px] text-slate-400 uppercase tracking-wider">Peak: {ride.forecastPeak}m</div>
                                                         </div>
                                                     </div>
-                                            ))}
+                                                ))}
                                         </div>
                                     </>
                                 )}
