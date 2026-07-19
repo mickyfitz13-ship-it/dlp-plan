@@ -111,7 +111,7 @@
             6: [{match:"main street",x:50,y:85,label:"Main St."},{match:"adventure",x:25,y:60,label:"Adventure"},{match:"frontier",x:15,y:40,label:"Frontier"},{match:"liberty",x:35,y:35,label:"Liberty"},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"tomorrow",x:85,y:50,label:"Tomorrow"}],
             5: [{match:"celebration",x:50,y:75,label:"Celebration"},{match:"discovery",x:75,y:60,label:"Discovery"},{match:"nature",x:25,y:60,label:"Nature"},{match:"showcase",x:50,y:20,label:"Showcase"}],
             7: [{match:"hollywood",x:50,y:85,label:"Hollywood"},{match:"echo",x:25,y:60,label:"Echo"},{match:"grand",x:15,y:30,label:"Grand"},{match:"star wars",x:15,y:15,label:"Galaxy's Edge"},{match:"toy story",x:50,y:15,label:"Toy Story"},{match:"animation",x:75,y:40,label:"Animation"},{match:"sunset",x:85,y:60,label:"Sunset"}],
-            8: [{match:"oasis",x:50,y:85,label:"Oasis"},{match:"discovery",x:50,y:60,label:"Discovery"},{match:"pandora",x:20,y:50,label:"Pandora"},{match:"africa",x:30,y:20,label:"Africa"},{match:"asia",x:70,y:25,label:"Asia"},{match: "dinoland",x:80,y:60,label:"Dinoland"}],
+            8: [{match:"oasis",x:50,y:85,label:"Oasis"},{match:"discovery",x:50,y:60,label:"Discovery"},{match:"pandora",x:20,y:50,label:"Pandora"},{match:"africa",x:30,y:20,label:"Africa"},{match:"asia",x:70,y:25,label:"Asia"},{match:"dinoland",x:80,y:60,label:"Dinoland"}],
             16: [{match:"main street",x:50,y:85,label:"Main St."},{match:"adventure",x:30,y:60,label:"Adventure"},{match:"new orleans",x:15,y:40,label:"New Orleans"},{match:"critter",x:10,y:30,label:"Critter"},{match:"bayou",x:10,y:30,label:"Bayou"},{match:"frontier",x:35,y:35,label:"Frontier"},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"toontown",x:50,y:5,label:"Toontown"},{match:"tomorrow",x:80,y:50,label:"Tomorrow"},{match:"star wars",x:15,y:15,label:"Galaxy's Edge"}],
             17: [{match:"buena",x:50,y:85,label:"Buena Vista"},{match:"hollywood",x:20,y:60,label:"Hollywood"},{match:"avengers",x:20,y:40,label:"Avengers"},{match:"cars",x:30,y:20,label:"Cars"},{match:"pacific",x:60,y:40,label:"Pacific"},{match:"san fransokyo",x:60,y:40,label:"San Fransokyo"},{match:"pixar",x:75,y:20,label:"Pixar"},{match:"grizzly",x:60,y:60,label:"Grizzly"}],
             274: [{match:"bazaar",x:50,y:85,label:"Bazaar"},{match:"adventure",x:25,y:60,label:"Adventure"},{match:"western",x:15,y:40,label:"Western"},{match:"critter",x:25,y:20,label:"Critter"},{match:"fantasy",x:50,y:20,label:"Fantasy"},{match:"toontown",x:75,y:15,label:"Toontown"},{match:"tomorrow",x:85,y:50,label:"Tomorrow"}],
@@ -208,6 +208,10 @@
             const [globalTelemetryLog, setGlobalTelemetryLog] = useState({});
 
             const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v18') || 'system');
+
+            const [lastLiveSyncTime, setLastLiveSyncTime] = useState('--:--:--');
+            const [lastGithubSyncTime, setLastGithubSyncTime] = useState('--:--:--');
+            const [nextSyncSeconds, setNextSyncSeconds] = useState(300);
             
             useEffect(() => {
                 localStorage.setItem('dlp_theme_v18', theme);
@@ -249,13 +253,20 @@
             const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v18') || '[]')));
             const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v18') || '[]')));
             const [logs, setLogs] = useState([]);
-            const [showTerminal, setShowTerminal] = useState(false);
+            const [showTerminal, setShowTerminal] = useState(true);
             const logsEndRef = useRef(null);
 
             const buildHash = useMemo(() => {
                 const d = new Date();
                 return `BUILD ${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
             }, [lastSync]);
+
+            useEffect(() => {
+                const timer = setInterval(() => {
+                    setNextSyncSeconds(prev => (prev > 0 ? prev - 1 : 300));
+                }, 1000);
+                return () => clearInterval(timer);
+            }, []);
 
             useEffect(() => localStorage.setItem('dlp_completed_v18', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
             useEffect(() => localStorage.setItem('dlp_activated_v18', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
@@ -326,6 +337,7 @@
                         const parsedLog = await res.json();
                         setGlobalTelemetryLog(parsedLog);
                         addLog(`[SYS] Verified GitHub Telemetry Repository integrated.`, 'success');
+                        setLastGithubSyncTime(new Date().toLocaleTimeString('en-GB', { hour12: false }));
                         return parsedLog;
                     }
                 } catch(e) {
@@ -516,6 +528,8 @@
                     localStorage.setItem('dlp_history_v18', JSON.stringify(newHistory));
                     setRides(computedRides);
                     setLastSync(new Date().toLocaleTimeString('en-GB', { hour12: false }));
+                    setLastLiveSyncTime(new Date().toLocaleTimeString('en-GB', { hour12: false }));
+                    setNextSyncSeconds(300);
                     addLog(`[CRON] Telemetry sync matrix compiled successfully.`, 'success');
                 } catch (err) {
                     if (!isSilent) setError(err.message);
@@ -990,6 +1004,20 @@
                                     <button onClick={() => setView('live')} className={`text-xs font-mono uppercase tracking-widest font-bold border-b-2 pb-1 transition-all ${view === 'live' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-transparent text-slate-400'}`}>Live Dispatch Server</button>
                                     <button onClick={() => setView('forecast')} className={`text-xs font-mono uppercase tracking-widest font-bold border-b-2 pb-1 transition-all ${view === 'forecast' ? 'border-emerald-500 text-emerald-600 dark:text-emerald-400' : 'border-transparent text-slate-400'}`}>Multi-Day Forecast Matrix</button>
                                 </div>
+                                <div className="mt-4 flex flex-wrap gap-3 md:gap-6 text-[9px] font-mono uppercase tracking-widest text-slate-500 bg-white/50 dark:bg-black/20 p-2 rounded-lg border border-slate-200/50 dark:border-slate-800/50 inline-flex">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+                                        <span>Live Mac API: <span className="font-bold text-slate-700 dark:text-slate-300">{lastLiveSyncTime}</span></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
+                                        <span>GitHub Archive: <span className="font-bold text-slate-700 dark:text-slate-300">{lastGithubSyncTime}</span></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <Icon path={I.Timer} size={10} className="text-slate-400" />
+                                        <span>Auto-Sync In: <span className="font-bold text-emerald-600 dark:text-emerald-500">{Math.floor(nextSyncSeconds / 60)}:{(nextSyncSeconds % 60).toString().padStart(2, '0')}</span></span>
+                                    </div>
+                                </div>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
                                 <button onClick={toggleGPS} className={`flex items-center gap-2 px-3 py-2 rounded-lg font-bold text-xs border transition-all ${gpsEnabled ? 'bg-blue-600 border-blue-500 text-white shadow-sm dark:shadow-[0_0_10px_rgba(59,130,246,0.3)]' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}>
@@ -1276,7 +1304,7 @@
                             <button onClick={() => setShowTerminal(!showTerminal)} className="w-full flex justify-between p-3 text-[10px] font-mono tracking-widest text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-transparent">
                                 <span>Network Daemon Logs</span> <span>[TOGGLE]</span>
                             </button>
-                            {showTerminal || true && (
+                            {showTerminal && (
                                 <div className="p-4 bg-slate-100 dark:bg-[#020408] h-48 overflow-y-auto font-mono text-[10px] terminal-scroll shadow-inner">
                                     {logs.map((log, i) => (
                                         <div key={i} className="flex gap-2 text-slate-500">
