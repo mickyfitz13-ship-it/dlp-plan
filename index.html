@@ -309,9 +309,11 @@
                 });
             };
 
+            // ADDED: Modified reset progress button to clear BOTH active subsets
             const resetProgress = () => {
                 if(window.confirm("Clear all completed objectives and reset your daily sequence?")) {
                     setCompletedTargets(new Set());
+                    setActivatedMinors(new Set());
                     addLog(`[SYS] Daily routing progress manually cleared.`, 'warn');
                 }
             };
@@ -998,6 +1000,10 @@
                                 </button>
                                 <button onClick={() => bootSystem(true)} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold text-xs border border-emerald-500 transition-all shadow-sm dark:shadow-[0_0_10px_rgba(16,185,129,0.2)]">
                                     <Icon path={I.RefreshCw} size={14} /> <span>SYNC</span>
+                                </button>
+                                {/* NEW RESET BUTTON */}
+                                <button onClick={resetProgress} className="flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white px-3 py-2 rounded-lg font-bold text-xs border border-rose-500 transition-all shadow-sm dark:shadow-[0_0_10px_rgba(225,29,72,0.2)]">
+                                    <Icon path={I.Trash2} size={14} /> <span>RESET</span>
                                 </button>
                             </div>
                         </header>
