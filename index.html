@@ -210,7 +210,7 @@
             const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v18') || 'system');
 
             const [lastLiveSyncTime, setLastLiveSyncTime] = useState('--:--:--');
-            const [lastGithubSyncTime, setLastGithubSyncTime] = useState('--:--:--');
+            const [telemetryAgeMins, setTelemetryAgeMins] = useState('--');
             const [nextSyncSeconds, setNextSyncSeconds] = useState(300);
             
             useEffect(() => {
@@ -261,12 +261,26 @@
                 return `BUILD ${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
             }, [lastSync]);
 
+            const newestTelemetryTimestamp = useMemo(() => {
+                let newest = 0;
+                Object.values(globalTelemetryLog).forEach(points => {
+                    points.forEach(p => {
+                        if (p.t > newest) newest = p.t;
+                    });
+                });
+                return newest;
+            }, [globalTelemetryLog]);
+
             useEffect(() => {
                 const timer = setInterval(() => {
                     setNextSyncSeconds(prev => (prev > 0 ? prev - 1 : 300));
+                    if (newestTelemetryTimestamp > 0) {
+                        const diffMins = Math.floor((Date.now() - newestTelemetryTimestamp) / 60000);
+                        setTelemetryAgeMins(diffMins);
+                    }
                 }, 1000);
                 return () => clearInterval(timer);
-            }, []);
+            }, [newestTelemetryTimestamp]);
 
             useEffect(() => localStorage.setItem('dlp_completed_v18', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
             useEffect(() => localStorage.setItem('dlp_activated_v18', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
@@ -337,7 +351,6 @@
                         const parsedLog = await res.json();
                         setGlobalTelemetryLog(parsedLog);
                         addLog(`[SYS] Verified GitHub Telemetry Repository integrated.`, 'success');
-                        setLastGithubSyncTime(new Date().toLocaleTimeString('en-GB', { hour12: false }));
                         return parsedLog;
                     }
                 } catch(e) {
@@ -1007,15 +1020,15 @@
                                 <div className="mt-4 flex flex-wrap gap-3 md:gap-6 text-[9px] font-mono uppercase tracking-widest text-slate-500 bg-white/50 dark:bg-black/20 p-2 rounded-lg border border-slate-200/50 dark:border-slate-800/50 inline-flex">
                                     <div className="flex items-center gap-1.5">
                                         <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
-                                        <span>Live Mac API: <span className="font-bold text-slate-700 dark:text-slate-300">{lastLiveSyncTime}</span></span>
+                                        <span>Live Data Pulled: <span className="font-bold text-slate-700 dark:text-slate-300">{lastLiveSyncTime}</span></span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                         <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
-                                        <span>GitHub Archive: <span className="font-bold text-slate-700 dark:text-slate-300">{lastGithubSyncTime}</span></span>
+                                        <span>Telemetry Age: <span className="font-bold text-slate-700 dark:text-slate-300">{telemetryAgeMins === '--' ? '--' : `${telemetryAgeMins} MINS AGO`}</span></span>
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                         <Icon path={I.Timer} size={10} className="text-slate-400" />
-                                        <span>Auto-Sync In: <span className="font-bold text-emerald-600 dark:text-emerald-500">{Math.floor(nextSyncSeconds / 60)}:{(nextSyncSeconds % 60).toString().padStart(2, '0')}</span></span>
+                                        <span>Next Auto-Sync: <span className="font-bold text-emerald-600 dark:text-emerald-500">{Math.floor(nextSyncSeconds / 60)}:{(nextSyncSeconds % 60).toString().padStart(2, '0')}</span></span>
                                     </div>
                                 </div>
                             </div>
