@@ -263,7 +263,11 @@
                 let watchId;
                 if (gpsEnabled && navigator.geolocation) {
                     watchId = navigator.geolocation.watchPosition(
-                        (pos) => setUserGPS({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                        (pos) => {
+                            const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                            // Throttle: only trigger a re-plan once you have moved ~30m
+                            setUserGPS(prev => (!prev || getHaversineDistance(prev.lat, prev.lng, next.lat, next.lng) > 0.03) ? next : prev);
+                        },
                         (err) => addLog(`[WARN] GPS Signal lost or denied: ${err.message}`, 'warn'),
                         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
@@ -550,6 +554,7 @@
                         let bestHourStr = "Calibrating";
                         let worstHourStr = "Calibrating";
                         let timeSpanStr = "24 hours";
+                        let hourlyCurve = null;
 
                         if (allPoints.length > 0) {
                             const hourlyMap = {};
@@ -559,6 +564,9 @@
                                 hourlyMap[hr].sum += p.w;
                                 hourlyMap[hr].count++;
                             });
+                            // Hour-by-hour average curve (park time) - fuels the day simulator
+                            hourlyCurve = new Array(24).fill(null);
+                            Object.keys(hourlyMap).forEach(h => { hourlyCurve[Number(h)] = hourlyMap[h].sum / hourlyMap[h].count; });
                             let minAvg = Infinity;
                             let maxAvg = -Infinity;
                             Object.keys(hourlyMap).forEach(h => {
@@ -599,6 +607,8 @@
                             projection60m: pred60,
                             routingScore: routingScore,
                             routingReason: routingReason,
+                            hourlyCurve: hourlyCurve,
+                            curveSamples: allPoints.length,
                             aiIntel: generateTacticalIntelligence(ride),
                             analytics: { low: lowMarker, high: highMarker, avg: avgMarker, bestHour: bestHourStr, worstHour: worstHourStr, samples: allPoints.length, timeSpan: timeSpanStr }
                         };
@@ -710,152 +720,221 @@
                 activePool.forEach(ride => {
                     const zoneKey = `${ride.parkName} - ${ride.landName}`;
                     if (!grouped[zoneKey]) {
-                        grouped[zoneKey] = { zoneKey, parkId: ride.parkId, parkName: ride.parkName, landName: ride.landName, rides: [], zoneScore: 0 };
+                        grouped[zoneKey] = { zoneKey, parkId: ride.parkId, parkName: ride.parkName, landName: ride.landName, rides: [] };
                     }
                     grouped[zoneKey].rides.push(ride);
                 });
                 Object.values(grouped).forEach(zone => {
+                    // Within a land: rising queues + priorities first (routingScore encodes both)
                     zone.rides.sort((a, b) => a.routingScore - b.routingScore);
-                    // Weighted zone score: priority targets count double, so a land holding
-                    // must-do rides with rising queues pulls the whole route toward it first.
-                    let wSum = 0, wTotal = 0;
-                    zone.rides.forEach(r => {
-                        const w = r.isPriority ? 2 : 1;
-                        wSum += r.routingScore * w;
-                        wTotal += w;
-                    });
-                    zone.zoneScore = wTotal > 0 ? wSum / wTotal : 0;
+                    zone.coords = getCoords(zone.parkId, zone.landName);
                 });
                 let tspSortedLands = [];
                 const parkGroups = {};
                 Object.values(grouped).forEach(z => { if(!parkGroups[z.parkId]) parkGroups[z.parkId] = []; parkGroups[z.parkId].push(z); });
-                Object.keys(parkGroups).forEach(pId => {
-                   let unvisited = parkGroups[pId];
-                   let currentPos = { x: 50, y: 95 };
 
-                   let gpsLocked = false;
-                   if (gpsEnabled && userGPS && TACTICAL_COORDS[pId]) {
-                       let closestLand = null;
-                       let minDistance = Infinity;
-                       TACTICAL_COORDS[pId].forEach(land => {
-                           if (typeof land.lat !== 'number' || typeof land.lng !== 'number') return;
-                           const d = getHaversineDistance(userGPS.lat, userGPS.lng, land.lat, land.lng);
-                           if (d < minDistance) { minDistance = d; closestLand = land; }
-                       });
-                       // Only snap to GPS if we are within 3km of the park (i.e. actually there)
-                       if (closestLand && minDistance < 3) {
-                           currentPos = { x: closestLand.x, y: closestLand.y };
-                           gpsLocked = true;
-                       }
-                   }
-                   if (!gpsLocked) {
-                       const completedArray = Array.from(completedTargets);
-                       for (let i = completedArray.length - 1; i >= 0; i--) {
-                           const lastRide = rides.find(r => r.id === completedArray[i]);
-                           if (lastRide && lastRide.parkId.toString() === pId) {
-                               currentPos = getCoords(pId, lastRide.landName); break;
-                           }
-                       }
-                   }
-                   // ---- Zone ordering: weighted-completion scheduling ----
-                   // Each land is a "job" whose cost is its opportunity score; walking is a
-                   // sequence-dependent setup that delays every land still to come. We minimize
-                   //   Sum over positions p of (landsRemaining) * (walkMins*2 + zoneScore)
-                   // so urgent lands (rising queues, bargains, priorities) are scheduled early
-                   // while the route stays geographically tight. Exact search over ALL orderings
-                   // up to 7 lands (always the case at DLP); greedy + local improvement beyond.
-                   unvisited.forEach(z => { z.coords = getCoords(pId, z.landName); });
-                   const zoneTravelMins = (from, to) => Math.max(2, Math.round(Math.sqrt(Math.pow(to.x - from.x, 2) + Math.pow(to.y - from.y, 2)) * 0.15));
-                   const orderCost = (order, startPos) => {
-                       let cost = 0, pos = startPos;
-                       const n = order.length;
-                       for (let p = 0; p < n; p++) {
-                           cost += (n - p) * (zoneTravelMins(pos, order[p].coords) * 2 + order[p].zoneScore);
-                           pos = order[p].coords;
-                       }
-                       return cost;
-                   };
-                   let chosenOrder = [];
-                   if (unvisited.length <= 7) {
-                       let bestCost = Infinity;
-                       const permute = (arr, m) => {
-                           if (arr.length === 0) {
-                               const c = orderCost(m, currentPos);
-                               if (c < bestCost) { bestCost = c; chosenOrder = m.slice(); }
-                               return;
-                           }
-                           for (let i = 0; i < arr.length; i++) {
-                               m.push(arr[i]);
-                               permute(arr.slice(0, i).concat(arr.slice(i + 1)), m);
-                               m.pop();
-                           }
-                       };
-                       permute(unvisited, []);
-                   } else {
-                       let pool = unvisited.slice();
-                       let pos = currentPos;
-                       while (pool.length > 0) {
-                           pool.sort((a, b) => (a.zoneScore + zoneTravelMins(pos, a.coords) * 3) - (b.zoneScore + zoneTravelMins(pos, b.coords) * 3));
-                           const nz = pool.shift();
-                           chosenOrder.push(nz);
-                           pos = nz.coords;
-                       }
-                       let improved = true;
-                       while (improved) {
-                           improved = false;
-                           for (let i = 0; i < chosenOrder.length - 1; i++) {
-                               const trial = chosenOrder.slice();
-                               const tmp = trial[i]; trial[i] = trial[i + 1]; trial[i + 1] = tmp;
-                               if (orderCost(trial, currentPos) < orderCost(chosenOrder, currentPos)) {
-                                   chosenOrder = trial;
-                                   improved = true;
-                               }
-                           }
-                       }
-                   }
-                   let walkPos = currentPos;
-                   chosenOrder.forEach(z => {
-                       z.travelTimeFromLast = zoneTravelMins(walkPos, z.coords);
-                       walkPos = z.coords;
-                       tspSortedLands.push(z);
-                   });
+                // ================= EXPECTED-WAIT DAY SIMULATOR =================
+                // Identical for every land in every park of every region. The planner
+                // simulates the day: for each candidate land order it predicts what each
+                // queue will ACTUALLY be at your arrival time - the live regression trend
+                // for the next ~90 mins, blending into that ride's own hour-by-hour
+                // telemetry curve beyond that - then picks the order with the lowest
+                // total expected minutes queued + walked. Rides projected to fall after
+                // park close incur heavy penalties (priorities most), so must-dos are
+                // automatically front-loaded whenever time gets tight.
+                const parkBaseMins = {};
+                GLOBAL_PARKS[activeRegion].forEach(p => {
+                    const off = getTzOffsetMs(PARK_TZ[p.id] || 'UTC');
+                    const d = new Date(Date.now() + off);
+                    parkBaseMins[p.id] = d.getUTCHours() * 60 + d.getUTCMinutes();
                 });
+                const expectedWaitAt = (ride, dtMins) => {
+                    const liveEst = Math.max(0, ride.wait_time + (ride.velocity || 0) * Math.min(dtMins, 90));
+                    const curve = ride.hourlyCurve;
+                    if (curve && ride.curveSamples >= 24) {
+                        const base = parkBaseMins[ride.parkId] || 0;
+                        const hist = curve[Math.floor(((base + dtMins) % 1440) / 60)];
+                        if (typeof hist === 'number') {
+                            const histNow = curve[Math.floor(base / 60)];
+                            // Calibrate the historical curve to today's actual crowd level
+                            const calib = (typeof histNow === 'number' && histNow >= 5) ? Math.max(0.5, Math.min(2, ride.wait_time / histNow)) : 1;
+                            const w = Math.max(0, Math.min(1, dtMins / 90));
+                            return Math.min(240, (1 - w) * liveEst + w * hist * calib);
+                        }
+                    }
+                    return Math.min(240, liveEst);
+                };
+                const zoneTravelMins = (from, to) => Math.max(2, Math.round(Math.sqrt(Math.pow(to.x - from.x, 2) + Math.pow(to.y - from.y, 2)) * 0.15));
+                const simulatePlan = (zoneOrder, startPos, startClock) => {
+                    let clock = startClock, pos = startPos;
+                    let waitTotal = 0, walkTotal = 0, penalty = 0;
+                    const details = [];
+                    zoneOrder.forEach(zone => {
+                        const walk = zoneTravelMins(pos, zone.coords);
+                        clock += walk; walkTotal += walk; pos = zone.coords;
+                        zone.rides.forEach(ride => {
+                            const mtc = typeof ride.minsToClose === 'number' ? ride.minsToClose : 999;
+                            if (mtc > 0 && mtc < 900 && clock > mtc) {
+                                penalty += ride.isPriority ? 120 : 30;
+                                details.push({ id: ride.id, eta: clock, expWait: null, missed: true });
+                                return;
+                            }
+                            const expWait = Math.round(expectedWaitAt(ride, clock));
+                            waitTotal += expWait;
+                            details.push({ id: ride.id, eta: clock, expWait: expWait, missed: false });
+                            clock += expWait + (ride.duration || 4);
+                        });
+                    });
+                    return { cost: waitTotal + walkTotal + penalty, waitTotal, walkTotal, clockEnd: clock, details };
+                };
+                const optimizeZones = (zones, startPos, startClock) => {
+                    if (zones.length <= 1) return zones.slice();
+                    if (zones.length <= 7) {
+                        // Exact: evaluate EVERY possible land order via simulation
+                        let best = zones.slice(), bestCost = Infinity;
+                        const permute = (arr, m) => {
+                            if (arr.length === 0) {
+                                const c = simulatePlan(m, startPos, startClock).cost;
+                                if (c < bestCost) { bestCost = c; best = m.slice(); }
+                                return;
+                            }
+                            for (let i = 0; i < arr.length; i++) {
+                                m.push(arr[i]);
+                                permute(arr.slice(0, i).concat(arr.slice(i + 1)), m);
+                                m.pop();
+                            }
+                        };
+                        permute(zones, []);
+                        return best;
+                    }
+                    // 8+ lands: greedy insertion by simulated marginal cost + local improvement
+                    let pool = zones.slice(), order = [];
+                    while (pool.length > 0) {
+                        let bestIdx = 0, bestC = Infinity;
+                        for (let i = 0; i < pool.length; i++) {
+                            const c = simulatePlan(order.concat([pool[i]]), startPos, startClock).cost;
+                            if (c < bestC) { bestC = c; bestIdx = i; }
+                        }
+                        order.push(pool.splice(bestIdx, 1)[0]);
+                    }
+                    let improved = true;
+                    while (improved) {
+                        improved = false;
+                        for (let i = 0; i < order.length - 1; i++) {
+                            const trial = order.slice();
+                            const tmp = trial[i]; trial[i] = trial[i + 1]; trial[i + 1] = tmp;
+                            if (simulatePlan(trial, startPos, startClock).cost < simulatePlan(order, startPos, startClock).cost) {
+                                order = trial; improved = true;
+                            }
+                        }
+                    }
+                    return order;
+                };
+                const originFor = (pId) => {
+                    if (gpsEnabled && userGPS && TACTICAL_COORDS[pId]) {
+                        let closestLand = null, minDistance = Infinity;
+                        TACTICAL_COORDS[pId].forEach(land => {
+                            if (typeof land.lat !== 'number' || typeof land.lng !== 'number') return;
+                            const d = getHaversineDistance(userGPS.lat, userGPS.lng, land.lat, land.lng);
+                            if (d < minDistance) { minDistance = d; closestLand = land; }
+                        });
+                        // Only snap to GPS if within 3km of the park (i.e. actually there)
+                        if (closestLand && minDistance < 3) return { x: closestLand.x, y: closestLand.y };
+                    }
+                    const completedArray = Array.from(completedTargets);
+                    for (let i = completedArray.length - 1; i >= 0; i--) {
+                        const lastRide = rides.find(r => r.id === completedArray[i]);
+                        if (lastRide && lastRide.parkId.toString() === pId) return getCoords(pId, lastRide.landName);
+                    }
+                    return { x: 50, y: 95 };
+                };
+                const hopMins = activeRegion === "Disneyland Paris" ? 15 : activeRegion === "Disneyland Resort (California)" ? 10 : activeRegion === "Walt Disney World (Florida)" ? 40 : 20;
+                const planParkSeq = (seq) => {
+                    let clock = 0, totalCost = 0;
+                    const zonesOut = [], walkOut = [], hopOut = [], details = [];
+                    seq.forEach((pid, idx) => {
+                        if (idx > 0) { clock += hopMins; totalCost += hopMins; }
+                        const startPos = originFor(pid);
+                        const order = optimizeZones(parkGroups[pid], startPos, clock);
+                        const sim = simulatePlan(order, startPos, clock);
+                        let pos = startPos;
+                        order.forEach((z, zi) => {
+                            walkOut.push(idx > 0 && zi === 0 ? hopMins : zoneTravelMins(pos, z.coords));
+                            hopOut.push(idx > 0 && zi === 0);
+                            pos = z.coords;
+                            zonesOut.push(z);
+                        });
+                        clock = sim.clockEnd;
+                        totalCost += sim.cost;
+                        details.push.apply(details, sim.details);
+                    });
+                    return { totalCost, zonesOut, walkOut, hopOut, details };
+                };
+                // For two-park regions, also optimize WHICH park to hit first (clock carries
+                // across the hop, so afternoon queues in park two are predicted correctly).
+                const parkIds = Object.keys(parkGroups);
+                const candidateSeqs = parkIds.length === 2 ? [[parkIds[0], parkIds[1]], [parkIds[1], parkIds[0]]] : [parkIds];
+                let bestPlan = null;
+                candidateSeqs.forEach(seq => {
+                    const plan = planParkSeq(seq);
+                    if (!bestPlan || plan.totalCost < bestPlan.totalCost) bestPlan = plan;
+                });
+                bestPlan.zonesOut.forEach((z, i) => {
+                    z.travelTimeFromLast = bestPlan.walkOut[i];
+                    z.isParkHop = bestPlan.hopOut[i];
+                    tspSortedLands.push(z);
+                });
+                // Naive baseline (nearest-land walk order, no time model): the delta is
+                // what the optimizer genuinely saves you.
+                let naiveTotal = 0;
+                {
+                    let clock = 0;
+                    parkIds.forEach((pid, idx) => {
+                        if (idx > 0) { clock += hopMins; naiveTotal += hopMins; }
+                        let pool = parkGroups[pid].slice();
+                        let pos = originFor(pid);
+                        const order = [];
+                        while (pool.length > 0) {
+                            pool.sort((a, b) => zoneTravelMins(pos, a.coords) - zoneTravelMins(pos, b.coords));
+                            const z = pool.shift(); order.push(z); pos = z.coords;
+                        }
+                        const sim = simulatePlan(order, originFor(pid), clock);
+                        clock = sim.clockEnd;
+                        naiveTotal += sim.cost;
+                    });
+                }
+                // Build the master sequence, carrying each ride's simulated ETA and the
+                // expected queue AT that ETA (not just the current wait).
+                const fmtEta = (dtMins, parkId) => {
+                    const off = getTzOffsetMs(PARK_TZ[parkId] || 'UTC');
+                    const d = new Date(Date.now() + dtMins * 60000 + off);
+                    return d.getUTCHours().toString().padStart(2, '0') + ':' + d.getUTCMinutes().toString().padStart(2, '0');
+                };
+                const detailById = {};
+                bestPlan.details.forEach(d => { detailById[d.id] = d; });
                 let sequence = [];
                 let counter = 1;
-                let tspTotalWalk = 0;
-                let queueEvasionSaved = 0;
-                let totalQueueTimeMins = 0;
-                let previousZoneParkId = null;
+                let chosenWalk = 0;
                 tspSortedLands.forEach(zone => {
-                    let isParkHop = false;
-                    let displayTravelTime = zone.travelTimeFromLast;
-                    if (previousZoneParkId && previousZoneParkId !== zone.parkId) {
-                        isParkHop = true;
-                        if (activeRegion === "Disneyland Paris") displayTravelTime = 15;
-                        else if (activeRegion === "Disneyland Resort (California)") displayTravelTime = 10;
-                        else if (activeRegion === "Walt Disney World (Florida)") displayTravelTime = 40;
-                        else if (activeRegion === "Tokyo Disney Resort") displayTravelTime = 20;
-                        else displayTravelTime = 20;
-                        zone.travelTimeFromLast = displayTravelTime;
-                    }
-
-                    zone.isParkHop = isParkHop;
-                    previousZoneParkId = zone.parkId;
-                    tspTotalWalk += zone.travelTimeFromLast;
+                    chosenWalk += zone.travelTimeFromLast || 0;
                     zone.rides.forEach(ride => {
-                        sequence.push({ ...ride, globalStep: counter++, zoneInfo: zone });
-                        totalQueueTimeMins += Math.round(ride.wait_time);
-                        if (ride.velocity > 0 && typeof ride.predictedWait === 'number') {
-                            queueEvasionSaved += Math.round(ride.predictedWait - ride.wait_time);
-                        }
+                        const d = detailById[ride.id];
+                        sequence.push({
+                            ...ride,
+                            globalStep: counter++,
+                            zoneInfo: zone,
+                            plannedWait: d && !d.missed ? d.expWait : null,
+                            plannedEta: d ? fmtEta(d.eta, ride.parkId) : null,
+                            plannedMissed: d ? d.missed : false
+                        });
                     });
                 });
-                let walkSaved = Math.round(tspTotalWalk * 0.8);
-                let totalSavedMins = Math.round(walkSaved + queueEvasionSaved);
+                const totalQueueTimeMins = sequence.reduce((s, r) => s + (typeof r.plannedWait === 'number' ? r.plannedWait : 0), 0);
+                const totalSavedMins = Math.max(0, Math.round(naiveTotal - bestPlan.totalCost));
                 return {
                     itinerary: tspSortedLands, masterSequence: sequence,
                     completedSequence, minorSequence, closedSequence,
-                    metrics: { queueEvasionSaved: Math.round(queueEvasionSaved), walkSaved, totalSavedMins, totalQueueTimeMins: Math.round(totalQueueTimeMins) }
+                    metrics: { queueEvasionSaved: totalSavedMins, walkSaved: chosenWalk, totalSavedMins: totalSavedMins, totalQueueTimeMins: Math.round(totalQueueTimeMins) }
                 };
             }, [rides, activePark, completedTargets, activatedMinors, gpsEnabled, userGPS, activeRegion]);
             const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
@@ -936,7 +1015,11 @@
                                     </span>
                                 )}
                                 {!isMinor && !isCompleted && !isClosed && ride.routingReason && (
-                                    <p className="text-[9px] font-mono text-slate-400 dark:text-slate-500 mt-1 line-clamp-1">{ride.routingReason}</p>
+                                    <p className={`text-[9px] font-mono mt-1 line-clamp-1 ${ride.plannedMissed ? 'text-rose-500 font-bold' : 'text-slate-400 dark:text-slate-500'}`}>
+                                        {ride.plannedMissed
+                                            ? `ETA ${ride.plannedEta} - LIKELY AFTER CLOSE, ride earlier if must-do`
+                                            : `${ride.routingReason}${typeof ride.plannedWait === 'number' ? ` · ETA ${ride.plannedEta} ≈${ride.plannedWait}m queue` : ''}`}
+                                    </p>
                                 )}
                                 {(isCompleted || isMinor || isClosed) && (
                                     <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase mt-1 line-clamp-1">{ride.parkName} - {ride.landName}</p>
@@ -1137,10 +1220,6 @@
                                         <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
                                         <span>Telemetry Age: <span className="font-bold text-slate-700 dark:text-slate-300">{telemetryAgeMins === '--' ? '--' : `${telemetryAgeMins} MINS AGO`}</span></span>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <Icon path={I.Timer} size={10} className="text-slate-400" />
-                                        <span>Next Auto-Sync: <span className="font-bold text-emerald-600 dark:text-emerald-500">{Math.floor(nextSyncSeconds / 60)}:{(nextSyncSeconds % 60).toString().padStart(2, '0')}</span></span>
-                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
@@ -1181,7 +1260,7 @@
                                             <ul className="space-y-3">
                                                 <li className="flex items-start gap-2">
                                                     <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Follow the Master Sequence:</strong> Every ride is scored on four live signals: queues about to rise (ride now, regret later), waits sitting below their own daily average (bargains), priority-target weighting, and shortest-first as tiebreak. Lands are then sequenced by a scheduling optimizer that tests every possible ordering, front-loading urgent lands while keeping the walking route tight. The grey line under each ride tells you exactly why it earned its slot.</span>
+                                                    <span><strong>Follow the Master Sequence:</strong> The planner simulates your whole day. For every possible land order it predicts what each queue will actually be at your arrival time - the live trend for the next 90 minutes, blending into that ride's own hour-by-hour history beyond - and picks the order with the lowest total expected time queued and walked. Each ride shows its ETA and the expected queue at that ETA; anything projected past park close is flagged in red. Within a land, rising queues and priority targets go first.</span>
                                                 </li>
                                                 <li className="flex items-start gap-2">
                                                     <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
