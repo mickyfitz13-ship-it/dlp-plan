@@ -448,43 +448,80 @@
                     const totalWait = openRides.reduce((sum, r) => sum + r.wait_time, 0);
                     const liveResortLoadFactor = openRides.length > 0 ? (totalWait / openRides.length) : 15;
 
+                    // LINEAR REGRESSION MAPPING UPDATE INJECTED HERE
                     const computedRides = allFetchedRides.map(ride => {
                         let mu_base = ride.isPriority ? 25 : 15;
-                        const n = ride.name.toLowerCase();
-                        if (n.includes('phantom') || n.includes('pirates') || n.includes('buzz') || n.includes('small world') || n.includes('mansion')) mu_base = 33; 
-                        else if (n.includes('crush') || n.includes('peter pan')) mu_base = 13; 
+                        const n_name = ride.name.toLowerCase();
+                        
+                        if (n_name.includes('phantom') || n_name.includes('pirates') || n_name.includes('buzz') || n_name.includes('small world') || n_name.includes('mansion')) {
+                            mu_base = 33; 
+                        } else if (n_name.includes('crush') || n_name.includes('peter pan')) {
+                            mu_base = 13; 
+                        }
+                        const mu_eff = (ride.isPriority ? mu_base * 0.6 : mu_base) * (ride.uptime || 1);
 
-                        const mu_eff = (ride.isPriority ? mu_base * 0.6 : mu_base) * ride.uptime;
-                        let velocity = 0;
+                        // Fetch the actual historical telemetry data
+                        const allPoints = activeLogs[ride.id] || [];
+                        const currentTime = Date.now();
+                        const ninetyMinsInMillis = 90 * 60 * 1000;
+                        
+                        // Filter to the 90-minute relevant window to capture current park momentum
+                        const windowPoints = allPoints.filter(p => (currentTime - p.t) <= ninetyMinsInMillis);
+                        
+                        let velocity = 0; 
+                        const N = windowPoints.length;
+                        
+                        // Linear Regression Execution
+                        if (N >= 2) {
+                            let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+                            const baseTime = windowPoints[0].t;
 
-                        const points = activeLogs[ride.id] || [];
-                        if (points.length >= 2) {
-                            const lastPoint = points[points.length - 1];
-                            const prevPoint = points[points.length - 2];
-                            const timeDelta = (lastPoint.t - prevPoint.t) / 60000;
-                            if (timeDelta > 0) {
-                                velocity = (lastPoint.w - prevPoint.w) / timeDelta;
+                            for (let i = 0; i < N; i++) {
+                                const x = (windowPoints[i].t - baseTime) / 60000; 
+                                const y = windowPoints[i].w;                      
+                                
+                                sumX += x;
+                                sumY += y;
+                                sumXY += (x * y);
+                                sumXX += (x * x);
+                            }
+
+                            const numerator = (N * sumXY) - (sumX * sumY);
+                            const denominator = (N * sumXX) - (sumX * sumX);
+
+                            if (denominator !== 0) {
+                                velocity = numerator / denominator;
+                            } else {
+                                velocity = 0;
                             }
                         } else {
                             const velocityRaw = (ride.wait_time - liveResortLoadFactor) / 120; 
                             velocity = Math.max(-0.5, Math.min(0.5, velocityRaw)); 
                         }
-                        
+
+                        // Apply Safety Caps to restrict trajectory
                         velocity = Math.max(-2, Math.min(2, velocity)); 
+
                         let lambda = Math.max(0, mu_eff * (1 + velocity));
                         let rho = mu_eff > 0 ? lambda / mu_eff : 0;
 
                         newHistory[ride.id] = { wait: ride.wait_time, timestamp: now };
                         
-                        const pred30 = Math.max(5, Math.round(ride.wait_time + (velocity * 30)));
-                        const pred60 = Math.max(5, Math.round(ride.wait_time + (velocity * 60)));
+                        const currentWait = ride.wait_time || 5;
+                        const pred30Raw = Math.round(currentWait + (velocity * 30));
+                        const pred60Raw = Math.round(currentWait + (velocity * 60));
+                        
+                        // Enforce caps so numbers do not crash negatively
+                        const pred30 = Math.min(180, Math.max(5, pred30Raw));
+                        const pred60 = Math.min(180, Math.max(5, pred60Raw));
 
                         let predDisplay = pred60;
                         if (ride.minsToClose <= 60 && ride.minsToClose > 0) predDisplay = "CLOSING";
                         else if (ride.minsToClose <= 0) predDisplay = "CLOSED";
 
+                        // Maintain the original 24hr analytics processing utilizing the full allPoints array
                         const twentyFourHoursAgo = now - 86400000;
-                        const todayPoints = points.filter(p => p.t >= twentyFourHoursAgo);
+                        const todayPoints = allPoints.filter(p => p.t >= twentyFourHoursAgo);
                         
                         let lowMarker = ride.wait_time;
                         let highMarker = ride.wait_time;
@@ -501,9 +538,9 @@
                         let worstHourStr = "Calibrating";
                         let timeSpanStr = "24 hours";
                         
-                        if (points.length > 0) {
+                        if (allPoints.length > 0) {
                             const hourlyMap = {};
-                            points.forEach(p => {
+                            allPoints.forEach(p => {
                                 const hr = new Date(p.t).getHours();
                                 if (!hourlyMap[hr]) hourlyMap[hr] = { sum: 0, count: 0 };
                                 hourlyMap[hr].sum += p.w;
@@ -517,8 +554,8 @@
                                 if (avg > maxAvg) { maxAvg = avg; worstHourStr = `${h.padStart(2, '0')}h`; }
                             });
                             
-                            if (points.length > 1) {
-                                const diffDays = (points[points.length - 1].t - points[0].t) / 86400000;
+                            if (allPoints.length > 1) {
+                                const diffDays = (allPoints[allPoints.length - 1].t - allPoints[0].t) / 86400000;
                                 if (diffDays >= 1) timeSpanStr = `${Math.round(diffDays)} days`;
                             }
                         }
@@ -534,7 +571,7 @@
                             projection60m: pred60,
                             routingScore: ride.wait_time - ((typeof predDisplay === 'number' ? predDisplay : 0) - ride.wait_time),
                             aiIntel: generateTacticalIntelligence(ride),
-                            analytics: { low: lowMarker, high: highMarker, avg: avgMarker, bestHour: bestHourStr, worstHour: worstHourStr, samples: points.length, timeSpan: timeSpanStr }
+                            analytics: { low: lowMarker, high: highMarker, avg: avgMarker, bestHour: bestHourStr, worstHour: worstHourStr, samples: allPoints.length, timeSpan: timeSpanStr }
                         };
                     });
 
