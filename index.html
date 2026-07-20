@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Global Tactical Optimizer</title>
-
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -18,17 +17,14 @@
     <style>
         body { -webkit-font-smoothing: antialiased; background-color: #f1f5f9; }
         .dark body { background-color: #05070a; }
-
         .route-path-animation { stroke-dasharray: 6 6; animation: dash 3s linear infinite; }
         @keyframes dash { to { stroke-dashoffset: -24; } }
-
         .terminal-scroll::-webkit-scrollbar { width: 6px; }
         .terminal-scroll::-webkit-scrollbar-track { background: transparent; }
         .terminal-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .dark .terminal-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
         :root { --grid-color: #e2e8f0; }
         .dark { --grid-color: #1e293b; }
-
         .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
         .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     </style>
@@ -71,7 +67,6 @@
             Trash2: '<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>',
             Activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>'
         };
-
         const GLOBAL_PARKS = {
             "Disneyland Paris": [
                 { id: 4, name: "Disneyland Park", tpUuid: "dae968d5-630d-4719-8b06-3d107e944401" },
@@ -96,11 +91,9 @@
                 { id: 30, name: "Shanghai Disneyland", tpUuid: "ddc4357c-c148-4b36-9888-07894fe75e83" }
             ]
         };
-
         const PRIORITY_RIDES = [
             "hyperspace mountain", "big thunder mountain", "tower of terror", "spider-man", "flight force", "ratatouille", "crush's coaster", "pirates of the caribbean", "indiana jones", "phantom manor", "peter pan", "buzz lightyear", "rise of the resistance", "smugglers run", "tron", "seven dwarfs mine train", "space mountain", "guardians of the galaxy", "slinky dog dash", "avatar flight of passage", "expedition everest", "test track", "soarin", "mickey & minnie", "radiator springs racers", "incredicoaster", "journey to the center of the earth", "beauty and the beast", "mystic manor", "iron man experience", "roaring rapids", "zootopia", "toy story mania", "frozen ever after", "raiponce tangled spin"
         ];
-
         const TACTICAL_COORDS = {
             4: [{match:"main street",x:50,y:85,label:"Main St.",lat:48.8710,lng:2.7772},{match:"fantasy",x:50,y:20,label:"Fantasy",lat:48.8734,lng:2.7756},{match:"discovery",x:85,y:50,label:"Discovery",lat:48.8722,lng:2.7789},{match:"adventure",x:25,y:35,label:"Adventure",lat:48.8721,lng:2.7740},{match:"frontier",x:15,y:65,label:"Frontier",lat:48.8711,lng:2.7730}],
             28: [{match:"front lot",x:50,y:85,label:"Front Lot",lat:48.8683,lng:2.7797},{match:"premiere",x:50,y:60,label:"Premiere Plaza",lat:48.8676,lng:2.7791},{match:"production",x:50,y:60,label:"Prod.",lat:48.8676,lng:2.7791},{match:"toon",x:70,y:60,label:"Toon",lat:48.8666,lng:2.7788},{match:"pixar",x:80,y:25,label:"Pixar",lat:48.8661,lng:2.7780},{match:"avengers",x:20,y:40,label:"Avengers",lat:48.8668,lng:2.7803},{match:"adventure way",x:50,y:30,label:"Adv. Way",lat:48.8655,lng:2.7788},{match:"frozen",x:50,y:10,label:"Frozen",lat:48.8648,lng:2.7786}],
@@ -115,7 +108,6 @@
             31: [{match:"main street",x:50,y:85,label:"Main St."},{match:"adventure",x:25,y:60,label:"Adventure"},{match:"fantasy",x:50,y:30,label:"Fantasy"},{match:"tomorrow",x:80,y:50,label:"Tomorrow"},{match:"toy story",x:15,y:40,label:"Toy Story"},{match:"mystic",x:20,y:20,label:"Mystic"},{match:"grizzly",x:35,y:15,label:"Grizzly"},{match:"frozen",x:75,y:15,label:"Frozen"}],
             30: [{match:"mickey",x:50,y:85,label:"Mickey Ave"},{match:"imagination",x:50,y:60,label:"Imagination"},{match:"fantasy",x:50,y:30,label:"Fantasy"},{match:"treasure",x:80,y:40,label:"Treasure Cove"},{match:"adventure",x:80,y:60,label:"Adventure"},{match:"tomorrow",x:20,y:50,label:"Tomorrow"},{match:"toy story",x:25,y:30,label:"Toy Story"},{match:"zootopia",x:40,y:15,label:"Zootopia"}]
         };
-
         const getCoords = (parkId, landName) => {
             const mapData = TACTICAL_COORDS[parkId];
             if (!mapData) return { x: 50, y: 50 };
@@ -123,7 +115,6 @@
             const coord = mapData.find(c => safeLand.includes(c.match));
             return coord || { x: 50, y: 50 };
         };
-
         const getHaversineDistance = (lat1, lon1, lat2, lon2) => {
             const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -131,8 +122,11 @@
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
         };
-
         const PARK_TZ = { 4: 'Europe/Paris', 28: 'Europe/Paris', 6: 'America/New_York', 5: 'America/New_York', 7: 'America/New_York', 8: 'America/New_York', 16: 'America/Los_Angeles', 17: 'America/Los_Angeles', 274: 'Asia/Tokyo', 275: 'Asia/Tokyo', 31: 'Asia/Hong_Kong', 30: 'Asia/Shanghai' };
+        // Disney parks never operate before ~07:00 park time. Telemetry points outside
+        // 07:00-23:59 are either closed-park zeros or a frozen upstream feed echoing stale
+        // values overnight - both poison the hourly curves, so analytics ignore them.
+        const EARLIEST_PARK_HOUR = 7;
         const tzOffsetCache = {};
         const getTzOffsetMs = (tz) => {
             if (tzOffsetCache[tz] !== undefined) return tzOffsetCache[tz];
@@ -146,7 +140,6 @@
         };
         const getParkHour = (t, parkId) => new Date(t + getTzOffsetMs(PARK_TZ[parkId] || 'UTC')).getUTCHours();
         const getParkDay = (t, parkId) => new Date(t + getTzOffsetMs(PARK_TZ[parkId] || 'UTC')).getUTCDay();
-
         const normalizeTelemetry = (raw) => {
             const out = {};
             if (!raw || typeof raw !== 'object') return out;
@@ -167,7 +160,6 @@
             });
             return out;
         };
-
         const generateTacticalIntelligence = (ride) => {
             const n = ride.name.toLowerCase();
             let brief = "Standard objective. Normal operational protocols apply.";
@@ -203,7 +195,6 @@
             }
             return { brief, type, env, tags };
         };
-
         const fetchWithTimeout = async (url, timeout = 10000) => {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), timeout);
@@ -217,13 +208,11 @@
                 throw e;
             }
         };
-
         const PROXIES = [
             { name: "CorsProxy.io (Primary)", fetch: async (t) => JSON.parse(await fetchWithTimeout(`https://corsproxy.io/?url=${encodeURIComponent(t)}`)) },
             { name: "AllOrigins GET (Fallback)", fetch: async (t) => JSON.parse(JSON.parse(await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(t)}`)).contents) },
             { name: "CodeTabs (Reserve)", fetch: async (t) => JSON.parse(await fetchWithTimeout(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(t)}`)) }
         ];
-
         const App = () => {
             const [view, setView] = useState('live');
             const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v4') || "Disneyland Paris");
@@ -235,13 +224,11 @@
             const [lastSync, setLastSync] = useState(null);
             const [showPrimer, setShowPrimer] = useState(false);
             const [expandedRideId, setExpandedRideId] = useState(null);
-
             const [globalTelemetryLog, setGlobalTelemetryLog] = useState({});
             const [theme, setTheme] = useState(() => localStorage.getItem('dlp_theme_v18') || 'system');
             const [lastLiveSyncTime, setLastLiveSyncTime] = useState('--:--:--');
             const [telemetryAgeMins, setTelemetryAgeMins] = useState('--');
             const [nextSyncSeconds, setNextSyncSeconds] = useState(300);
-
             useEffect(() => {
                 localStorage.setItem('dlp_theme_v18', theme);
                 const root = window.document.documentElement;
@@ -256,14 +243,13 @@
                     return () => mq.removeEventListener('change', apply);
                 }
             }, [theme]);
-
             const cycleTheme = () => {
                 if (theme === 'system') setTheme('dark');
                 else if (theme === 'dark') setTheme('light');
                 else setTheme('system');
             };
             const getThemeIcon = () => theme === 'system' ? I.Monitor : (theme === 'dark' ? I.Moon : I.Sun);
-            
+
             const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v18') || 'false'));
             const [userGPS, setUserGPS] = useState(null);
             useEffect(() => {
@@ -285,23 +271,19 @@
                 }
                 return () => { if(watchId) navigator.geolocation.clearWatch(watchId); };
             }, [gpsEnabled]);
-
             const toggleGPS = () => setGpsEnabled(!gpsEnabled);
             const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v18') || '[]')));
             const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v18') || '[]')));
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(true);
             const logsEndRef = useRef(null);
-
             useEffect(() => {
                 if (logsEndRef.current) logsEndRef.current.scrollTop = logsEndRef.current.scrollHeight;
             }, [logs, showTerminal]);
-
             const buildHash = useMemo(() => {
                 const d = new Date();
                 return `BUILD ${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
             }, [lastSync]);
-
             const newestTelemetryTimestamp = useMemo(() => {
                 let newest = 0;
                 Object.values(globalTelemetryLog).forEach(points => {
@@ -311,7 +293,6 @@
                 });
                 return newest;
             }, [globalTelemetryLog]);
-
             useEffect(() => {
                 const timer = setInterval(() => {
                     setNextSyncSeconds(prev => (prev > 0 ? prev - 1 : 0));
@@ -322,19 +303,15 @@
                 }, 1000);
                 return () => clearInterval(timer);
             }, [newestTelemetryTimestamp]);
-
             useEffect(() => localStorage.setItem('dlp_completed_v18', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
             useEffect(() => localStorage.setItem('dlp_activated_v18', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
-
             const handleRegionChange = (newRegion) => {
                 setActiveRegion(newRegion);
                 setActivePark('all');
                 localStorage.setItem('global_region_v4', newRegion);
                 localStorage.setItem('global_park_v4', 'all');
             };
-
             const toggleExpand = (id) => setExpandedRideId(prev => prev === id ? null : id);
-
             const toggleRide = (e, rideId) => {
                 e.stopPropagation();
                 const isCurrentlyCompleted = completedTargets.has(rideId);
@@ -358,7 +335,6 @@
                     });
                 }
             };
-
             const toggleMinor = (e, rideId) => {
                 e.stopPropagation();
                 setActivatedMinors(prev => {
@@ -368,7 +344,6 @@
                     return next;
                 });
             };
-
             const resetProgress = () => {
                 if(window.confirm("Clear all completed objectives and reset your daily sequence?")) {
                     setCompletedTargets(new Set());
@@ -376,12 +351,10 @@
                     addLog(`[SYS] Daily routing progress manually cleared.`, 'warn');
                 }
             };
-
             const addLog = (msg, type = 'info') => {
                 const time = new Date().toLocaleTimeString('en-GB', { hour12: false, fractionalSecondDigits: 3 });
                 setLogs(prev => [...prev.slice(-149), { time, msg, type }]);
             };
-
             const fetchBackgroundLogs = async () => {
                 try {
                     const res = await fetch('./telemetry.json?v=' + Date.now());
@@ -396,32 +369,29 @@
                 }
                 return {};
             };
-
             const syncTokenRef = useRef(0);
-            const prevWaitsRef = useRef({});  
-            const feedChangeRef = useRef({}); 
-            
+            const prevWaitsRef = useRef({});
+            const feedChangeRef = useRef({});
+
             const bootSystem = async (isSilent = false) => {
                 const token = ++syncTokenRef.current;
                 if (!isSilent) setLoading(true);
                 setError(null);
                 setNextSyncSeconds(300);
-
                 if (isSilent) {
                     addLog(`[CRON] 5-Minute background polling interval triggered.`, 'info');
                 } else {
                     addLog(`[SYS] Boot sequence initialized for ${activeRegion}. Live Data Engine active.`, 'info');
                 }
-                
+
                 try {
                     const activeLogs = await fetchBackgroundLogs();
                     if (token === syncTokenRef.current) setGlobalTelemetryLog(activeLogs);
-
                     const allFetchedRides = [];
                     let parksOnline = 0;
                     const CURRENT_PARKS = GLOBAL_PARKS[activeRegion];
                     const now = Date.now();
-                    
+
                     for (const park of CURRENT_PARKS) {
                         try {
                             let data = null;
@@ -433,7 +403,6 @@
                                 } catch(e) { addLog(`[WARN] Node timeout/failure: ${e.message}`, 'warn'); }
                             }
                             if (!data || (!data.lands && !data.rides)) throw new Error("All network nodes isolated.");
-
                             let minsToClose = 999;
                             try {
                                 const scheduleData = await fetchWithTimeout(`https://api.themeparks.wiki/v1/entity/${park.tpUuid}/schedule`);
@@ -449,7 +418,6 @@
                             } catch(e) { addLog(`[WARN] Schedule extraction timeout.`, 'warn'); }
                             parksOnline++;
                             let rawRides = [];
-
                             if (data.lands) {
                                 data.lands.forEach(land => {
                                     if (land.rides) {
@@ -460,7 +428,6 @@
                             if (data.rides) {
                                 data.rides.forEach(r => rawRides.push({ ...r, landName: 'Park Grounds' }));
                             }
-
                             let freshTs = 0;
                             rawRides.forEach(r => {
                                 const ts = Date.parse(r.last_updated);
@@ -488,7 +455,6 @@
                             if (parkDataAgeMins !== null && parkDataAgeMins > 30) {
                                 addLog(`[WARN] ${park.name}: no confirmed queue movement for ${parkDataAgeMins} mins. Values may lag reality.`, 'warn');
                             }
-
                             const processed = rawRides
                                 .filter(r => r.name && !r.name.toLowerCase().includes('single rider'))
                                 .map(r => {
@@ -511,42 +477,35 @@
                         } catch (e) { addLog(`[ERR] ${park.name} completely isolated.`, 'error'); }
                     }
                     if (parksOnline === 0) throw new Error("No operational telemetry returned from endpoint nodes.");
-
                     // Filter out closed/0 rides from the global load factor so it remains accurate
                     const openRides = allFetchedRides.filter(r => r.is_open && r.wait_time > 0);
                     const totalWait = openRides.reduce((sum, r) => sum + r.wait_time, 0);
                     const liveResortLoadFactor = openRides.length > 0 ? (totalWait / openRides.length) : 15;
-
                     const computedRides = allFetchedRides.map(ride => {
                         let mu_base = ride.isPriority ? 25 : 15;
                         const n_name = ride.name.toLowerCase();
-
                         if (n_name.includes('phantom') || n_name.includes('pirates') || n_name.includes('buzz') || n_name.includes('small world') || n_name.includes('mansion')) {
                             mu_base = 33;
                         } else if (n_name.includes('crush') || n_name.includes('peter pan')) {
                             mu_base = 13;
                         }
                         const mu_eff = (ride.isPriority ? mu_base * 0.6 : mu_base) * (ride.uptime || 1);
-                        
+
                         // allPoints is already swept clear of zeros via normalizeTelemetry
                         const allPoints = activeLogs[ride.id] || [];
                         const currentTime = Date.now();
                         const ninetyMinsInMillis = 90 * 60 * 1000;
-
                         const windowPoints = allPoints.filter(p => (currentTime - p.t) <= ninetyMinsInMillis);
                         // Prevent zero-injection on active live syncs
                         if (ride.is_open && ride.wait_time > 0) windowPoints.push({ t: currentTime, w: ride.wait_time });
-
                         let velocity = 0;
                         const N = windowPoints.length;
-
                         if (N >= 2) {
                             let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
                             const baseTime = windowPoints[0].t;
                             for (let i = 0; i < N; i++) {
                                 const x = (windowPoints[i].t - baseTime) / 60000;
                                 const y = windowPoints[i].w;
-
                                 sumX += x;
                                 sumY += y;
                                 sumXY += (x * y);
@@ -563,30 +522,26 @@
                             const velocityRaw = (ride.wait_time - liveResortLoadFactor) / 120;
                             velocity = Math.max(-0.5, Math.min(0.5, velocityRaw));
                         }
-                        
+
                         velocity = Math.max(-2, Math.min(2, velocity));
                         let lambda = Math.max(0, mu_eff * (1 + velocity));
                         let rho = mu_eff > 0 ? lambda / mu_eff : 0;
-
                         const currentWait = ride.wait_time || 5;
                         const pred30Raw = Math.round(currentWait + (velocity * 30));
                         const pred60Raw = Math.round(currentWait + (velocity * 60));
-
                         const pred30 = Math.min(180, Math.max(5, pred30Raw));
                         const pred60 = Math.min(180, Math.max(5, pred60Raw));
                         let predDisplay = pred60;
                         if (ride.minsToClose <= 60 && ride.minsToClose > 0) predDisplay = "CLOSING";
                         else if (ride.minsToClose <= 0) predDisplay = "CLOSED";
-                        
+
                         const twentyFourHoursAgo = now - 86400000;
                         const todayPoints = allPoints.filter(p => p.t >= twentyFourHoursAgo);
-
                         // Baseline at 5 if closed, otherwise take live wait
                         const currentValidWait = ride.wait_time > 0 ? ride.wait_time : null;
                         let lowMarker = currentValidWait || 5;
                         let highMarker = currentValidWait || 5;
                         let avgMarker = currentValidWait || 5;
-
                         if (todayPoints.length > 0) {
                             const values = todayPoints.map(p => p.w);
                             if (currentValidWait) values.push(currentValidWait);
@@ -594,24 +549,27 @@
                             highMarker = Math.max(...values);
                             avgMarker = Math.round(values.reduce((s, v) => s + v, 0) / values.length);
                         }
-                        
+
                         let bestHourStr = "Calibrating";
                         let worstHourStr = "Calibrating";
                         let timeSpanStr = "24 hours";
                         let hourlyCurve = null;
-
                         if (allPoints.length > 0) {
                             const hourlyMap = {};
                             allPoints.forEach(p => {
                                 const hr = getParkHour(p.t, ride.parkId);
+                                // Ignore points logged outside plausible operating hours: even with
+                                // zeros filtered, a frozen feed can echo stale NON-zero waits overnight,
+                                // which would otherwise pollute the curve and "best hour".
+                                if (hr < EARLIEST_PARK_HOUR) return;
                                 if (!hourlyMap[hr]) hourlyMap[hr] = { sum: 0, count: 0 };
                                 hourlyMap[hr].sum += p.w;
                                 hourlyMap[hr].count++;
                             });
-                            
+
                             hourlyCurve = new Array(24).fill(null);
                             Object.keys(hourlyMap).forEach(h => { hourlyCurve[Number(h)] = hourlyMap[h].sum / hourlyMap[h].count; });
-                            
+
                             let minAvg = Infinity;
                             let maxAvg = -Infinity;
                             Object.keys(hourlyMap).forEach(h => {
@@ -619,25 +577,24 @@
                                 if (avg < minAvg) { minAvg = avg; bestHourStr = `${h.padStart(2, '0')}h`; }
                                 if (avg > maxAvg) { maxAvg = avg; worstHourStr = `${h.padStart(2, '0')}h`; }
                             });
-
                             if (allPoints.length > 1) {
                                 const diffDays = (allPoints[allPoints.length - 1].t - allPoints[0].t) / 86400000;
                                 if (diffDays >= 1) timeSpanStr = `${Math.round(diffDays)} days`;
                             }
                         }
-                        
+
                         const trendGain = Math.max(-30, Math.min(60, pred60 - ride.wait_time));
                         const dealBonus = allPoints.length >= 8 ? Math.max(-20, Math.min(20, avgMarker - ride.wait_time)) : 0;
                         const priorityBonus = ride.isPriority ? 18 : 0;
                         const routingScore = (ride.wait_time * 0.6) - (trendGain * 1.2) - dealBonus - priorityBonus;
-                        
+
                         let routingReason = "Steady queue";
                         if (trendGain >= 10) routingReason = `Rising: +${Math.round(trendGain)}m expected within the hour`;
                         else if (trendGain <= -10) routingReason = `Easing: -${Math.round(Math.abs(trendGain))}m expected soon`;
                         else if (dealBonus >= 8) routingReason = `Bargain: ${Math.round(dealBonus)}m under its daily average`;
                         else if (dealBonus <= -8) routingReason = `Inflated: ${Math.round(Math.abs(dealBonus))}m over its daily average`;
                         else if (ride.isPriority) routingReason = "Priority target, queue steady";
-                        
+
                         return {
                             ...ride,
                             mu: Number(mu_eff.toFixed(1)),
@@ -655,8 +612,8 @@
                             analytics: { low: lowMarker, high: highMarker, avg: avgMarker, bestHour: bestHourStr, worstHour: worstHourStr, samples: allPoints.length, timeSpan: timeSpanStr }
                         };
                     });
-                    
-                    if (token !== syncTokenRef.current) return; 
+
+                    if (token !== syncTokenRef.current) return;
                     setRides(computedRides);
                     setLastSync(new Date().toLocaleTimeString('en-GB', { hour12: false }));
                     setLastLiveSyncTime(new Date().toLocaleTimeString('en-GB', { hour12: false }));
@@ -668,25 +625,23 @@
                     if (!isSilent) setLoading(false);
                 }
             };
-            
+
             const bootSystemRef = useRef(null);
             bootSystemRef.current = bootSystem;
             useEffect(() => {
                 bootSystemRef.current();
             }, [activeRegion]);
-            
+
             useEffect(() => {
                 if (nextSyncSeconds === 0) {
                     setNextSyncSeconds(300);
                     bootSystemRef.current(true);
                 }
             }, [nextSyncSeconds]);
-
             const telemetryStats = useMemo(() => {
                 let oldest = Date.now();
                 let newest = 0;
                 let totalPoints = 0;
-
                 const activeRegionParkIds = GLOBAL_PARKS[activeRegion].map(p => p.id);
                 rides.forEach(r => {
                     if (activeRegionParkIds.includes(r.parkId)) {
@@ -698,13 +653,10 @@
                         });
                     }
                 });
-
                 if (totalPoints === 0) return { daysLogged: 0, isReady: false };
-
                 const days = Math.max(0.1, (newest - oldest) / 86400000);
                 return { daysLogged: days, isReady: days >= 7 };
             }, [globalTelemetryLog, activeRegion, rides]);
-
             const forecastDaysRow = useMemo(() => {
                 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
                 const tzOffset = getTzOffsetMs(PARK_TZ[GLOBAL_PARKS[activeRegion][0].id] || 'UTC');
@@ -719,16 +671,13 @@
                 }
                 return list;
             }, [activeRegion]);
-
             const calculatedForecastData = useMemo(() => {
                 if (rides.length === 0 || !telemetryStats.isReady) return [];
-
                 const tzOffset = getTzOffsetMs(PARK_TZ[GLOBAL_PARKS[activeRegion][0].id] || 'UTC');
                 const targetDayOfWeek = new Date(Date.now() + tzOffset + (selectedForecastDay * 86400000)).getUTCDay();
                 return rides.map(r => {
                     const points = globalTelemetryLog[r.id] || [];
-                    const relevantPoints = points.filter(p => getParkDay(p.t, r.parkId) === targetDayOfWeek);
-
+                    const relevantPoints = points.filter(p => getParkDay(p.t, r.parkId) === targetDayOfWeek && getParkHour(p.t, r.parkId) >= EARLIEST_PARK_HOUR);
                     let calculatedAvg = 0;
                     let calculatedPeak = 0;
                     let trafficVerdict = "Insufficient Data";
@@ -736,7 +685,6 @@
                         const values = relevantPoints.map(p => p.w);
                         calculatedAvg = Math.round(values.reduce((a,b) => a+b, 0) / values.length);
                         calculatedPeak = Math.max(...values);
-
                         if (calculatedAvg > 45) trafficVerdict = "Very busy";
                         else if (calculatedAvg > 30) trafficVerdict = "Busy";
                         else trafficVerdict = "Moderate";
@@ -744,7 +692,6 @@
                     return { ...r, forecastAvg: calculatedAvg, forecastPeak: calculatedPeak, verdict: trafficVerdict };
                 }).sort((a,b) => b.forecastAvg - a.forecastAvg);
             }, [rides, selectedForecastDay, globalTelemetryLog, telemetryStats.isReady, activeRegion]);
-
             const memoizedData = useMemo(() => {
                 if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { queueEvasionSaved: 0, walkSaved: 0, totalSavedMins: 0, totalQueueTimeMins: 0 } };
                 const completedSequence = [];
@@ -776,7 +723,6 @@
                 let tspSortedLands = [];
                 const parkGroups = {};
                 Object.values(grouped).forEach(z => { if(!parkGroups[z.parkId]) parkGroups[z.parkId] = []; parkGroups[z.parkId].push(z); });
-
                 const parkBaseMins = {};
                 GLOBAL_PARKS[activeRegion].forEach(p => {
                     const off = getTzOffsetMs(PARK_TZ[p.id] || 'UTC');
@@ -901,7 +847,6 @@
                     });
                     return { totalCost, zonesOut, walkOut, hopOut, details };
                 };
-
                 const parkIds = Object.keys(parkGroups);
                 const candidateSeqs = parkIds.length === 2 ? [[parkIds[0], parkIds[1]], [parkIds[1], parkIds[0]]] : [parkIds];
                 let bestPlan = null;
@@ -914,7 +859,6 @@
                     z.isParkHop = bestPlan.hopOut[i];
                     tspSortedLands.push(z);
                 });
-
                 let naiveTotal = 0;
                 {
                     let clock = 0;
@@ -932,7 +876,6 @@
                         naiveTotal += sim.cost;
                     });
                 }
-
                 const fmtEta = (dtMins, parkId) => {
                     const off = getTzOffsetMs(PARK_TZ[parkId] || 'UTC');
                     const d = new Date(Date.now() + dtMins * 60000 + off);
@@ -965,7 +908,6 @@
                     metrics: { queueEvasionSaved: totalSavedMins, walkSaved: chosenWalk, totalSavedMins: totalSavedMins, totalQueueTimeMins: Math.round(totalQueueTimeMins) }
                 };
             }, [rides, activePark, completedTargets, activatedMinors, gpsEnabled, userGPS, activeRegion]);
-
             const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
             const staleFeeds = useMemo(() => {
                 const map = {};
@@ -976,7 +918,6 @@
                 });
                 return Object.keys(map).map(name => ({ name, age: map[name] }));
             }, [rides]);
-
             const RideCard = ({ ride, isCompleted, isMinor, isClosed, globalStep }) => {
                 const isExpanded = expandedRideId === ride.id;
                 const intel = ride.aiIntel;
@@ -1176,7 +1117,6 @@
                     </div>
                 );
             };
-
             const TacticalMap = () => {
                 if (activePark === 'all' || !TACTICAL_COORDS[activePark]) {
                     return (
@@ -1230,7 +1170,6 @@
                     </div>
                 );
             };
-
             return (
                 <div className="min-h-screen text-slate-800 dark:text-slate-300 font-sans p-4 md:p-8 flex flex-col items-center pb-32 transition-colors duration-300">
                     <div className="w-full max-w-6xl">
@@ -1253,10 +1192,6 @@
                                         <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
                                         <span>Telemetry Age: <span className="font-bold text-slate-700 dark:text-slate-300">{telemetryAgeMins === '--' ? '--' : `${telemetryAgeMins} MINS AGO`}</span></span>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <Icon path={I.Timer} size={10} className="text-slate-400" />
-                                        <span>Next Auto-Sync: <span className="font-bold text-emerald-600 dark:text-emerald-500">{Math.floor(nextSyncSeconds / 60)}:{(nextSyncSeconds % 60).toString().padStart(2, '0')}</span></span>
-                                    </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
@@ -1277,7 +1212,6 @@
                                 </button>
                             </div>
                         </header>
-
                         {showPrimer && (
                             <div className="mb-6 bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-6 shadow-xl animate-in fade-in slide-in-from-top-4">
                                 <div className="flex justify-between items-center mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">
@@ -1329,7 +1263,6 @@
                                 </div>
                             </div>
                         )}
-
                         {view === 'live' ? (
                             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 animate-in fade-in duration-200">
                                 <div className="lg:col-span-1 space-y-4">
