@@ -242,6 +242,10 @@
             { name: "AllOrigins GET (Fallback)", fetch: async (t) => JSON.parse(JSON.parse(await fetchWithTimeout(`https://api.allorigins.win/get?url=${encodeURIComponent(t)}`)).contents) },
             { name: "CodeTabs (Reserve)", fetch: async (t) => JSON.parse(await fetchWithTimeout(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(t)}`)) }
         ];
+        // Meal breaks: inserted at the land boundary nearest each target park-local time.
+        // A break advances the clock, so every ride after it is predicted for its true
+        // post-break arrival time (realistic - you don't ride 15 things back to back).
+        const BREAK_DEFS = { lunch: { label: 'Lunch', atMin: 13 * 60, mins: 60 }, dinner: { label: 'Dinner', atMin: 18 * 60 + 30, mins: 45 } };
         const App = () => {
             const [view, setView] = useState('live');
             const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v4') || "Disneyland Paris");
@@ -263,6 +267,9 @@
             const [manualOrder, setManualOrder] = useState(() => { try { return JSON.parse(localStorage.getItem('dlp_manualorder_v1') || '{}'); } catch (e) { return {}; } });
             useEffect(() => localStorage.setItem('dlp_routemode_v1', routeMode), [routeMode]);
             useEffect(() => localStorage.setItem('dlp_manualorder_v1', JSON.stringify(manualOrder)), [manualOrder]);
+            const [breaks, setBreaks] = useState(() => { try { return JSON.parse(localStorage.getItem('dlp_breaks_v1') || '{"lunch":false,"dinner":false}'); } catch (e) { return { lunch: false, dinner: false }; } });
+            useEffect(() => localStorage.setItem('dlp_breaks_v1', JSON.stringify(breaks)), [breaks]);
+            const toggleBreak = (k) => setBreaks(prev => ({ ...prev, [k]: !prev[k] }));
             useEffect(() => {
                 localStorage.setItem('dlp_theme_v18', theme);
                 const root = window.document.documentElement;
@@ -997,6 +1004,19 @@
                     z.isParkHop = bestPlan.hopOut[i];
                     tspSortedLands.push(z);
                 });
+                // Collapse pointless return-visits: if a deferred "return" ends up scheduled
+                // immediately after its own first visit (same land, nothing in between), the
+                // split saved nothing and reads as nonsense - merge them back into one visit.
+                const collapsedLands = [];
+                tspSortedLands.forEach(z => {
+                    const prev = collapsedLands[collapsedLands.length - 1];
+                    if (z.isRevisit && prev && prev.parkId === z.parkId && prev.landName === z.landName) {
+                        prev.rides = prev.rides.concat(z.rides);
+                    } else {
+                        collapsedLands.push(z);
+                    }
+                });
+                tspSortedLands = collapsedLands;
                 const fmtEta = (dtMins, parkId) => {
                     const off = getTzOffsetMs(PARK_TZ[parkId] || 'UTC');
                     const d = new Date(Date.now() + dtMins * 60000 + off);
@@ -1009,7 +1029,21 @@
                 const detailById = {};
                 {
                     let clock = 0;
+                    const takenBreaks = {};
                     tspSortedLands.forEach(zone => {
+                        // Insert enabled meal breaks at this land boundary once their park-local
+                        // time has arrived. The break pushes the clock, so everything after is
+                        // re-predicted at its real later arrival time.
+                        Object.keys(BREAK_DEFS).forEach(bk => {
+                            if (!breaks[bk] || takenBreaks[bk]) return;
+                            const targetDt = BREAK_DEFS[bk].atMin - (parkBaseMins[zone.parkId] || 0);
+                            if (targetDt >= 0 && clock >= targetDt) {
+                                const startEta = fmtEta(clock, zone.parkId);
+                                clock += BREAK_DEFS[bk].mins;
+                                takenBreaks[bk] = true;
+                                zone.breakBefore = { label: BREAK_DEFS[bk].label, mins: BREAK_DEFS[bk].mins, at: startEta };
+                            }
+                        });
                         clock += (typeof zone.travelTimeFromLast === 'number' ? zone.travelTimeFromLast : 0);
                         if (zone.rides.length > 1) {
                             const zoneCost = (order, t0) => {
@@ -1093,8 +1127,49 @@
                     completedSequence, minorSequence, closedSequence,
                     metrics: { walkMins: chosenWalk, totalSavedMins: totalSavedMins, totalQueueTimeMins: Math.round(totalQueueTimeMins) }
                 };
-            }, [rides, activePark, completedTargets, activatedMinors, gpsEnabled, userGPS, activeRegion, routeMode, manualOrder]);
+            }, [rides, activePark, completedTargets, activatedMinors, gpsEnabled, userGPS, activeRegion, routeMode, manualOrder, breaks]);
             const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
+            // Per-park operating status (from schedule minsToClose) for the selector badges.
+            const parkStatus = useMemo(() => {
+                const m = {};
+                rides.forEach(r => { if (m[r.parkId] === undefined) m[r.parkId] = r.minsToClose; });
+                return m;
+            }, [rides]);
+            // GPS: nearest land to the user, then the lowest-wait open ride there not yet ridden.
+            const nearestRide = useMemo(() => {
+                if (!gpsEnabled || !userGPS) return null;
+                let best = null, bestScore = Infinity;
+                rides.forEach(r => {
+                    if (completedTargets.has(r.id) || !r.is_open) return;
+                    if (activePark !== 'all' && r.parkId !== parseInt(activePark)) return;
+                    const coordsArr = TACTICAL_COORDS[r.parkId];
+                    if (!coordsArr) return;
+                    const land = coordsArr.find(c => (r.landName || '').toLowerCase().includes(c.match));
+                    if (!land || typeof land.lat !== 'number' || typeof land.lng !== 'number') return;
+                    const d = getHaversineDistance(userGPS.lat, userGPS.lng, land.lat, land.lng);
+                    if (d > 3) return; // not actually at the park
+                    const score = d * 1000 + (r.wait_time || 0); // distance dominates, wait breaks ties
+                    if (score < bestScore) { bestScore = score; best = { ride: r, dist: d, land }; }
+                });
+                return best;
+            }, [gpsEnabled, userGPS, rides, completedTargets, activePark]);
+            // Quietest of the next 7 days, averaged across priority rides (park-local weekday).
+            const recommendedDay = useMemo(() => {
+                if (!telemetryStats.isReady || rides.length === 0) return null;
+                const tzOffset = getTzOffsetMs(PARK_TZ[GLOBAL_PARKS[activeRegion][0].id] || 'UTC');
+                let best = null;
+                for (let i = 0; i < 7; i++) {
+                    const dow = new Date(Date.now() + tzOffset + i * 86400000).getUTCDay();
+                    let sum = 0, cnt = 0;
+                    rides.forEach(r => {
+                        if (!r.isPriority) return;
+                        const pts = (globalTelemetryLog[r.id] || []).filter(p => getParkDay(p.t, r.parkId) === dow && getParkHour(p.t, r.parkId) >= EARLIEST_PARK_HOUR);
+                        if (pts.length) { sum += pts.reduce((a, b) => a + b.w, 0) / pts.length; cnt++; }
+                    });
+                    if (cnt >= 3) { const avg = sum / cnt; if (!best || avg < best.avg) best = { index: i, avg: Math.round(avg) }; }
+                }
+                return best;
+            }, [rides, globalTelemetryLog, telemetryStats.isReady, activeRegion]);
             const setRouteModeSafe = (mode) => {
                 if (mode === 'manual') {
                     // Seed the manual order from the optimizer's current plan so you start
@@ -1452,7 +1527,7 @@
                                             <ul className="space-y-3">
                                                 <li className="flex items-start gap-2">
                                                     <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Follow the Master Sequence:</strong> The planner simulates your whole day. For every possible land order it predicts what each queue will actually be at your arrival time - the live trend for the next 90 minutes, blending into that ride's own hour-by-hour history beyond - and picks the order with the lowest total expected time queued and walked. Each ride shows its ETA and the expected queue at that ETA; anything projected past park close is flagged in red. Within each land the ride order is itself exact-optimized against arrival-time predictions, walking legs use real measured Disneyland Paris distances, and hourly forecasts prefer same-day-of-week history once enough telemetry exists. When a ride is 15+ minutes cheaper later in the day, its land is split into a first visit plus a deliberate <em>return visit</em> scheduled at the cheap hour.</span>
+                                                    <span><strong>Follow the Master Sequence:</strong> The planner simulates your whole day. For every possible land order it predicts what each queue will actually be at your arrival time - the live trend for the next 90 minutes, blending into that ride's own hour-by-hour history beyond - and picks the order with the lowest total expected time queued and walked. Each ride shows its ETA and the expected queue at that ETA; anything projected past park close is flagged in red. Within each land the ride order is itself exact-optimized against arrival-time predictions, walking legs use real measured Disneyland Paris distances, and hourly forecasts prefer same-day-of-week history once enough telemetry exists. When a ride is 15+ minutes cheaper later in the day, its land is split into a first visit plus a deliberate <em>return visit</em> scheduled at the cheap hour (returns that would land right next to the first visit are merged away). Add <strong>Lunch/Dinner breaks</strong> and every ride after them is re-predicted for its true later arrival. With <strong>GPS on</strong>, a banner names the nearest un-ridden ride. The forecast tab flags the <strong>quietest upcoming day</strong>, and closed parks are badged in the selector.</span>
                                                 </li>
                                                 <li className="flex items-start gap-2">
                                                     <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
@@ -1511,7 +1586,10 @@
                                             >
                                                 Full Resort {activePark === 'all' && <Icon path={I.ChevronRight} size={14} />}
                                             </button>
-                                            {GLOBAL_PARKS[activeRegion].map(p => (
+                                            {GLOBAL_PARKS[activeRegion].map(p => {
+                                                const mc = parkStatus[p.id];
+                                                const status = mc === undefined ? null : mc <= 0 ? 'closed' : mc <= 60 ? 'closing' : 'open';
+                                                return (
                                                 <button
                                                     key={p.id}
                                                     onClick={() => setActivePark(p.id.toString())}
@@ -1519,9 +1597,16 @@
                                                         activePark === p.id.toString() ? 'bg-emerald-600 border-emerald-500 text-white shadow-md' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-300'
                                                     }`}
                                                 >
-                                                    {p.name} {activePark === p.id.toString() && <Icon path={I.ChevronRight} size={14} />}
+                                                    <span className="flex items-center gap-2 min-w-0">
+                                                        <span className="truncate">{p.name}</span>
+                                                        {status === 'closed' && <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 uppercase">Closed</span>}
+                                                        {status === 'closing' && <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 uppercase">Closing</span>}
+                                                        {status === 'open' && <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 uppercase">Open</span>}
+                                                    </span>
+                                                    {activePark === p.id.toString() && <Icon path={I.ChevronRight} size={14} />}
                                                 </button>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                     <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
@@ -1551,6 +1636,16 @@
                                             <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed">Lands are auto-sequenced for the lowest total expected queue and walking time. Switch to Manual to force your own land order.</p>
                                         )}
                                     </div>
+                                    <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                                        <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                                            <Icon path={I.Timer} size={12} /> Breaks
+                                        </h2>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button onClick={() => toggleBreak('lunch')} className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all ${breaks.lunch ? 'bg-amber-500 border-amber-400 text-white shadow-md' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>Lunch 60m</button>
+                                            <button onClick={() => toggleBreak('dinner')} className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all ${breaks.dinner ? 'bg-amber-500 border-amber-400 text-white shadow-md' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>Dinner 45m</button>
+                                        </div>
+                                        <p className="mt-2 text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">Inserted near 13:00 / 18:30 park time. Every ride after a break is re-predicted for its true later arrival.</p>
+                                    </div>
                                     <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-3 hidden md:block">
                                         <TacticalMap />
                                     </div>
@@ -1569,6 +1664,15 @@
                                                     <div className="text-xs text-amber-700 dark:text-amber-400 font-medium leading-relaxed">
                                                         <span className="font-black uppercase tracking-wider block mb-1">Source feed lag detected</span>
                                                         {staleFeeds.map(f => `${f.name}: no confirmed queue movement for ~${f.age} mins`).join(' · ')}. The upstream Queue-Times feed appears to be lagging; waits shown are the latest confirmed values and routing still works, but treat exact numbers with caution until movement resumes.
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {nearestRide && (
+                                                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700/50 rounded-2xl p-4 flex items-center gap-3">
+                                                    <Icon path={I.MapPin} size={20} className="text-blue-500 shrink-0 animate-pulse" />
+                                                    <div className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
+                                                        <span className="font-black uppercase tracking-wider block mb-0.5">Nearest to you: {nearestRide.land.label}</span>
+                                                        Ride <span className="font-bold">{nearestRide.ride.name}</span> next — {Math.round(nearestRide.ride.wait_time)}m wait, about {Math.round(nearestRide.dist * 1000)}m away. Tick it off and the route re-optimizes from here.
                                                     </div>
                                                 </div>
                                             )}
@@ -1602,6 +1706,13 @@
                                                     const isFirstInZone = idx === 0 || ride.zoneInfo.zoneKey !== masterSequence[idx-1].zoneInfo.zoneKey;
                                                     return (
                                                         <React.Fragment key={ride.id}>
+                                                            {isFirstInZone && ride.zoneInfo.breakBefore && (
+                                                                <div className="flex items-center justify-center w-full my-5">
+                                                                    <div className="bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700/50 rounded-full px-4 py-1.5 flex items-center gap-2 text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest shadow-sm">
+                                                                        <Icon path={I.Timer} size={12} /> {ride.zoneInfo.breakBefore.label} break · {ride.zoneInfo.breakBefore.mins}m · from {ride.zoneInfo.breakBefore.at}
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                             {isFirstInZone && (
                                                                 <div className="flex flex-col items-center justify-center w-full mb-4 mt-8 relative">
                                                                     <div className="h-px w-full bg-emerald-500/30 dark:bg-emerald-500/20 absolute top-1/2 -translate-y-1/2 z-0"></div>
@@ -1698,6 +1809,15 @@
                                                 </button>
                                             ))}
                                         </div>
+                                        {recommendedDay && (
+                                            <div className="mb-6 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-300 dark:border-emerald-700/50 rounded-2xl p-4 flex items-center justify-between gap-3">
+                                                <div className="text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                                                    <span className="font-black uppercase tracking-wider block mb-0.5">Quietest day ahead</span>
+                                                    {forecastDaysRow[recommendedDay.index] ? forecastDaysRow[recommendedDay.index].label : 'Soon'} looks lightest — about {recommendedDay.avg}m average across priority rides.
+                                                </div>
+                                                <button onClick={() => setSelectedForecastDay(recommendedDay.index)} className="shrink-0 text-[10px] font-black text-emerald-700 dark:text-emerald-400 border border-emerald-400 dark:border-emerald-600 rounded-lg px-3 py-1.5 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors uppercase tracking-wider">View</button>
+                                            </div>
+                                        )}
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {calculatedForecastData
                                                 .filter(r => activePark === 'all' || r.parkId.toString() === activePark)
