@@ -1004,14 +1004,16 @@
                     z.isParkHop = bestPlan.hopOut[i];
                     tspSortedLands.push(z);
                 });
-                // Collapse pointless return-visits: if a deferred "return" ends up scheduled
-                // immediately after its own first visit (same land, nothing in between), the
-                // split saved nothing and reads as nonsense - merge them back into one visit.
+                // Collapse pointless splits: whenever two CONSECUTIVE stops are the same land
+                // in the same park (in either order - a "return" can land before OR after its
+                // first visit), you're already there, so the split saved nothing. Merge them
+                // into one visit and drop the misleading return-visit flag.
                 const collapsedLands = [];
                 tspSortedLands.forEach(z => {
                     const prev = collapsedLands[collapsedLands.length - 1];
-                    if (z.isRevisit && prev && prev.parkId === z.parkId && prev.landName === z.landName) {
+                    if (prev && prev.parkId === z.parkId && prev.landName === z.landName) {
                         prev.rides = prev.rides.concat(z.rides);
+                        prev.isRevisit = false;
                     } else {
                         collapsedLands.push(z);
                     }
