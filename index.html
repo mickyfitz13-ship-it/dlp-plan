@@ -523,11 +523,18 @@
                                 const scheduleData = await fetchWithTimeout(`https://api.themeparks.wiki/v1/entity/${park.tpUuid}/schedule`);
                                 const scheduleJson = JSON.parse(scheduleData);
                                 if (scheduleJson && scheduleJson.schedule) {
-                                    const activeSchedule = scheduleJson.schedule.find(s => s.type === "OPERATING" && new Date(s.closingTime).getTime() > now);
+                                    // The park is open only if NOW falls inside an operating window
+                                    // (opening <= now < closing). Just checking closingTime > now
+                                    // wrongly matched tomorrow's window after midnight.
+                                    const activeSchedule = scheduleJson.schedule.find(s =>
+                                        s.type === "OPERATING" &&
+                                        new Date(s.openingTime).getTime() <= now &&
+                                        new Date(s.closingTime).getTime() > now
+                                    );
                                     if (activeSchedule) {
                                         minsToClose = (new Date(activeSchedule.closingTime).getTime() - now) / 60000;
                                     } else {
-                                        minsToClose = -1;
+                                        minsToClose = -1; // closed right now
                                     }
                                 }
                             } catch(e) { addLog(`[WARN] Schedule extraction timeout.`, 'warn'); }
@@ -1207,9 +1214,20 @@
             const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
             // Per-park operating status (from schedule minsToClose) for the selector badges.
             const parkStatus = useMemo(() => {
-                const m = {};
-                rides.forEach(r => { if (m[r.parkId] === undefined) m[r.parkId] = r.minsToClose; });
-                return m;
+                const mc = {}, anyOpen = {};
+                rides.forEach(r => {
+                    if (mc[r.parkId] === undefined) mc[r.parkId] = r.minsToClose;
+                    if (r.is_open) anyOpen[r.parkId] = true;
+                });
+                const out = {};
+                Object.keys(mc).forEach(pid => {
+                    const m = mc[pid];
+                    // Closed if the schedule says so now, OR nothing is actually running.
+                    if (m <= 0 || !anyOpen[pid]) out[pid] = 'closed';
+                    else if (m <= 60) out[pid] = 'closing';
+                    else out[pid] = 'open';
+                });
+                return out;
             }, [rides]);
             // GPS: nearest land to the user, then the lowest-wait open ride there not yet ridden.
             const nearestRide = useMemo(() => {
@@ -1356,7 +1374,11 @@
                 let recommendation = "Moderate crowds so far";
                 let recStyle = "text-amber-500 bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800";
                 let recIcon = I.Activity;
-                if (ride.velocity < -0.1 || (ride.wait_time <= 15 && ride.velocity <= 0)) {
+                if (isClosed) {
+                    recommendation = "Currently closed";
+                    recStyle = "text-slate-500 bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700";
+                    recIcon = I.Lock;
+                } else if (ride.velocity < -0.1 || (ride.wait_time <= 15 && ride.velocity <= 0)) {
                     recommendation = "Great time to go";
                     recStyle = "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800";
                     recIcon = I.ThumbsUp;
@@ -1734,8 +1756,7 @@
                                                 Full Resort {activePark === 'all' && <Icon path={I.ChevronRight} size={14} />}
                                             </button>
                                             {GLOBAL_PARKS[activeRegion].map(p => {
-                                                const mc = parkStatus[p.id];
-                                                const status = mc === undefined ? null : mc <= 0 ? 'closed' : mc <= 60 ? 'closing' : 'open';
+                                                const status = parkStatus[p.id] || null;
                                                 return (
                                                 <button
                                                     key={p.id}
