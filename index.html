@@ -164,6 +164,41 @@
         const compassIdx = (deg) => Math.round(deg / 45) % 8;
         // In-park walking pace ~70 m/min (crowds, strollers, meandering paths).
         const walkMinsFromMeters = (m) => Math.max(1, Math.round(m / 70));
+        // Attraction-level GPS coordinates per park id. [name, lat, lng]. Powers precise
+        // per-ride distance/direction/walk and per-land centroids for all resorts.
+        const RIDE_GEO_RAW = {
+            4: [["Orbitron",48.8742,2.7791],["Peter Pan's Flight",48.8741,2.7761],["Pirates of the Caribbean",48.8722,2.7728],["Indiana Jones and the Temple of Peril",48.8708,2.7712],["Phantom Manor",48.8703,2.7772],["Star Wars Hyperspace Mountain",48.8752,2.7801],["Autopia",48.8748,2.7818],["Les Mysteres du Nautilus",48.8746,2.7796],["Star Tours: The Adventures Continue",48.8751,2.7812],["Buzz Lightyear Laser Blast",48.8739,2.7788],["it's a small world",48.8748,2.7770],["Dumbo the Flying Elephant",48.8742,2.7766],["Mad Hatter's Tea Cups",48.8745,2.7764],["Les Voyages de Pinocchio",48.8736,2.7758],["Blanche-Neige et les Sept Nains",48.8736,2.7753],["Casey Jr. le Petit Train du Cirque",48.8756,2.7749],["Le Pays des Contes de Fees",48.8758,2.7751],["Big Thunder Mountain",48.8715,2.7760]],
+            28: [["Avengers Assemble: Flight Force",48.8681,2.7798],["Spider-Man W.E.B. Adventure",48.8675,2.7791],["Raiponce Tangled Spin",48.8653,2.7810],["Frozen Ever After",48.8658,2.7822],["Ratatouille: L'Aventure Totalement Toquee de Remy",48.8660,2.7773],["Crush's Coaster",48.8668,2.7783],["RC Racer",48.8662,2.7795],["Toy Soldiers Parachute Drop",48.8660,2.7791],["Slinky Dog Zigzag Spin",48.8664,2.7788],["The Twilight Zone Tower of Terror",48.8673,2.7776]],
+            6: [["TRON Lightcycle / Run",28.4194,-81.5762],["Space Mountain",28.4192,-81.5771],["Buzz Lightyear's Space Ranger Spin",28.4182,-81.5790],["Astro Orbiter",28.4181,-81.5794],["Tomorrowland Speedway",28.4192,-81.5781],["PeopleMover",28.4184,-81.5788],["Seven Dwarfs Mine Train",28.4201,-81.5802],["Peter Pan's Flight",28.4208,-81.5819],["it's a small world",28.4209,-81.5826],["The Many Adventures of Winnie the Pooh",28.4202,-81.5793],["Under the Sea - Journey of The Little Mermaid",28.4215,-81.5796],["Dumbo the Flying Elephant",28.4211,-81.5787],["The Barnstormer",28.4208,-81.5781],["Mad Tea Party",28.4200,-81.5791],["Haunted Mansion",28.4204,-81.5839],["Big Thunder Mountain Railroad",28.4202,-81.5857],["Tiana's Bayou Adventure",28.4193,-81.5852],["Pirates of the Caribbean",28.4181,-81.5841],["Jungle Cruise",28.4176,-81.5833],["The Magic Carpets of Aladdin",28.4185,-81.5830]],
+            5: [["Guardians of the Galaxy: Cosmic Rewind",28.3745,-81.5482],["Mission: SPACE",28.3739,-81.5478],["Test Track",28.3728,-81.5473],["Remy's Ratatouille Adventure",28.3683,-81.5526],["Frozen Ever After",28.3708,-81.5484],["Gran Fiesta Tour Starring The Three Caballeros",28.3718,-81.5481],["Soarin' Around the World",28.3738,-81.5518],["Living with the Land",28.3736,-81.5521],["The Seas with Nemo & Friends",28.3752,-81.5512],["Journey Into Imagination With Figment",28.3728,-81.5515],["Spaceship Earth",28.3752,-81.5494]],
+            7: [["Star Wars: Rise of the Resistance",28.3551,-81.5611],["Millennium Falcon: Smugglers Run",28.3541,-81.5623],["Slinky Dog Dash",28.3562,-81.5639],["Toy Story Mania!",28.3568,-81.5630],["Alien Swirling Saucers",28.3558,-81.5645],["The Twilight Zone Tower of Terror",28.3600,-81.5598],["Rock 'n' Roller Coaster",28.3597,-81.5587],["Mickey & Minnie's Runaway Railway",28.3582,-81.5609],["Star Tours - The Adventures Continue",28.3575,-81.5621]],
+            8: [["Avatar Flight of Passage",28.3561,-81.5932],["Na'vi River Journey",28.3558,-81.5921],["Expedition Everest",28.3586,-81.5878],["Kali River Rapids",28.3600,-81.5873],["Kilimanjaro Safaris",28.3619,-81.5925]],
+            16: [["Space Mountain",33.8111,-117.9174],["Buzz Lightyear Astro Blasters",33.8122,-117.9180],["Star Tours - The Adventures Continue",33.8121,-117.9176],["Autopia",33.8127,-117.9161],["Finding Nemo Submarine Voyage",33.8126,-117.9170],["Peter Pan's Flight",33.8132,-117.9188],["Matterhorn Bobsleds",33.8128,-117.9180],["it's a small world",33.8147,-117.9180],["Mr. Toad's Wild Ride",33.8131,-117.9189],["Alice in Wonderland",33.8134,-117.9186],["Snow White's Enchanted Wish",33.8130,-117.9191],["Pinocchio's Daring Journey",33.8130,-117.9192],["Dumbo the Flying Elephant",33.8136,-117.9189],["Mad Tea Party",33.8134,-117.9182],["Mickey & Minnie's Runaway Railway",33.8157,-117.9189],["Roger Rabbit's Car Toon Spin",33.8154,-117.9182],["Chip 'n' Dale's GADGETcoaster",33.8158,-117.9178],["Star Wars: Rise of the Resistance",33.8140,-117.9228],["Millennium Falcon: Smugglers Run",33.8152,-117.9213],["Big Thunder Mountain Railroad",33.8128,-117.9205],["Pirates of the Caribbean",33.8117,-117.9209],["Haunted Mansion",33.8120,-117.9219],["Tiana's Bayou Adventure",33.8124,-117.9225],["The Many Adventures of Winnie the Pooh",33.8125,-117.9232],["Indiana Jones Adventure",33.8115,-117.9201],["Jungle Cruise",33.8113,-117.9197]],
+            17: [["Radiator Springs Racers",33.8048,-117.9170],["Luigi's Rollickin' Roadsters",33.8055,-117.9168],["Mater's Junkyard Jamboree",33.8058,-117.9178],["Guardians of the Galaxy - Mission: BREAKOUT!",33.8068,-117.9161],["WEB SLINGERS: A Spider-Man Adventure",33.8063,-117.9172],["Incredicoaster",33.8041,-117.9206],["Toy Story Midway Mania!",33.8043,-117.9215],["Pixar Pal-A-Round",33.8051,-117.9210],["Soarin' Around the World",33.8078,-117.9204],["Grizzly River Run",33.8062,-117.9201],["Goofy's Sky School",33.8043,-117.9225],["The Little Mermaid - Ariel's Undersea Adventure",33.8053,-117.9218]],
+            274: [["Monsters Inc. Ride & Go Seek!",35.6334,139.8797],["The Happy Ride with Baymax",35.6329,139.8808],["Star Tours: The Adventures Continue",35.6328,139.8792],["Enchanted Tale of Beauty and the Beast",35.6332,139.8821],["Pooh's Hunny Hunt",35.6336,139.8812],["Peter Pan's Flight",35.6325,139.8800],["it's a small world",35.6337,139.8805],["Haunted Mansion",35.6330,139.8798],["Splash Mountain",35.6339,139.8778],["Big Thunder Mountain",35.6323,139.8773],["Pirates of the Caribbean",35.6312,139.8788],["Jungle Cruise: Wildlife Expeditions",35.6315,139.8779]],
+            275: [["Anna and Elsa's Frozen Journey",35.6268,139.8828],["Peter Pan's Never Land Adventure",35.6272,139.8835],["Rapunzel's Lantern Festival",35.6263,139.8832],["Fairy Tinker Bell's Busy Buggies",35.6276,139.8838],["Journey to the Center of the Earth",35.6263,139.8878],["20,000 Leagues Under the Sea",35.6268,139.8872],["Indiana Jones Adventure: Temple of the Crystal Skull",35.6278,139.8856],["Raging Spirits",35.6282,139.8864],["Tower of Terror",35.6247,139.8858],["Toy Story Mania!",35.6242,139.8852],["Soaring: Fantastic Flight",35.6261,139.8893]],
+            31: [["Frozen Ever After",22.3140,114.0392],["Wandering Oaken's Sliding Sleighs",22.3142,114.0388],["Hyperspace Mountain",22.3132,114.0425],["Iron Man Experience",22.3135,114.0428],["Ant-Man and The Wasp: Nano Battle!",22.3130,114.0420],["Mystic Manor",22.3121,114.0388],["Big Grizzly Mountain Runaway Mine Cars",22.3115,114.0395],["RC Racer",22.3125,114.0382],["Toy Soldier Parachute Drop",22.3128,114.0385],["Slinky Dog Spin",22.3122,114.0384],["it's a small world",22.3141,114.0412],["The Many Adventures of Winnie the Pooh",22.3132,114.0405],["Jungle River Cruise",22.3118,114.0408]],
+            30: [["Zootopia: Hot Pursuit",31.1418,121.6582],["TRON Lightcycle Power Run",31.1452,121.6592],["Buzz Lightyear Planet Rescue",31.1448,121.6588],["Pirates of the Caribbean Battle for the Sunken Treasure",31.1425,121.6548],["Soaring Over the Horizon",31.1412,121.6552],["Roaring Rapids",31.1408,121.6560],["Seven Dwarfs Mine Train",31.1450,121.6565],["Peter Pan's Flight",31.1458,121.6568],["Voyage to the Crystal Grotto",31.1442,121.6575],["Rex's Racer",31.1462,121.6548],["Slinky Dog Spin",31.1465,121.6552]]
+        };
+        const normName = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+        const RIDE_GEO = {};
+        Object.keys(RIDE_GEO_RAW).forEach(pid => {
+            RIDE_GEO[pid] = RIDE_GEO_RAW[pid].map(row => { const _n = normName(row[0]); return { name: row[0], lat: row[1], lng: row[2], _n, _t: _n.split(' ').filter(t => t.length > 2) }; });
+        });
+        // Best-effort match of a live queue-times ride name to a coordinate entry.
+        const rideGeo = (parkId, name) => {
+            const list = RIDE_GEO[parkId];
+            const q = normName(name);
+            if (!list || !q) return null;
+            let hit = list.find(g => g._n === q);
+            if (hit) return hit;
+            hit = list.find(g => (q.includes(g._n) || g._n.includes(q)) && Math.min(q.length, g._n.length) >= 5);
+            if (hit) return hit;
+            const qt = new Set(q.split(' ').filter(t => t.length > 2));
+            let best = null, bestC = 0;
+            list.forEach(g => { const c = g._t.filter(t => qt.has(t)).length; if (c > bestC) { bestC = c; best = g; } });
+            return bestC >= 2 ? best : null;
+        };
         const PARK_TZ = { 4: 'Europe/Paris', 28: 'Europe/Paris', 6: 'America/New_York', 5: 'America/New_York', 7: 'America/New_York', 8: 'America/New_York', 16: 'America/Los_Angeles', 17: 'America/Los_Angeles', 274: 'Asia/Tokyo', 275: 'Asia/Tokyo', 31: 'Asia/Hong_Kong', 30: 'Asia/Shanghai' };
         // Disney parks never operate before ~07:00 park time. Telemetry points outside
         // 07:00-23:59 are either closed-park zeros or a frozen upstream feed echoing stale
@@ -1157,14 +1192,25 @@
                 rides.forEach(r => {
                     if (completedTargets.has(r.id) || !r.is_open) return;
                     if (activePark !== 'all' && r.parkId !== parseInt(activePark)) return;
-                    const coordsArr = TACTICAL_COORDS[r.parkId];
-                    if (!coordsArr) return;
-                    const land = coordsArr.find(c => (r.landName || '').toLowerCase().includes(c.match));
-                    if (!land || typeof land.lat !== 'number' || typeof land.lng !== 'number') return;
-                    const d = getHaversineDistance(userGPS.lat, userGPS.lng, land.lat, land.lng);
-                    if (d > 3) return; // not actually at the park
-                    const score = d * 1000 + (r.wait_time || 0); // distance dominates, wait breaks ties
-                    if (score < bestScore) { bestScore = score; best = { ride: r, dist: d, land }; }
+                    let lat, lng;
+                    const g = rideGeo(r.parkId, r.name);
+                    if (g) { lat = g.lat; lng = g.lng; }
+                    else {
+                        const arr = TACTICAL_COORDS[r.parkId];
+                        const land = arr && arr.find(c => (r.landName || '').toLowerCase().includes(c.match));
+                        if (!land || typeof land.lat !== 'number') return;
+                        lat = land.lat; lng = land.lng;
+                    }
+                    const distM = Math.round(getHaversineDistance(userGPS.lat, userGPS.lng, lat, lng) * 1000);
+                    const score = distM + (r.wait_time || 0); // distance dominates, wait breaks ties
+                    if (score < bestScore) {
+                        bestScore = score;
+                        const idx = compassIdx(getBearing(userGPS.lat, userGPS.lng, lat, lng));
+                        const walkMin = walkMinsFromMeters(distM);
+                        const distLabel = distM < 1000 ? distM + 'm' : (distM / 1000).toFixed(distM < 10000 ? 1 : 0) + 'km';
+                        const timeLabel = walkMin < 90 ? walkMin + ' min walk' : Math.floor(walkMin / 60) + 'h ' + (walkMin % 60) + 'm walk';
+                        best = { ride: r, distM, walkMin, dir: COMPASS[idx], arrow: COMPASS_ARROW[idx], distLabel, timeLabel };
+                    }
                 });
                 return best;
             }, [gpsEnabled, userGPS, rides, completedTargets, activePark]);
@@ -1228,19 +1274,43 @@
                 });
                 return Object.keys(map).map(name => ({ name, age: map[name] }));
             }, [rides]);
-            // Live GPS readout from the user to a given land: distance, compass direction,
-            // walking minutes. Returns null unless GPS is on, we have a fix, the land has
-            // coordinates, and the user is plausibly at the park (<5km).
-            const gpsToLand = (parkId, landName) => {
-                if (!gpsEnabled || !userGPS) return null;
-                const arr = TACTICAL_COORDS[parkId];
-                if (!arr) return null;
-                const land = arr.find(c => (landName || '').toLowerCase().includes(c.match));
-                if (!land || typeof land.lat !== 'number' || typeof land.lng !== 'number') return null;
-                const distM = Math.round(getHaversineDistance(userGPS.lat, userGPS.lng, land.lat, land.lng) * 1000);
-                if (distM > 5000) return null;
-                const idx = compassIdx(getBearing(userGPS.lat, userGPS.lng, land.lat, land.lng));
-                return { distM, walkMin: walkMinsFromMeters(distM), dir: COMPASS[idx], arrow: COMPASS_ARROW[idx] };
+            // Adaptive formatting so readouts make sense at any range (in-park OR from home).
+            const fmtDist = (m) => m < 1000 ? m + 'm' : (m / 1000).toFixed(m < 10000 ? 1 : 0) + 'km';
+            const fmtWalk = (min) => min < 90 ? min + ' min walk' : Math.floor(min / 60) + 'h ' + (min % 60) + 'm walk';
+            const fmtWalkShort = (min) => min < 90 ? min + 'm' : Math.floor(min / 60) + 'h' + (min % 60) + 'm';
+            // GPS metrics (distance, compass, walk time) from the user to a coordinate.
+            // Works at any distance now - handy for testing from home.
+            const gpsMetrics = (lat, lng) => {
+                if (!gpsEnabled || !userGPS || typeof lat !== 'number' || typeof lng !== 'number') return null;
+                const distM = Math.round(getHaversineDistance(userGPS.lat, userGPS.lng, lat, lng) * 1000);
+                const idx = compassIdx(getBearing(userGPS.lat, userGPS.lng, lat, lng));
+                const walkMin = walkMinsFromMeters(distM);
+                return { distM, walkMin, dir: COMPASS[idx], arrow: COMPASS_ARROW[idx], distLabel: fmtDist(distM), timeLabel: fmtWalk(walkMin), timeShort: fmtWalkShort(walkMin) };
+            };
+            // Per ride: use its own coordinate; fall back to the land point (DLP parks).
+            const gpsForRide = (ride) => {
+                const g = rideGeo(ride.parkId, ride.name);
+                if (g) return gpsMetrics(g.lat, g.lng);
+                const arr = TACTICAL_COORDS[ride.parkId];
+                const land = arr && arr.find(c => (ride.landName || '').toLowerCase().includes(c.match));
+                return land ? gpsMetrics(land.lat, land.lng) : null;
+            };
+            // Per land: centroid of that land's rides that have coordinates.
+            const gpsForZone = (zone) => {
+                let sla = 0, slo = 0, cnt = 0;
+                (zone.rides || []).forEach(r => { const g = rideGeo(r.parkId, r.name); if (g) { sla += g.lat; slo += g.lng; cnt++; } });
+                if (cnt > 0) return gpsMetrics(sla / cnt, slo / cnt);
+                const arr = TACTICAL_COORDS[zone.parkId];
+                const land = arr && arr.find(c => (zone.landName || '').toLowerCase().includes(c.match));
+                return land ? gpsMetrics(land.lat, land.lng) : null;
+            };
+            // Per park: centroid of all its located rides.
+            const gpsForPark = (parkId) => {
+                const list = RIDE_GEO[parkId];
+                if (!list || !list.length) return null;
+                let la = 0, lo = 0;
+                list.forEach(g => { la += g.lat; lo += g.lng; });
+                return gpsMetrics(la / list.length, lo / list.length);
             };
             const RideCard = ({ ride, isCompleted, isMinor, isClosed, globalStep }) => {
                 const isExpanded = expandedRideId === ride.id;
@@ -1324,10 +1394,10 @@
                                     <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase mt-1 line-clamp-1">{ride.parkName} - {ride.landName}</p>
                                 )}
                                 {!isCompleted && !isClosed && (() => {
-                                    const g = gpsToLand(ride.parkId, ride.landName);
+                                    const g = gpsForRide(ride);
                                     return g ? (
                                         <p className="text-[9px] font-mono text-blue-500 dark:text-blue-400 mt-1 flex items-center gap-1">
-                                            <span className="text-xs leading-none">{g.arrow}</span> {g.dir} · {g.distM}m · {g.walkMin} min walk
+                                            <span className="text-xs leading-none">{g.arrow}</span> {g.dir} · {g.distLabel} · {g.timeLabel}
                                         </p>
                                     ) : null;
                                 })()}
@@ -1524,6 +1594,12 @@
                                         <div className="w-1.5 h-1.5 rounded-full bg-purple-500"></div>
                                         <span>Telemetry Age: <span className="font-bold text-slate-700 dark:text-slate-300">{telemetryAgeMins === '--' ? '--' : `${telemetryAgeMins} MINS AGO`}</span></span>
                                     </div>
+                                    {gpsEnabled && userGPS && (
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                            <span>My Location: <span className="font-bold text-slate-700 dark:text-slate-300">{userGPS.lat.toFixed(5)}, {userGPS.lng.toFixed(5)}</span></span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
@@ -1639,6 +1715,7 @@
                                                         {status === 'closed' && <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 uppercase">Closed</span>}
                                                         {status === 'closing' && <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 uppercase">Closing</span>}
                                                         {status === 'open' && <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 uppercase">Open</span>}
+                                                        {(() => { const g = gpsForPark(p.id); return g ? <span className={`shrink-0 text-[8px] font-mono ${activePark === p.id.toString() ? 'text-white/80' : 'text-blue-500 dark:text-blue-400'}`}>{g.arrow} {g.distLabel}</span> : null; })()}
                                                     </span>
                                                     {activePark === p.id.toString() && <Icon path={I.ChevronRight} size={14} />}
                                                 </button>
@@ -1708,8 +1785,8 @@
                                                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700/50 rounded-2xl p-4 flex items-center gap-3">
                                                     <Icon path={I.MapPin} size={20} className="text-blue-500 shrink-0 animate-pulse" />
                                                     <div className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
-                                                        <span className="font-black uppercase tracking-wider block mb-0.5">Nearest to you: {nearestRide.land.label}</span>
-                                                        Ride <span className="font-bold">{nearestRide.ride.name}</span> next — {Math.round(nearestRide.ride.wait_time)}m wait, about {Math.round(nearestRide.dist * 1000)}m away. Tick it off and the route re-optimizes from here.
+                                                        <span className="font-black uppercase tracking-wider block mb-0.5">Nearest to you: {nearestRide.ride.landName}</span>
+                                                        Ride <span className="font-bold">{nearestRide.ride.name}</span> next — {Math.round(nearestRide.ride.wait_time)}m wait, {nearestRide.arrow} {nearestRide.dir} · {nearestRide.distLabel} · {nearestRide.timeLabel}. Tick it off and the route re-optimizes from here.
                                                     </div>
                                                 </div>
                                             )}
@@ -1759,10 +1836,10 @@
                                                                             <span className="text-[9px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Return visit</span>
                                                                         )}
                                                                         {(() => {
-                                                                            const g = gpsToLand(ride.parkId, ride.landName);
+                                                                            const g = gpsForZone(ride.zoneInfo);
                                                                             return g ? (
                                                                                 <span className="text-[9px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full ml-1 flex items-center gap-1 normal-case tracking-normal">
-                                                                                    <span className="text-xs leading-none">{g.arrow}</span> {g.dir} {g.distM}m · {g.walkMin}m walk
+                                                                                    <span className="text-xs leading-none">{g.arrow}</span> {g.dir} {g.distLabel} · {g.timeShort} walk
                                                                                 </span>
                                                                             ) : null;
                                                                         })()}
