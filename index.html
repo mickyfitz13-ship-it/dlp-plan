@@ -65,7 +65,15 @@
             ThumbsUp: '<path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path>',
             AlertTriangle: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
             Trash2: '<polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line>',
-            Activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>'
+            Activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>',
+            MessageSquare: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>',
+            Send: '<line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>',
+            Cloud: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>',
+            CloudRain: '<line x1="16" y1="13" x2="16" y2="21"></line><line x1="8" y1="13" x2="8" y2="21"></line><line x1="12" y1="15" x2="12" y2="23"></line><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path>',
+            CloudSnow: '<path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"></path><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="8" y1="20" x2="8.01" y2="20"></line><line x1="12" y1="18" x2="12.01" y2="18"></line><line x1="12" y1="22" x2="12.01" y2="22"></line><line x1="16" y1="16" x2="16.01" y2="16"></line><line x1="16" y1="20" x2="16.01" y2="20"></line>',
+            CloudLightning: '<path d="M19 16.9A5 5 0 0 0 18 7h-1.26a8 8 0 1 0-11.62 9"></path><polyline points="13 11 9 17 15 17 11 23"></polyline>',
+            Droplet: '<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>',
+            Wind: '<path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path>'
         };
         const GLOBAL_PARKS = {
             "Disneyland Paris": [
@@ -199,6 +207,26 @@
             list.forEach(g => { const c = g._t.filter(t => qt.has(t)).length; if (c > bestC) { bestC = c; best = g; } });
             return bestC >= 2 ? best : null;
         };
+        // Park centroids (from ride coordinates) for weather lookups, independent of GPS.
+        const PARK_CENTROID = {};
+        Object.keys(RIDE_GEO_RAW).forEach(pid => {
+            const list = RIDE_GEO_RAW[pid];
+            let la = 0, lo = 0;
+            list.forEach(r => { la += r[1]; lo += r[2]; });
+            PARK_CENTROID[pid] = { lat: la / list.length, lng: lo / list.length };
+        });
+        // WMO weather code -> icon + label.
+        const weatherInfo = (code) => {
+            if (code === 0) return { icon: I.Sun, label: 'Clear' };
+            if (code >= 1 && code <= 3) return { icon: I.Cloud, label: 'Partly cloudy' };
+            if (code === 45 || code === 48) return { icon: I.Cloud, label: 'Fog' };
+            if (code >= 51 && code <= 67) return { icon: I.CloudRain, label: 'Rain' };
+            if (code >= 71 && code <= 77) return { icon: I.CloudSnow, label: 'Snow' };
+            if (code >= 80 && code <= 82) return { icon: I.CloudRain, label: 'Showers' };
+            if (code >= 85 && code <= 86) return { icon: I.CloudSnow, label: 'Snow showers' };
+            if (code >= 95) return { icon: I.CloudLightning, label: 'Thunderstorm' };
+            return { icon: I.Cloud, label: 'Cloudy' };
+        };
         const PARK_TZ = { 4: 'Europe/Paris', 28: 'Europe/Paris', 6: 'America/New_York', 5: 'America/New_York', 7: 'America/New_York', 8: 'America/New_York', 16: 'America/Los_Angeles', 17: 'America/Los_Angeles', 274: 'Asia/Tokyo', 275: 'Asia/Tokyo', 31: 'Asia/Hong_Kong', 30: 'Asia/Shanghai' };
         // Disney parks never operate before ~07:00 park time. Telemetry points outside
         // 07:00-23:59 are either closed-park zeros or a frozen upstream feed echoing stale
@@ -310,6 +338,13 @@
             const [lastLiveSyncTime, setLastLiveSyncTime] = useState('--:--:--');
             const [telemetryAgeMins, setTelemetryAgeMins] = useState('--');
             const [nextSyncSeconds, setNextSyncSeconds] = useState(300);
+            const [weather, setWeather] = useState(null);
+            const [weatherErr, setWeatherErr] = useState(false);
+            const [isChatOpen, setIsChatOpen] = useState(false);
+            const [chatHistory, setChatHistory] = useState([]);
+            const [chatInput, setChatInput] = useState('');
+            const [isThinking, setIsThinking] = useState(false);
+            const chatScrollRef = useRef(null);
             // Route mode: 'auto' = optimizer picks the land order; 'manual' = you do.
             const [routeMode, setRouteMode] = useState(() => localStorage.getItem('dlp_routemode_v1') || 'auto');
             const [manualOrder, setManualOrder] = useState(() => { try { return JSON.parse(localStorage.getItem('dlp_manualorder_v1') || '{}'); } catch (e) { return {}; } });
@@ -318,6 +353,20 @@
             const [breaks, setBreaks] = useState(() => { try { return JSON.parse(localStorage.getItem('dlp_breaks_v1') || '{"lunch":false,"dinner":false}'); } catch (e) { return { lunch: false, dinner: false }; } });
             useEffect(() => localStorage.setItem('dlp_breaks_v1', JSON.stringify(breaks)), [breaks]);
             const toggleBreak = (k) => setBreaks(prev => ({ ...prev, [k]: !prev[k] }));
+            useEffect(() => {
+                if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+            }, [chatHistory, isThinking, isChatOpen]);
+            // Live weather for the selected park (Open-Meteo, no key required).
+            useEffect(() => {
+                const pid = activePark !== 'all' ? Number(activePark) : GLOBAL_PARKS[activeRegion][0].id;
+                const c = PARK_CENTROID[pid];
+                if (!c) { setWeather(null); setWeatherErr(true); return; }
+                let cancelled = false;
+                setWeather(null); setWeatherErr(false);
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat.toFixed(3)}&longitude=${c.lng.toFixed(3)}&current=temperature_2m,apparent_temperature,weather_code,precipitation,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=7`;
+                fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(j => { if (!cancelled) setWeather(j); }).catch(() => { if (!cancelled) setWeatherErr(true); });
+                return () => { cancelled = true; };
+            }, [activeRegion, activePark]);
             useEffect(() => {
                 localStorage.setItem('dlp_theme_v18', theme);
                 const root = window.document.documentElement;
@@ -1628,6 +1677,91 @@
                     </div>
                 );
             };
+            const currentParkName = activePark !== 'all'
+                ? (GLOBAL_PARKS[activeRegion].find(p => p.id.toString() === activePark) || {}).name || activeRegion
+                : activeRegion;
+            const findRideByText = (raw) => {
+                const nq = normName(raw);
+                const toks = new Set(nq.split(' ').filter(t => t.length > 2));
+                let best = null, bc = 0;
+                rides.forEach(r => {
+                    if (activePark !== 'all' && r.parkId !== parseInt(activePark)) return;
+                    const rn = normName(r.name);
+                    let c = rn.split(' ').filter(t => t.length > 2).filter(t => toks.has(t)).length;
+                    if (rn.length >= 5 && nq.includes(rn)) c += 3;
+                    if (c > bc) { bc = c; best = r; }
+                });
+                return bc >= 2 ? best : null;
+            };
+            // Built-in "Overwatch AI": answers from live plan state + weather. No key, works offline.
+            const answerQuery = (raw) => {
+                const q = (raw || '').toLowerCase();
+                const nextRide = masterSequence[0];
+                const remainingPri = masterSequence.filter(r => r.isPriority).length;
+                if (/(weather|rain|raining|temperature|\btemp\b|hot|cold|sunny|forecast|umbrella|poncho|wet)/.test(q)) {
+                    if (weatherErr) return "I can't reach the weather service right now. Try again shortly.";
+                    if (!weather || !weather.current) return "Fetching the latest weather — ask again in a second.";
+                    const c = weather.current, d = weather.daily;
+                    const lbl = weatherInfo(c.weather_code).label.toLowerCase();
+                    const rainToday = d && d.precipitation_probability_max ? d.precipitation_probability_max[0] : null;
+                    let s = `**${currentParkName}** now: **${Math.round(c.temperature_2m)}°C**, ${lbl}` + (typeof c.apparent_temperature === 'number' ? ` (feels ${Math.round(c.apparent_temperature)}°C)` : '') + '.';
+                    if (d) s += ` Today ${Math.round(d.temperature_2m_min[0])}–${Math.round(d.temperature_2m_max[0])}°C`;
+                    if (rainToday != null) s += `, ${rainToday}% rain`;
+                    s += '.';
+                    if (rainToday != null && rainToday >= 50) s += ` Good window for **indoor** rides — dark rides and shows stay dry.`;
+                    return s;
+                }
+                if (/(open|closed|closing|\bclose\b|hours|shut)/.test(q)) {
+                    return 'Park status — ' + GLOBAL_PARKS[activeRegion].map(p => `${p.name}: ${(parkStatus[p.id] || 'unknown').toUpperCase()}`).join(' · ') + '.';
+                }
+                if (/(nearest|closest|near me|around me|by me)/.test(q)) {
+                    if (nearestRide) return `Closest un-ridden target: **${nearestRide.ride.name}** in ${nearestRide.ride.landName} — ${nearestRide.dir} ${nearestRide.distLabel}, ${nearestRide.timeLabel}, currently ${Math.round(nearestRide.ride.wait_time)}m wait.`;
+                    return gpsEnabled ? "GPS is on but I don't have a fix yet — give it a moment." : "Turn on **GPS** (top-right) and I'll point you to the closest un-ridden ride.";
+                }
+                if (/(next|what.*(ride|do|now)|where.*go|recommend|should i)/.test(q)) {
+                    if (!nextRide) return "No active objectives right now — the park may be closed or everything's done. Check the sector selection.";
+                    let s = `Next up: **${nextRide.name}** (${nextRide.landName})`;
+                    s += typeof nextRide.plannedWait === 'number' ? ` — ETA ${nextRide.plannedEta}, ~${nextRide.plannedWait}m queue.` : ` — ${Math.round(nextRide.wait_time)}m now.`;
+                    if (nearestRide && nearestRide.ride.id !== nextRide.id) s += ` Closest to you is ${nearestRide.ride.name} (${nearestRide.distLabel}).`;
+                    return s;
+                }
+                // A named ride wins over generic "busy/how long" phrasing.
+                const namedRide = findRideByText(raw);
+                if (namedRide) {
+                    if (!namedRide.is_open) return `**${namedRide.name}** is currently **closed**.`;
+                    let s = `**${namedRide.name}** — ${Math.round(namedRide.wait_time)}m now`;
+                    if (typeof namedRide.projection60m === 'number') s += `, ~${namedRide.projection60m}m in an hour`;
+                    s += `. ${namedRide.routingReason}.`;
+                    if (namedRide.analytics && namedRide.analytics.bestHour !== 'Calibrating') s += ` Quietest around ${namedRide.analytics.bestHour}.`;
+                    return s;
+                }
+                if (/(how long|total|queue time|saved|efficien|walking)/.test(q)) {
+                    return `Plan totals — expected queueing **${Math.floor(metrics.totalQueueTimeMins / 60)}h ${metrics.totalQueueTimeMins % 60}m**, walking ~${Math.floor(metrics.walkMins / 60)}h ${metrics.walkMins % 60}m, roughly ${Math.floor(metrics.totalSavedMins / 60)}h ${metrics.totalSavedMins % 60}m saved vs an unplanned day.`;
+                }
+                if (/(left|remaining|priorit|objective|how many)/.test(q)) {
+                    return `**${remainingPri}** priority targets are queued on the active route and ${completedTargets.size} are logged complete (${masterSequence.length} objectives total).`;
+                }
+                if (/(busy|crowd|quiet|best day|which day|when.*go)/.test(q)) {
+                    if (recommendedDay && forecastDaysRow[recommendedDay.index]) return `Quietest of the next 7 days looks like **${forecastDaysRow[recommendedDay.index].label}** (~${recommendedDay.avg}m average across priority rides). See the Forecast tab for detail.`;
+                    return "I need ~7 days of telemetry before I can call the quietest day — the forecast model is still calibrating.";
+                }
+                if (/(break|lunch|dinner|\beat\b|food|\brest\b)/.test(q)) {
+                    const on = Object.keys(breaks).filter(k => breaks[k]);
+                    return on.length ? `Breaks enabled: ${on.join(' & ')}. Every ride after a break is re-timed for your true later arrival.` : "No breaks scheduled — toggle Lunch/Dinner in the Breaks panel and I'll fold them into the plan.";
+                }
+                return "I read your live plan. Ask me: what to ride **next**, the **nearest** ride, the **weather**, whether a park is **open**, your **total** queue time, how many **priorities** are left, the **quietest day**, or about a **specific ride** by name.";
+            };
+            const handleAsk = () => {
+                if (!chatInput.trim() || isThinking) return;
+                const q = chatInput;
+                setChatHistory(prev => [...prev, { role: 'user', parts: [{ text: q }] }]);
+                setChatInput('');
+                setIsThinking(true);
+                setTimeout(() => {
+                    setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: answerQuery(q) }] }]);
+                    setIsThinking(false);
+                }, 250);
+            };
             return (
                 <div className="min-h-screen text-slate-800 dark:text-slate-300 font-sans p-4 md:p-8 flex flex-col items-center pb-32 transition-colors duration-300">
                     <div className="w-full max-w-6xl">
@@ -1777,6 +1911,53 @@
                                                 );
                                             })}
                                         </div>
+                                    </div>
+                                    <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                                        <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1 flex items-center gap-2">
+                                            <Icon path={I.Cloud} size={12} /> Weather
+                                        </h2>
+                                        <p className="text-[9px] text-slate-400 dark:text-slate-500 mb-3 truncate">{currentParkName}</p>
+                                        {weatherErr ? (
+                                            <p className="text-[10px] text-slate-400 dark:text-slate-500">Weather feed unavailable.</p>
+                                        ) : !weather || !weather.current ? (
+                                            <p className="text-[10px] text-slate-400 dark:text-slate-500 animate-pulse">Loading forecast…</p>
+                                        ) : (() => {
+                                            const c = weather.current, d = weather.daily;
+                                            const wi = weatherInfo(c.weather_code);
+                                            const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                                            return (
+                                                <>
+                                                    <div className="flex items-center gap-3 mb-3">
+                                                        <Icon path={wi.icon} size={34} className="text-amber-500 dark:text-amber-400 shrink-0" />
+                                                        <div className="min-w-0">
+                                                            <div className="text-2xl font-black text-slate-800 dark:text-white leading-none">{Math.round(c.temperature_2m)}°C</div>
+                                                            <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">{wi.label}{typeof c.apparent_temperature === 'number' ? ` · feels ${Math.round(c.apparent_temperature)}°` : ''}</div>
+                                                        </div>
+                                                        <div className="ml-auto text-right text-[10px] text-slate-500 dark:text-slate-400 shrink-0">
+                                                            {d && <div className="font-bold">{Math.round(d.temperature_2m_max[0])}° / {Math.round(d.temperature_2m_min[0])}°</div>}
+                                                            {d && d.precipitation_probability_max && <div className="flex items-center gap-1 justify-end text-blue-500 dark:text-blue-400"><Icon path={I.Droplet} size={10} /> {d.precipitation_probability_max[0]}%</div>}
+                                                        </div>
+                                                    </div>
+                                                    {d && d.time && (
+                                                        <div className="grid grid-cols-7 gap-1 border-t border-slate-100 dark:border-slate-800 pt-3">
+                                                            {d.time.slice(0, 7).map((t, i) => {
+                                                                const di = weatherInfo(d.weather_code[i]);
+                                                                const wd = new Date(t + 'T12:00:00').getDay();
+                                                                return (
+                                                                    <div key={t} className="flex flex-col items-center gap-0.5">
+                                                                        <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase">{i === 0 ? 'Now' : dayNames[wd]}</span>
+                                                                        <Icon path={di.icon} size={13} className="text-slate-500 dark:text-slate-400 my-0.5" />
+                                                                        <span className="text-[9px] font-bold text-slate-700 dark:text-slate-300">{Math.round(d.temperature_2m_max[i])}°</span>
+                                                                        <span className="text-[8px] text-slate-400 dark:text-slate-500">{Math.round(d.temperature_2m_min[i])}°</span>
+                                                                        {d.precipitation_probability_max && <span className="text-[8px] text-blue-500 dark:text-blue-400">{d.precipitation_probability_max[i]}%</span>}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                     <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
                                         <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
@@ -2037,9 +2218,50 @@
                             )}
                         </div>
                         <p className="mt-4 text-center text-[9px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-600">
-                            Live wait times powered by <a href="https://queue-times.com/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">Queue-Times.com</a> &middot; Park schedules via <a href="https://themeparks.wiki/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">ThemeParks.wiki</a>
+                            Live wait times powered by <a href="https://queue-times.com/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">Queue-Times.com</a> &middot; Park schedules via <a href="https://themeparks.wiki/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">ThemeParks.wiki</a> &middot; Weather via <a href="https://open-meteo.com/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">Open-Meteo</a>
                         </p>
                     </div>
+                    <div className={`fixed bottom-0 right-0 md:bottom-6 md:right-6 w-full md:w-[400px] bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-t-2xl md:rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${isChatOpen ? 'opacity-100 h-[80vh] md:h-[560px]' : 'opacity-0 pointer-events-none h-0'}`}>
+                        <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800 bg-emerald-500/10 rounded-t-2xl">
+                            <h3 className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
+                                <Icon path={I.Cpu} size={16} className={isThinking ? 'animate-pulse' : ''} /> Overwatch AI
+                            </h3>
+                            <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><Icon path={I.X} size={18} /></button>
+                        </div>
+                        <div ref={chatScrollRef} className="flex-grow overflow-y-auto p-4 space-y-4 text-sm bg-slate-50/50 dark:bg-[#05070a]/50 terminal-scroll">
+                            {chatHistory.length === 0 && (
+                                <div className="text-center text-slate-400 dark:text-slate-500 font-mono text-xs my-6">
+                                    <Icon path={I.Activity} size={24} className="mx-auto mb-2 opacity-50" />
+                                    <p className="mb-1 text-emerald-500 font-bold">SECURE COMMS ESTABLISHED.</p>
+                                    <p>I read your live plan, GPS, and weather.</p>
+                                    <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
+                                        {["What should I ride next?", "What's the weather?", "Is the park open?", "How much queue time left?", "Quietest day?"].map(s => (
+                                            <button key={s} onClick={() => { setChatInput(s); setTimeout(handleAsk, 0); }} className="text-[10px] bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-full px-2.5 py-1 hover:border-emerald-400 text-slate-600 dark:text-slate-400">{s}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {chatHistory.map((msg, i) => (
+                                <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                    <div className={`max-w-[85%] rounded-xl px-4 py-2 shadow-sm ${msg.role === 'user' ? 'bg-emerald-600 text-white rounded-br-none' : 'bg-white dark:bg-[#111827] text-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-bl-none leading-relaxed'}`}>
+                                        <span dangerouslySetInnerHTML={{ __html: msg.parts[0].text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*\*(.*?)\*\*/g, '<strong class="text-emerald-600 dark:text-emerald-400">$1</strong>') }} />
+                                    </div>
+                                </div>
+                            ))}
+                            {isThinking && (
+                                <div className="flex items-center gap-2 text-emerald-500 font-mono text-[10px] uppercase tracking-widest px-2">
+                                    <Icon path={I.RefreshCw} size={12} className="animate-spin" /> Processing intel…
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111a] rounded-b-2xl flex gap-2">
+                            <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAsk()} placeholder="Ask about your plan…" className="flex-grow bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 shadow-inner" disabled={isThinking} />
+                            <button onClick={handleAsk} disabled={isThinking || !chatInput.trim()} className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg p-2 transition-colors shadow-sm"><Icon path={I.Send} size={16} /></button>
+                        </div>
+                    </div>
+                    <button onClick={() => setIsChatOpen(prev => !prev)} className={`fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-emerald-600 text-white p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:scale-110 transition-all z-40 ${isChatOpen ? 'opacity-0 pointer-events-none scale-50' : 'opacity-100 scale-100'}`}>
+                        <Icon path={I.MessageSquare} size={24} />
+                    </button>
                 </div>
             );
         };
