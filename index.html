@@ -341,6 +341,7 @@
 
             const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v18') || 'false'));
             const [userGPS, setUserGPS] = useState(null);
+            const [heading, setHeading] = useState(null);
             useEffect(() => {
                 localStorage.setItem('dlp_gps_v18', JSON.stringify(gpsEnabled));
                 let watchId;
@@ -348,7 +349,7 @@
                     watchId = navigator.geolocation.watchPosition(
                         (pos) => {
                             const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                            setUserGPS(prev => (!prev || getHaversineDistance(prev.lat, prev.lng, next.lat, next.lng) > 0.03) ? next : prev);
+                            setUserGPS(prev => (!prev || getHaversineDistance(prev.lat, prev.lng, next.lat, next.lng) > 0.008) ? next : prev);
                         },
                         (err) => addLog(`[WARN] GPS Signal lost or denied: ${err.message}`, 'warn'),
                         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -360,7 +361,32 @@
                 }
                 return () => { if(watchId) navigator.geolocation.clearWatch(watchId); };
             }, [gpsEnabled]);
-            const toggleGPS = () => setGpsEnabled(!gpsEnabled);
+            const toggleGPS = () => {
+                const next = !gpsEnabled;
+                setGpsEnabled(next);
+                // iOS 13+ requires the compass permission to be requested from within the tap.
+                if (next && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission().catch(() => {});
+                }
+            };
+            // Live onboard compass: feeds the device heading so direction arrows rotate to
+            // point at the real-world target as you turn. Falls back to north-up when no
+            // magnetometer/permission (e.g. desktop).
+            useEffect(() => {
+                if (!gpsEnabled) { setHeading(null); return; }
+                const handler = (e) => {
+                    let hd = null;
+                    if (typeof e.webkitCompassHeading === 'number') hd = e.webkitCompassHeading; // iOS
+                    else if (e.absolute && typeof e.alpha === 'number') hd = (360 - e.alpha) % 360; // Android absolute
+                    if (hd !== null && !isNaN(hd)) setHeading(hd);
+                };
+                window.addEventListener('deviceorientationabsolute', handler, true);
+                window.addEventListener('deviceorientation', handler, true);
+                return () => {
+                    window.removeEventListener('deviceorientationabsolute', handler, true);
+                    window.removeEventListener('deviceorientation', handler, true);
+                };
+            }, [gpsEnabled]);
             const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v18') || '[]')));
             const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v18') || '[]')));
             const [logs, setLogs] = useState([]);
@@ -1205,11 +1231,12 @@
                     const score = distM + (r.wait_time || 0); // distance dominates, wait breaks ties
                     if (score < bestScore) {
                         bestScore = score;
-                        const idx = compassIdx(getBearing(userGPS.lat, userGPS.lng, lat, lng));
+                        const brg = getBearing(userGPS.lat, userGPS.lng, lat, lng);
+                        const idx = compassIdx(brg);
                         const walkMin = walkMinsFromMeters(distM);
                         const distLabel = distM < 1000 ? distM + 'm' : (distM / 1000).toFixed(distM < 10000 ? 1 : 0) + 'km';
                         const timeLabel = walkMin < 90 ? walkMin + ' min walk' : Math.floor(walkMin / 60) + 'h ' + (walkMin % 60) + 'm walk';
-                        best = { ride: r, distM, walkMin, dir: COMPASS[idx], arrow: COMPASS_ARROW[idx], distLabel, timeLabel };
+                        best = { ride: r, distM, walkMin, bearing: brg, dir: COMPASS[idx], arrow: COMPASS_ARROW[idx], distLabel, timeLabel };
                     }
                 });
                 return best;
@@ -1283,9 +1310,10 @@
             const gpsMetrics = (lat, lng) => {
                 if (!gpsEnabled || !userGPS || typeof lat !== 'number' || typeof lng !== 'number') return null;
                 const distM = Math.round(getHaversineDistance(userGPS.lat, userGPS.lng, lat, lng) * 1000);
-                const idx = compassIdx(getBearing(userGPS.lat, userGPS.lng, lat, lng));
+                const brg = getBearing(userGPS.lat, userGPS.lng, lat, lng);
+                const idx = compassIdx(brg);
                 const walkMin = walkMinsFromMeters(distM);
-                return { distM, walkMin, dir: COMPASS[idx], arrow: COMPASS_ARROW[idx], distLabel: fmtDist(distM), timeLabel: fmtWalk(walkMin), timeShort: fmtWalkShort(walkMin) };
+                return { distM, walkMin, bearing: brg, dir: COMPASS[idx], arrow: COMPASS_ARROW[idx], distLabel: fmtDist(distM), timeLabel: fmtWalk(walkMin), timeShort: fmtWalkShort(walkMin) };
             };
             // Per ride: use its own coordinate; fall back to the land point (DLP parks).
             const gpsForRide = (ride) => {
@@ -1311,6 +1339,12 @@
                 let la = 0, lo = 0;
                 list.forEach(g => { la += g.lat; lo += g.lng; });
                 return gpsMetrics(la / list.length, lo / list.length);
+            };
+            // Arrow that rotates to point at the target. With a live device heading it points
+            // in real-world space (turn the phone, the arrow tracks); otherwise it's north-up.
+            const CompassArrow = ({ bearing }) => {
+                const rot = (typeof bearing === 'number') ? (heading != null ? bearing - heading : bearing) : 0;
+                return <span style={{ display: 'inline-block', transform: `rotate(${rot}deg)`, transition: 'transform 0.15s linear' }} className="text-xs leading-none font-bold">↑</span>;
             };
             const RideCard = ({ ride, isCompleted, isMinor, isClosed, globalStep }) => {
                 const isExpanded = expandedRideId === ride.id;
@@ -1397,7 +1431,7 @@
                                     const g = gpsForRide(ride);
                                     return g ? (
                                         <p className="text-[9px] font-mono text-blue-500 dark:text-blue-400 mt-1 flex items-center gap-1">
-                                            <span className="text-xs leading-none">{g.arrow}</span> {g.dir} · {g.distLabel} · {g.timeLabel}
+                                            <CompassArrow bearing={g.bearing} /> {g.dir} · {g.distLabel} · {g.timeLabel}
                                         </p>
                                     ) : null;
                                 })()}
@@ -1597,7 +1631,7 @@
                                     {gpsEnabled && userGPS && (
                                         <div className="flex items-center gap-1.5">
                                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                            <span>My Location: <span className="font-bold text-slate-700 dark:text-slate-300">{userGPS.lat.toFixed(5)}, {userGPS.lng.toFixed(5)}</span></span>
+                                            <span>My Location: <span className="font-bold text-slate-700 dark:text-slate-300">{userGPS.lat.toFixed(5)}, {userGPS.lng.toFixed(5)}</span>{heading != null && <span> · heading {Math.round(heading)}°</span>}</span>
                                         </div>
                                     )}
                                 </div>
@@ -1715,7 +1749,7 @@
                                                         {status === 'closed' && <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 uppercase">Closed</span>}
                                                         {status === 'closing' && <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 uppercase">Closing</span>}
                                                         {status === 'open' && <span className="shrink-0 text-[8px] font-black px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 uppercase">Open</span>}
-                                                        {(() => { const g = gpsForPark(p.id); return g ? <span className={`shrink-0 text-[8px] font-mono ${activePark === p.id.toString() ? 'text-white/80' : 'text-blue-500 dark:text-blue-400'}`}>{g.arrow} {g.distLabel}</span> : null; })()}
+                                                        {(() => { const g = gpsForPark(p.id); return g ? <span className={`shrink-0 text-[8px] font-mono flex items-center gap-0.5 ${activePark === p.id.toString() ? 'text-white/80' : 'text-blue-500 dark:text-blue-400'}`}><CompassArrow bearing={g.bearing} /> {g.distLabel}</span> : null; })()}
                                                     </span>
                                                     {activePark === p.id.toString() && <Icon path={I.ChevronRight} size={14} />}
                                                 </button>
@@ -1786,7 +1820,7 @@
                                                     <Icon path={I.MapPin} size={20} className="text-blue-500 shrink-0 animate-pulse" />
                                                     <div className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
                                                         <span className="font-black uppercase tracking-wider block mb-0.5">Nearest to you: {nearestRide.ride.landName}</span>
-                                                        Ride <span className="font-bold">{nearestRide.ride.name}</span> next — {Math.round(nearestRide.ride.wait_time)}m wait, {nearestRide.arrow} {nearestRide.dir} · {nearestRide.distLabel} · {nearestRide.timeLabel}. Tick it off and the route re-optimizes from here.
+                                                        Ride <span className="font-bold">{nearestRide.ride.name}</span> next — {Math.round(nearestRide.ride.wait_time)}m wait, <CompassArrow bearing={nearestRide.bearing} /> {nearestRide.dir} · {nearestRide.distLabel} · {nearestRide.timeLabel}. Tick it off and the route re-optimizes from here.
                                                     </div>
                                                 </div>
                                             )}
@@ -1839,7 +1873,7 @@
                                                                             const g = gpsForZone(ride.zoneInfo);
                                                                             return g ? (
                                                                                 <span className="text-[9px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full ml-1 flex items-center gap-1 normal-case tracking-normal">
-                                                                                    <span className="text-xs leading-none">{g.arrow}</span> {g.dir} {g.distLabel} · {g.timeShort} walk
+                                                                                    <CompassArrow bearing={g.bearing} /> {g.dir} {g.distLabel} · {g.timeShort} walk
                                                                                 </span>
                                                                             ) : null;
                                                                         })()}
