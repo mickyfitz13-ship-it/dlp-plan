@@ -151,6 +151,19 @@
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
         };
+        // Compass bearing from point 1 to point 2, and a coarse 8-point label + arrow glyph.
+        const getBearing = (lat1, lon1, lat2, lon2) => {
+            const toRad = d => d * Math.PI / 180, toDeg = r => r * 180 / Math.PI;
+            const dLon = toRad(lon2 - lon1);
+            const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+            const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+            return (toDeg(Math.atan2(y, x)) + 360) % 360;
+        };
+        const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        const COMPASS_ARROW = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+        const compassIdx = (deg) => Math.round(deg / 45) % 8;
+        // In-park walking pace ~70 m/min (crowds, strollers, meandering paths).
+        const walkMinsFromMeters = (m) => Math.max(1, Math.round(m / 70));
         const PARK_TZ = { 4: 'Europe/Paris', 28: 'Europe/Paris', 6: 'America/New_York', 5: 'America/New_York', 7: 'America/New_York', 8: 'America/New_York', 16: 'America/Los_Angeles', 17: 'America/Los_Angeles', 274: 'Asia/Tokyo', 275: 'Asia/Tokyo', 31: 'Asia/Hong_Kong', 30: 'Asia/Shanghai' };
         // Disney parks never operate before ~07:00 park time. Telemetry points outside
         // 07:00-23:59 are either closed-park zeros or a frozen upstream feed echoing stale
@@ -1215,6 +1228,20 @@
                 });
                 return Object.keys(map).map(name => ({ name, age: map[name] }));
             }, [rides]);
+            // Live GPS readout from the user to a given land: distance, compass direction,
+            // walking minutes. Returns null unless GPS is on, we have a fix, the land has
+            // coordinates, and the user is plausibly at the park (<5km).
+            const gpsToLand = (parkId, landName) => {
+                if (!gpsEnabled || !userGPS) return null;
+                const arr = TACTICAL_COORDS[parkId];
+                if (!arr) return null;
+                const land = arr.find(c => (landName || '').toLowerCase().includes(c.match));
+                if (!land || typeof land.lat !== 'number' || typeof land.lng !== 'number') return null;
+                const distM = Math.round(getHaversineDistance(userGPS.lat, userGPS.lng, land.lat, land.lng) * 1000);
+                if (distM > 5000) return null;
+                const idx = compassIdx(getBearing(userGPS.lat, userGPS.lng, land.lat, land.lng));
+                return { distM, walkMin: walkMinsFromMeters(distM), dir: COMPASS[idx], arrow: COMPASS_ARROW[idx] };
+            };
             const RideCard = ({ ride, isCompleted, isMinor, isClosed, globalStep }) => {
                 const isExpanded = expandedRideId === ride.id;
                 const intel = ride.aiIntel;
@@ -1296,6 +1323,14 @@
                                 {(isCompleted || isMinor || isClosed) && (
                                     <p className="text-[9px] font-mono text-slate-500 dark:text-slate-600 uppercase mt-1 line-clamp-1">{ride.parkName} - {ride.landName}</p>
                                 )}
+                                {!isCompleted && !isClosed && (() => {
+                                    const g = gpsToLand(ride.parkId, ride.landName);
+                                    return g ? (
+                                        <p className="text-[9px] font-mono text-blue-500 dark:text-blue-400 mt-1 flex items-center gap-1">
+                                            <span className="text-xs leading-none">{g.arrow}</span> {g.dir} · {g.distM}m · {g.walkMin} min walk
+                                        </p>
+                                    ) : null;
+                                })()}
                             </div>
                             <div className="flex flex-col items-end justify-center shrink-0 ml-auto px-2">
                                 {isClosed ? (
@@ -1723,6 +1758,14 @@
                                                                         {ride.zoneInfo.isRevisit && (
                                                                             <span className="text-[9px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Return visit</span>
                                                                         )}
+                                                                        {(() => {
+                                                                            const g = gpsToLand(ride.parkId, ride.landName);
+                                                                            return g ? (
+                                                                                <span className="text-[9px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full ml-1 flex items-center gap-1 normal-case tracking-normal">
+                                                                                    <span className="text-xs leading-none">{g.arrow}</span> {g.dir} {g.distM}m · {g.walkMin}m walk
+                                                                                </span>
+                                                                            ) : null;
+                                                                        })()}
                                                                         {idx > 0 && ride.zoneInfo.travelTimeFromLast > 0 && (
                                                                             <span className={`text-[10px] ${ride.zoneInfo.isParkHop ? 'text-amber-600 dark:text-amber-500 border-amber-300 dark:border-amber-700/50' : 'text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800'} bg-white dark:bg-[#05070a] px-2 py-0.5 rounded-full ml-1 border flex items-center gap-1`}>
                                                                                 <Icon path={ride.zoneInfo.isParkHop ? I.Navigation : I.Footprints} size={10} />
