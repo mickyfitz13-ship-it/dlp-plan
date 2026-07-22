@@ -73,7 +73,8 @@
             CloudSnow: '<path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"></path><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="8" y1="20" x2="8.01" y2="20"></line><line x1="12" y1="18" x2="12.01" y2="18"></line><line x1="12" y1="22" x2="12.01" y2="22"></line><line x1="16" y1="16" x2="16.01" y2="16"></line><line x1="16" y1="20" x2="16.01" y2="20"></line>',
             CloudLightning: '<path d="M19 16.9A5 5 0 0 0 18 7h-1.26a8 8 0 1 0-11.62 9"></path><polyline points="13 11 9 17 15 17 11 23"></polyline>',
             Droplet: '<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>',
-            Wind: '<path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path>'
+            Wind: '<path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path>',
+            Settings: '<line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line>'
         };
         const GLOBAL_PARKS = {
             "Disneyland Paris": [
@@ -345,6 +346,11 @@
             const [chatInput, setChatInput] = useState('');
             const [isThinking, setIsThinking] = useState(false);
             const chatScrollRef = useRef(null);
+            const [aiKey, setAiKey] = useState(() => localStorage.getItem('dlp_ai_key') || '');
+            const [aiModel, setAiModel] = useState(() => localStorage.getItem('dlp_ai_model') || 'gemini-2.5-flash');
+            const [showAiSettings, setShowAiSettings] = useState(false);
+            useEffect(() => localStorage.setItem('dlp_ai_key', aiKey), [aiKey]);
+            useEffect(() => localStorage.setItem('dlp_ai_model', aiModel), [aiModel]);
             // Route mode: 'auto' = optimizer picks the land order; 'manual' = you do.
             const [routeMode, setRouteMode] = useState(() => localStorage.getItem('dlp_routemode_v1') || 'auto');
             const [manualOrder, setManualOrder] = useState(() => { try { return JSON.parse(localStorage.getItem('dlp_manualorder_v1') || '{}'); } catch (e) { return {}; } });
@@ -1706,6 +1712,14 @@
                 const wdOf = (t) => new Date(t + 'T12:00:00').getDay();
                 const tagStr = (r) => ((r.aiIntel && r.aiIntel.tags) || []).join(' ').toLowerCase() + ' ' + ((r.aiIntel && r.aiIntel.env) || '').toLowerCase();
                 const listRides = (arr) => arr.map(r => `**${r.name}** ${Math.round(r.wait_time)}m`).join(', ');
+                // Narrow a pool to a ride category mentioned in the query (thrill / family / indoor).
+                const catFilter = (arr) => {
+                    if (/(thrill|coaster|roller|intense|adrenaline|scary|fastest|big ride|high g)/.test(q)) return arr.filter(r => /thrill|high intensity|drop tower/.test(tagStr(r)));
+                    if (/(family|kids?|children|gentle|chill|relax|toddler|little ones|calm|all ages)/.test(q)) return arr.filter(r => /family|relax|all ages/.test(tagStr(r)));
+                    if (/(indoor|inside|dark ride)/.test(q)) return arr.filter(r => /indoor|climate|show building/.test((r.aiIntel && r.aiIntel.env || '').toLowerCase()));
+                    return arr;
+                };
+                const catWord = /(thrill|coaster|roller|intense|adrenaline)/.test(q) ? 'thrill ' : /(family|kids?|children|gentle|toddler)/.test(q) ? 'family ' : /(indoor|dark ride)/.test(q) ? 'indoor ' : '';
 
                 // GREETING / THANKS / IDENTITY
                 if (/^(hi|hey|hello|yo|sup|howdy|greetings|good (morning|afternoon|evening)|overwatch)\b/.test(q) || /(you there|anyone there|status\?)/.test(q)) {
@@ -1819,17 +1833,24 @@
                     }
                 }
 
-                // SHORTEST / LONGEST WAITS
-                if (/(shortest|lowest|quickest|smallest|least|walk ?on|quick win|easy win).*(wait|queue|line|ride)?|any short|what.*quick/.test(q)) {
-                    const s = openPool.slice().sort((a, b) => a.wait_time - b.wait_time).slice(0, 5);
-                    return s.length ? `Shortest waits right now: ${listRides(s)}. Grab these while they're cheap.` : "No open rides with waits to compare yet.";
+                // BEST / TOP PICKS (priority + low wait, category-aware). Not "best day".
+                if (/(best|top|must[ -]?do|greatest|worth it|worth riding|what.*good|recommend.*ride|highlight)/.test(q) && !/\bday\b/.test(q)) {
+                    let poolB = catFilter(openPool.filter(r => r.isPriority));
+                    if (!poolB.length) poolB = catFilter(openPool);
+                    poolB = poolB.slice().sort((a, b) => a.wait_time - b.wait_time).slice(0, 6);
+                    return poolB.length ? `Top ${catWord}picks right now (priority first, lowest wait): ${listRides(poolB)}. Hit these before the lines build.` : "Nothing open matches that right now.";
                 }
-                if (/(longest|highest|busiest|worst|biggest).*(wait|queue|line|ride)?|what.*avoid|most crowded/.test(q)) {
-                    const s = openPool.slice().sort((a, b) => b.wait_time - a.wait_time).slice(0, 5);
-                    return s.length ? `Biggest lines to avoid or save for later: ${listRides(s)}.` : "No open rides to compare yet.";
+                // SHORTEST / LONGEST WAITS (respect any category in the query)
+                if (/(shortest|lowest|quickest|smallest|least|walk ?on|quick win|easy win|any short|what.*quick)/.test(q)) {
+                    const s = catFilter(openPool).slice().sort((a, b) => a.wait_time - b.wait_time).slice(0, 6);
+                    return s.length ? `Shortest ${catWord}waits right now: ${listRides(s)}. Grab these while they're cheap.` : `No open ${catWord}rides to compare yet.`;
+                }
+                if (/(longest|highest|busiest|worst|biggest|most crowded|what.*avoid)/.test(q)) {
+                    const s = catFilter(openPool).slice().sort((a, b) => b.wait_time - a.wait_time).slice(0, 6);
+                    return s.length ? `Biggest ${catWord}lines to avoid or save for later: ${listRides(s)}.` : `No open ${catWord}rides to compare yet.`;
                 }
 
-                // THRILL / FAMILY
+                // THRILL / FAMILY (plain "thrill rides" / "family rides")
                 if (/(thrill|coaster|roller|intense|adrenaline|scary|fastest|big ride|high g)/.test(q)) {
                     const t = openPool.filter(r => /thrill|high intensity|drop tower/.test(tagStr(r))).sort((a, b) => a.wait_time - b.wait_time).slice(0, 6);
                     return t.length ? `Thrill lineup, quietest first: ${listRides(t)}.` : "No open thrill rides match right now.";
@@ -1882,16 +1903,74 @@
                 if (weather && weather.current) tail = ` It's ${Math.round(weather.current.temperature_2m)}°C at ${currentParkName} right now.`;
                 return `I didn't catch a specific request.${tail} I can cover: **next ride**, **nearest**, **weather** (today/tomorrow/any day), **park open/closing**, **shortest/longest waits**, **thrill/family/indoor** picks, **quietest day**, **progress**, or any **ride by name**.`;
             };
-            const handleAsk = () => {
+            // Compact live-state snapshot the LLM reasons over (grounding).
+            const buildAiContext = () => {
+                const L = [];
+                L.push(`Region: ${activeRegion}. Viewing: ${activePark === 'all' ? 'Full resort' : currentParkName}. Local time now: ${new Date().toLocaleTimeString('en-GB', { hour12: false })}.`);
+                GLOBAL_PARKS[activeRegion].forEach(p => {
+                    const r = rides.find(x => x.parkId === p.id);
+                    let close = '';
+                    if (r && typeof r.minsToClose === 'number' && r.minsToClose > 0 && r.minsToClose < 900) {
+                        const c = new Date(Date.now() + r.minsToClose * 60000 + getTzOffsetMs(PARK_TZ[p.id] || 'UTC'));
+                        close = ` (closes ${String(c.getUTCHours()).padStart(2, '0')}:${String(c.getUTCMinutes()).padStart(2, '0')})`;
+                    }
+                    L.push(`Park ${p.name}: ${(parkStatus[p.id] || 'unknown')}${close}.`);
+                });
+                if (weather && weather.current && weather.daily) {
+                    const c = weather.current, d = weather.daily;
+                    const wd = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                    L.push(`Weather now: ${Math.round(c.temperature_2m)}C ${weatherInfo(c.weather_code).label}${d.precipitation_probability_max ? ', today ' + d.precipitation_probability_max[0] + '% rain' : ''}.`);
+                    L.push('7-day: ' + d.time.slice(0, 7).map((t, i) => `${i === 0 ? 'today' : wd[new Date(t + 'T12:00:00').getDay()]} ${Math.round(d.temperature_2m_max[i])}/${Math.round(d.temperature_2m_min[i])}C ${d.precipitation_probability_max ? d.precipitation_probability_max[i] + '%' : ''}`).join('; ') + '.');
+                }
+                L.push(`Plan: expected queue ${Math.floor(metrics.totalQueueTimeMins / 60)}h${metrics.totalQueueTimeMins % 60}m, walking ${Math.floor(metrics.walkMins / 60)}h${metrics.walkMins % 60}m, saved ~${Math.floor(metrics.totalSavedMins / 60)}h${metrics.totalSavedMins % 60}m. Completed ${completedTargets.size}. Objectives left ${masterSequence.length}.`);
+                const steps = masterSequence.slice(0, 6).map((r, i) => `${i + 1}. ${r.name} (${r.landName}) ETA ${r.plannedEta || '-'} ~${typeof r.plannedWait === 'number' ? r.plannedWait : Math.round(r.wait_time)}m`);
+                if (steps.length) L.push('Next steps: ' + steps.join('; ') + '.');
+                if (nearestRide) L.push(`Nearest un-ridden: ${nearestRide.ride.name} ${nearestRide.dir} ${nearestRide.distLabel} (${nearestRide.timeLabel}).`);
+                if (recommendedDay && forecastDaysRow[recommendedDay.index]) L.push(`Quietest upcoming day: ${forecastDaysRow[recommendedDay.index].label} (~${recommendedDay.avg}m avg).`);
+                const on = Object.keys(breaks).filter(k => breaks[k]);
+                L.push(`Breaks: ${on.length ? on.join('+') : 'none'}.`);
+                const pool = rides.filter(r => activePark === 'all' || r.parkId === parseInt(activePark)).slice().sort((a, b) => (a.is_open === b.is_open) ? a.wait_time - b.wait_time : (a.is_open ? -1 : 1));
+                L.push('Rides (name [land] wait, *=priority, tags):\n' + pool.slice(0, 45).map(r => `${r.name} [${r.landName}] ${r.is_open ? Math.round(r.wait_time) + 'm' : 'CLOSED'}${r.isPriority ? ' *' : ''} ${((r.aiIntel && r.aiIntel.tags) || []).join('/')}`).join('\n'));
+                return L.join('\n');
+            };
+            const callLLM = async (hist) => {
+                const sys = `You are "Overwatch", a concise, upbeat tactical theme-park advisor built into a live touring-plan app. Answer using the LIVE DATA below; use web search for facts the data lacks (parade/show times, height requirements, general tips). If unsure, say so briefly. Be specific (ride names, waits, ETAs, temps). Keep replies under ~6 sentences unless asked for detail. Use **bold** for key items.\n\nLIVE DATA:\n${buildAiContext()}`;
+                const body = {
+                    systemInstruction: { parts: [{ text: sys }] },
+                    contents: hist.slice(-8).map(m => ({ role: m.role === 'model' ? 'model' : 'user', parts: m.parts })),
+                    tools: [{ google_search: {} }],
+                    generationConfig: { temperature: 0.6, maxOutputTokens: 600 }
+                };
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(aiModel)}:generateContent?key=${encodeURIComponent(aiKey)}`;
+                const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`HTTP ${res.status} ${t.slice(0, 140)}`); }
+                const j = await res.json();
+                const parts = j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts;
+                const txt = parts ? parts.map(p => p.text).filter(Boolean).join('') : '';
+                if (!txt) throw new Error('empty response');
+                return txt.trim();
+            };
+            const handleAsk = async () => {
                 if (!chatInput.trim() || isThinking) return;
                 const q = chatInput;
-                setChatHistory(prev => [...prev, { role: 'user', parts: [{ text: q }] }]);
+                const newHist = [...chatHistory, { role: 'user', parts: [{ text: q }] }];
+                setChatHistory(newHist);
                 setChatInput('');
                 setIsThinking(true);
-                setTimeout(() => {
-                    setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: answerQuery(q) }] }]);
-                    setIsThinking(false);
-                }, 250);
+                if (aiKey) {
+                    try {
+                        const reply = await callLLM(newHist);
+                        setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: reply }] }]);
+                    } catch (e) {
+                        addLog(`[WARN] Overwatch AI link failed: ${e.message}`, 'warn');
+                        setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: answerQuery(q) + "\n\n_(AI link failed — offline mode. Check your key/model in ⚙.)_" }] }]);
+                    } finally { setIsThinking(false); }
+                } else {
+                    setTimeout(() => {
+                        setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: answerQuery(q) }] }]);
+                        setIsThinking(false);
+                    }, 250);
+                }
             };
             return (
                 <div className="min-h-screen text-slate-800 dark:text-slate-300 font-sans p-4 md:p-8 flex flex-col items-center pb-32 transition-colors duration-300">
@@ -2356,20 +2435,38 @@
                         <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800 bg-emerald-500/10 rounded-t-2xl">
                             <h3 className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
                                 <Icon path={I.Cpu} size={16} className={isThinking ? 'animate-pulse' : ''} /> Overwatch AI
+                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${aiKey ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>{aiKey ? 'AI' : 'Local'}</span>
                             </h3>
-                            <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><Icon path={I.X} size={18} /></button>
+                            <div className="flex items-center gap-1">
+                                <button onClick={() => setShowAiSettings(s => !s)} className="text-slate-400 hover:text-emerald-500 p-1"><Icon path={I.Settings} size={16} /></button>
+                                <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"><Icon path={I.X} size={18} /></button>
+                            </div>
                         </div>
                         <div ref={chatScrollRef} className="flex-grow overflow-y-auto p-4 space-y-4 text-sm bg-slate-50/50 dark:bg-[#05070a]/50 terminal-scroll">
+                            {showAiSettings && (
+                                <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs space-y-2 shadow-sm">
+                                    <p className="font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px]">Open-response mode (optional)</p>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">Paste your own free <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="underline text-emerald-500">Google AI Studio</a> key for free-form answers + live web lookups (parade times, tips). Stored only on this device. Without a key, the built-in offline assistant answers.</p>
+                                    <input type="password" value={aiKey} onChange={e => setAiKey(e.target.value)} placeholder="Gemini API key" className="w-full bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500" />
+                                    <input type="text" value={aiModel} onChange={e => setAiModel(e.target.value)} placeholder="model" className="w-full bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500" />
+                                    <div className="flex gap-2 items-center">
+                                        <button onClick={() => setShowAiSettings(false)} className="flex-grow bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-1.5 text-[10px] font-black uppercase tracking-wider">Done</button>
+                                        {aiKey && <button onClick={() => setAiKey('')} className="text-[10px] font-bold text-rose-500 border border-rose-300 dark:border-rose-800 rounded-lg px-2 py-1.5">Clear key</button>}
+                                    </div>
+                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">Note: a browser-side key is visible on this device — use a key with only Generative Language enabled, and revoke it if the page is shared.</p>
+                                </div>
+                            )}
                             {chatHistory.length === 0 && (
                                 <div className="text-center text-slate-400 dark:text-slate-500 font-mono text-xs my-6">
                                     <Icon path={I.Activity} size={24} className="mx-auto mb-2 opacity-50" />
                                     <p className="mb-1 text-emerald-500 font-bold">SECURE COMMS ESTABLISHED.</p>
                                     <p>I read your live plan, GPS, and weather.</p>
                                     <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
-                                        {["What should I ride next?", "Weather on Saturday?", "Closing time?", "Shortest waits right now", "Thrill rides", "What if it rains?", "My progress?"].map(s => (
+                                        {["What should I ride next?", "Best rides right now", "Weather on Saturday?", "Closing time?", "Shortest wait for thrill rides", "What if it rains?", "My progress?"].map(s => (
                                             <button key={s} onClick={() => { setChatInput(s); setTimeout(handleAsk, 0); }} className="text-[10px] bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-full px-2.5 py-1 hover:border-emerald-400 text-slate-600 dark:text-slate-400">{s}</button>
                                         ))}
                                     </div>
+                                    {!aiKey && <p className="mt-3 text-[9px] text-slate-400 dark:text-slate-500">Tip: add a free Gemini key via the <Icon path={I.Settings} size={9} className="inline" /> for open-ended answers &amp; live web lookups.</p>}
                                 </div>
                             )}
                             {chatHistory.map((msg, i) => (
