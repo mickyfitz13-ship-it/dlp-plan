@@ -347,9 +347,21 @@
             const [isThinking, setIsThinking] = useState(false);
             const chatScrollRef = useRef(null);
             const [aiKey, setAiKey] = useState(() => localStorage.getItem('dlp_ai_key') || '');
-            const [aiModel, setAiModel] = useState(() => localStorage.getItem('dlp_ai_model') || 'gemini-2.5-flash');
+            const [aiModel, setAiModel] = useState(() => {
+                const saved = localStorage.getItem('dlp_ai_model');
+                // 'gemini-flash-latest' is an alias that always tracks the current flash model,
+                // so it won't 404 when Google retires a specific version. Migrate old defaults.
+                if (!saved || saved === 'gemini-2.5-flash' || saved === 'gemini-2.0-flash' || saved === 'gemini-1.5-flash') return 'gemini-flash-latest';
+                return saved;
+            });
             const [showAiSettings, setShowAiSettings] = useState(false);
             const [aiTestResult, setAiTestResult] = useState('');
+            const [aiSearch, setAiSearch] = useState(() => { const v = localStorage.getItem('dlp_ai_search'); return v === null ? false : v === 'true'; });
+            const [aiProvider, setAiProvider] = useState(() => localStorage.getItem('dlp_ai_provider') || 'gemini');
+            const [aiBaseUrl, setAiBaseUrl] = useState(() => localStorage.getItem('dlp_ai_baseurl') || 'https://openrouter.ai/api/v1');
+            useEffect(() => localStorage.setItem('dlp_ai_provider', aiProvider), [aiProvider]);
+            useEffect(() => localStorage.setItem('dlp_ai_baseurl', aiBaseUrl), [aiBaseUrl]);
+            useEffect(() => localStorage.setItem('dlp_ai_search', String(aiSearch)), [aiSearch]);
             useEffect(() => localStorage.setItem('dlp_ai_key', aiKey), [aiKey]);
             useEffect(() => localStorage.setItem('dlp_ai_model', aiModel), [aiModel]);
             // Route mode: 'auto' = optimizer picks the land order; 'manual' = you do.
@@ -1935,44 +1947,74 @@
                 const on = Object.keys(breaks).filter(k => breaks[k]);
                 L.push(`Breaks: ${on.length ? on.join('+') : 'none'}.`);
                 const pool = rides.filter(r => activePark === 'all' || r.parkId === parseInt(activePark)).slice().sort((a, b) => (a.is_open === b.is_open) ? a.wait_time - b.wait_time : (a.is_open ? -1 : 1));
-                L.push('Rides (name [land] wait, *=priority, tags):\n' + pool.slice(0, 45).map(r => `${r.name} [${r.landName}] ${r.is_open ? Math.round(r.wait_time) + 'm' : 'CLOSED'}${r.isPriority ? ' *' : ''} ${((r.aiIntel && r.aiIntel.tags) || []).join('/')}`).join('\n'));
+                L.push('Rides (name [land] wait, *=priority, tags):\n' + pool.slice(0, 32).map(r => `${r.name} [${r.landName}] ${r.is_open ? Math.round(r.wait_time) + 'm' : 'CLOSED'}${r.isPriority ? ' *' : ''} ${((r.aiIntel && r.aiIntel.tags) || []).join('/')}`).join('\n'));
                 return L.join('\n');
             };
-            // One Gemini call. useTools toggles Google Search grounding (a common 400 cause,
-            // so we can retry without it). Surfaces the REAL error text for debugging.
+            const SYS_PROMPT = () => `You are "Overwatch", a concise, upbeat tactical theme-park advisor built into a live touring-plan app. Answer using the LIVE DATA below; use web search for facts the data lacks (parade/show times, height requirements, general tips). If unsure, say so briefly. Be specific (ride names, waits, ETAs, temps). Keep replies under ~6 sentences unless asked for detail. Use **bold** for key items.\n\nLIVE DATA:\n${buildAiContext()}`;
+            // Provider-aware call. Gemini (native, CORS-friendly) or any OpenAI-COMPATIBLE
+            // endpoint that allows browser calls (e.g. OpenRouter). Note: api.openai.com itself
+            // sends no CORS headers, so it can't be called from a static page.
             const callLLM = async (hist, useTools) => {
                 const key = (aiKey || '').trim();
-                const model = (aiModel || 'gemini-2.5-flash').trim();
+                const model = (aiModel || (aiProvider === 'gemini' ? 'gemini-flash-latest' : '')).trim();
                 if (!key) throw new Error('No API key set.');
-                const sys = `You are "Overwatch", a concise, upbeat tactical theme-park advisor built into a live touring-plan app. Answer using the LIVE DATA below; use web search for facts the data lacks (parade/show times, height requirements, general tips). If unsure, say so briefly. Be specific (ride names, waits, ETAs, temps). Keep replies under ~6 sentences unless asked for detail. Use **bold** for key items.\n\nLIVE DATA:\n${buildAiContext()}`;
-                const body = {
-                    systemInstruction: { parts: [{ text: sys }] },
-                    contents: hist.slice(-8).map(m => ({ role: m.role === 'model' ? 'model' : 'user', parts: m.parts })),
-                    generationConfig: { temperature: 0.6, maxOutputTokens: 600 }
-                };
-                if (useTools) body.tools = [{ google_search: {} }];
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-                let res;
-                try {
-                    res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
-                } catch (e) {
-                    throw new Error(`Network/CORS blocked (${e.message}). Likely an HTTP-referrer restriction on the key, an ad-blocker, or no connection.`);
-                }
-                if (!res.ok) {
+                const sys = SYS_PROMPT();
+                const parseErr = async (res) => {
                     let msg = `HTTP ${res.status}`;
-                    try { const ej = await res.json(); if (ej && ej.error) msg += ` — ${ej.error.status || ''} ${ej.error.message || ''}`.trim(); } catch (_) {}
-                    const err = new Error(msg); err.status = res.status; throw err;
+                    try { const ej = await res.json(); const e = ej && (ej.error || ej); if (e) msg += ` — ${(e.status || e.type || '')} ${(e.message || '')}`.trim(); } catch (_) {}
+                    const err = new Error(msg); err.status = res.status; return err;
+                };
+                if (aiProvider === 'gemini') {
+                    const body = {
+                        systemInstruction: { parts: [{ text: sys }] },
+                        contents: hist.slice(-8).map(m => ({ role: m.role === 'model' ? 'model' : 'user', parts: m.parts })),
+                        generationConfig: { maxOutputTokens: 600 }
+                    };
+                    if (useTools) body.tools = [{ google_search: {} }];
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+                    let res;
+                    try { res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) }); }
+                    catch (e) { throw new Error(`Network/CORS blocked (${e.message}). Likely an HTTP-referrer restriction on the key, an ad-blocker, or no connection.`); }
+                    if (!res.ok) throw await parseErr(res);
+                    const j = await res.json();
+                    const cand = j && j.candidates && j.candidates[0];
+                    const parts = cand && cand.content && cand.content.parts;
+                    const txt = parts ? parts.map(p => p.text).filter(Boolean).join('') : '';
+                    if (!txt) throw new Error('Empty response' + (cand && cand.finishReason ? ` (finishReason: ${cand.finishReason})` : '') + '.');
+                    return txt.trim();
                 }
+                // OpenAI-compatible (OpenRouter / custom proxy)
+                if (!model) throw new Error('Set a model, e.g. openai/gpt-4o-mini (OpenRouter).');
+                const base = (aiBaseUrl || 'https://openrouter.ai/api/v1').trim().replace(/\/+$/, '');
+                const messages = [{ role: 'system', content: sys }].concat(hist.slice(-8).map(m => ({ role: m.role === 'model' ? 'assistant' : 'user', content: (m.parts || []).map(p => p.text).join('') })));
+                let res;
+                try { res = await fetch(base + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key }, body: JSON.stringify({ model, messages, max_tokens: 600 }) }); }
+                catch (e) { throw new Error(`Network/CORS blocked (${e.message}). This endpoint may not allow browser calls — api.openai.com does not. Use OpenRouter or a proxy.`); }
+                if (!res.ok) throw await parseErr(res);
                 const j = await res.json();
-                const cand = j && j.candidates && j.candidates[0];
-                const parts = cand && cand.content && cand.content.parts;
-                const txt = parts ? parts.map(p => p.text).filter(Boolean).join('') : '';
-                if (!txt) throw new Error('Empty response' + (cand && cand.finishReason ? ` (finishReason: ${cand.finishReason})` : '') + '.');
+                const txt = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+                if (!txt) throw new Error('Empty response.');
                 return txt.trim();
             };
             const askLLM = async (hist) => {
-                try { return await callLLM(hist, true); }
-                catch (e1) { if (e1.status === 400) return await callLLM(hist, false); throw e1; }
+                const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+                if (aiProvider !== 'gemini') {
+                    try { return await callLLM(hist, false); }
+                    catch (e) { if (e.status === 429) { await sleep(3000); return await callLLM(hist, false); } throw e; }
+                }
+                try {
+                    return await callLLM(hist, aiSearch);
+                } catch (e1) {
+                    // The Google Search tool has its own tighter (often billed) quota, so a 400/429
+                    // with it on may succeed without it. And a plain 429 is usually per-minute rate
+                    // limiting that clears after a short wait — back off once and retry.
+                    if (aiSearch && (e1.status === 400 || e1.status === 429)) {
+                        try { return await callLLM(hist, false); }
+                        catch (e2) { if (e2.status === 429) { await sleep(3000); return await callLLM(hist, false); } throw e2; }
+                    }
+                    if (e1.status === 429) { await sleep(3000); return await callLLM(hist, false); }
+                    throw e1;
+                }
             };
             const testAiKey = async () => {
                 setAiTestResult('Testing…');
@@ -1994,7 +2036,11 @@
                         setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: reply }] }]);
                     } catch (e) {
                         addLog(`[ERR] Overwatch AI: ${e.message}`, 'error');
-                        setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: `AI link failed — **${e.message}** (using the ⚙ Test button will confirm the key). Offline answer below:\n\n` + answerQuery(q) }] }]);
+                        const is429 = e.status === 429 || /RESOURCE_EXHAUSTED|quota|\b429\b/.test(e.message);
+                        const note = is429
+                            ? `**Gemini quota hit** (free tier is rate-limited — a few requests per minute/day). Wait a minute and retry, turn **Web search off** in ⚙ to save quota, or add billing. Offline answer:`
+                            : `AI link failed — **${e.message}** (the ⚙ Test button confirms the key). Offline answer:`;
+                        setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: note + '\n\n' + answerQuery(q) }] }]);
                     } finally { setIsThinking(false); }
                 } else {
                     setTimeout(() => {
@@ -2466,7 +2512,7 @@
                         <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800 bg-emerald-500/10 rounded-t-2xl">
                             <h3 className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
                                 <Icon path={I.Cpu} size={16} className={isThinking ? 'animate-pulse' : ''} /> Overwatch AI
-                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${aiKey ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>{aiKey ? 'AI' : 'Local'}</span>
+                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${aiKey ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>{aiKey ? (aiProvider === 'gemini' ? 'Gemini' : 'AI') : 'Local'}</span>
                             </h3>
                             <div className="flex items-center gap-1">
                                 <button onClick={() => setShowAiSettings(s => !s)} aria-label="AI settings" title="AI settings" className="text-slate-400 hover:text-emerald-500 p-1"><Icon path={I.Settings} size={16} /></button>
@@ -2477,9 +2523,28 @@
                             {showAiSettings && (
                                 <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-3 text-xs space-y-2 shadow-sm">
                                     <p className="font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider text-[10px]">Open-response mode (optional)</p>
-                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">Paste your own free <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="underline text-emerald-500">Google AI Studio</a> key for free-form answers + live web lookups (parade times, tips). Stored only on this device. Without a key, the built-in offline assistant answers.</p>
-                                    <input type="password" value={aiKey} onChange={e => setAiKey(e.target.value)} placeholder="Gemini API key" className="w-full bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500" />
-                                    <input type="text" value={aiModel} onChange={e => setAiModel(e.target.value)} placeholder="model" className="w-full bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500" />
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">Bring your own key for free-form answers. Stored only on this device. Without a key, the built-in offline assistant answers.</p>
+                                    <select value={aiProvider} onChange={e => setAiProvider(e.target.value)} className="w-full bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500">
+                                        <option value="gemini">Google Gemini</option>
+                                        <option value="openai">OpenAI-compatible (OpenRouter / proxy)</option>
+                                    </select>
+                                    {aiProvider === 'gemini' ? (
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">Free <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" className="underline text-emerald-500">Google AI Studio</a> key.</p>
+                                    ) : (
+                                        <>
+                                            <input type="text" value={aiBaseUrl} onChange={e => setAiBaseUrl(e.target.value)} placeholder="base URL (e.g. https://openrouter.ai/api/v1)" className="w-full bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500" />
+                                            <p className="text-[10px] text-amber-600 dark:text-amber-400 leading-relaxed">Note: <strong>api.openai.com cannot be called from a browser</strong> (no CORS). Use <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" className="underline">OpenRouter</a> (browser-friendly, routes to GPT/Claude/Gemini) or your own proxy.</p>
+                                        </>
+                                    )}
+                                    <input type="password" value={aiKey} onChange={e => setAiKey(e.target.value)} placeholder={aiProvider === 'gemini' ? 'Gemini API key' : 'API key (e.g. OpenRouter sk-or-…)'} className="w-full bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500" />
+                                    <input type="text" value={aiModel} onChange={e => setAiModel(e.target.value)} placeholder={aiProvider === 'gemini' ? 'model (e.g. gemini-flash-latest)' : 'model (e.g. openai/gpt-4o-mini)'} className="w-full bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500" />
+                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">{aiProvider === 'gemini' ? <><strong>gemini-flash-latest</strong> tracks the current model. Free-tier limits are low (a few req/min); <strong>gemini-3.5-flash-lite</strong> has the highest free limits.</> : <>OpenRouter model IDs like <strong>openai/gpt-4o-mini</strong>, <strong>anthropic/claude-3.5-haiku</strong>, or a free one like <strong>meta-llama/llama-3.3-70b-instruct:free</strong>.</>}</p>
+                                    {aiProvider === 'gemini' && (
+                                        <label className="flex items-center gap-2 text-[10px] text-slate-600 dark:text-slate-400 cursor-pointer">
+                                            <input type="checkbox" checked={aiSearch} onChange={e => setAiSearch(e.target.checked)} className="accent-emerald-500 w-3.5 h-3.5" />
+                                            Live web search (parade times etc.) — <span className="text-amber-500">uses extra quota</span>
+                                        </label>
+                                    )}
                                     <div className="flex gap-2 items-center">
                                         <button onClick={testAiKey} disabled={!aiKey} className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg py-1.5 px-3 text-[10px] font-black uppercase tracking-wider">Test</button>
                                         <button onClick={() => setShowAiSettings(false)} className="flex-grow bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-1.5 text-[10px] font-black uppercase tracking-wider">Done</button>
