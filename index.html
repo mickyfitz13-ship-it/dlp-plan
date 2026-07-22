@@ -1696,60 +1696,191 @@
             // Built-in "Overwatch AI": answers from live plan state + weather. No key, works offline.
             const answerQuery = (raw) => {
                 const q = (raw || '').toLowerCase();
+                const pick = (a) => a[Math.floor(Math.random() * a.length)];
+                const inScope = (r) => activePark === 'all' || r.parkId === parseInt(activePark);
+                const openPool = rides.filter(r => inScope(r) && r.is_open);
                 const nextRide = masterSequence[0];
                 const remainingPri = masterSequence.filter(r => r.isPriority).length;
-                if (/(weather|rain|raining|temperature|\btemp\b|hot|cold|sunny|forecast|umbrella|poncho|wet)/.test(q)) {
-                    if (weatherErr) return "I can't reach the weather service right now. Try again shortly.";
-                    if (!weather || !weather.current) return "Fetching the latest weather — ask again in a second.";
+                const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const wdShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                const wdOf = (t) => new Date(t + 'T12:00:00').getDay();
+                const tagStr = (r) => ((r.aiIntel && r.aiIntel.tags) || []).join(' ').toLowerCase() + ' ' + ((r.aiIntel && r.aiIntel.env) || '').toLowerCase();
+                const listRides = (arr) => arr.map(r => `**${r.name}** ${Math.round(r.wait_time)}m`).join(', ');
+
+                // GREETING / THANKS / IDENTITY
+                if (/^(hi|hey|hello|yo|sup|howdy|greetings|good (morning|afternoon|evening)|overwatch)\b/.test(q) || /(you there|anyone there|status\?)/.test(q)) {
+                    return pick(["Copy that, agent. ", "Overwatch online. ", "Reading you five-by-five. ", "Standing by. "]) + (nextRide ? `Next objective: **${nextRide.name}**${typeof nextRide.plannedWait === 'number' ? ` (~${nextRide.plannedWait}m, ETA ${nextRide.plannedEta})` : ''}.` : `You're deployed at ${currentParkName}. Ask me what to ride, the weather, or park status.`);
+                }
+                if (/(thank|thanks|cheers|nice one|appreciate|legend|good bot)/.test(q)) return pick(["Copy that — happy touring. ", "Any time, agent. ", "Roger. Stay sharp out there. ", "Affirmative. Enjoy the mission. "]);
+                if (/(who are you|what are you|what can you do|\bhelp\b|capabilities|commands|options|how do you work)/.test(q)) {
+                    return "I'm **Overwatch**, your live tactical advisor — I read your plan, GPS and weather. Try: *what should I ride next*, *nearest ride*, *weather tomorrow / on Saturday*, *is the park open*, *closing time*, *shortest waits*, *thrill rides*, *family rides*, *what if it rains*, *quietest day*, *my progress*, *Space Mountain or Big Thunder*, or ask about any ride by name.";
+                }
+
+                // RAIN / INDOOR PLAN (before the weather report so 'if it rains' gives ride picks)
+                if (/(indoor|inside|if it rain|when it rain|rain plan|rainy day|stay dry|shelter|what.*do.*rain|dry rides)/.test(q)) {
+                    const indoor = openPool.filter(r => /indoor|climate|show building/.test((r.aiIntel && r.aiIntel.env || '').toLowerCase())).sort((a, b) => a.wait_time - b.wait_time).slice(0, 5);
+                    return indoor.length ? `If the skies open, stay dry on: ${listRides(indoor)}. Dark rides and show buildings keep the day moving in the rain.` : "Most rides here are outdoor — in heavy rain, hole up in indoor shows, restaurants or shops until it passes.";
+                }
+
+                // WEATHER (day-aware: today / tomorrow / weekday / week / weekend)
+                if (/(weather|rain|raining|temperature|\btemp\b|hot|cold|sunny|forecast|umbrella|poncho|wet|snow|wind|climate|degrees|sun\b|cloud)/.test(q)) {
+                    if (weatherErr) return "I can't reach the weather service right now — try again shortly.";
+                    if (!weather || !weather.current || !weather.daily) return "Fetching the latest weather — ask again in a second.";
                     const c = weather.current, d = weather.daily;
+                    const rainAt = (i) => d.precipitation_probability_max ? d.precipitation_probability_max[i] : null;
+                    const describeDay = (i, labelOverride) => {
+                        const wi = weatherInfo(d.weather_code[i]).label.toLowerCase();
+                        const rain = rainAt(i);
+                        const label = labelOverride || (i === 0 ? 'today' : dayNames[wdOf(d.time[i])]);
+                        let s = `**${currentParkName}** ${label}: ${Math.round(d.temperature_2m_min[i])}–${Math.round(d.temperature_2m_max[i])}°C, ${wi}`;
+                        if (rain != null) s += `, ${rain}% chance of rain`;
+                        s += '.';
+                        if (rain != null && rain >= 50) s += ` Keep indoor rides in your back pocket.`;
+                        else if (d.temperature_2m_max[i] >= 28) s += ` Hot one — hydrate and hit water rides midday.`;
+                        else if (d.temperature_2m_max[i] <= 8) s += ` Wrap up warm.`;
+                        return s;
+                    };
+                    if (/(week|coming days|next few days|outlook|rest of the week)/.test(q) && !/tomorrow/.test(q)) {
+                        const rows = d.time.slice(0, 7).map((t, i) => `${i === 0 ? 'Today' : wdShort[wdOf(t)]} ${Math.round(d.temperature_2m_max[i])}°/${Math.round(d.temperature_2m_min[i])}°${rainAt(i) != null ? ` ${rainAt(i)}%` : ''}`);
+                        let dry = 0, m = Infinity;
+                        if (d.precipitation_probability_max) d.precipitation_probability_max.forEach((p, i) => { if (p < m) { m = p; dry = i; } });
+                        return `7-day outlook for **${currentParkName}**: ${rows.join(' · ')}. Driest bet is **${dry === 0 ? 'today' : dayNames[wdOf(d.time[dry])]}** (${m}% rain).`;
+                    }
+                    if (/weekend/.test(q)) {
+                        const out = []; d.time.forEach((t, i) => { const wd = wdOf(t); if (wd === 6 || wd === 0) out.push(describeDay(i)); });
+                        return out.length ? out.join(' ') : "No weekend days fall inside the 7-day window.";
+                    }
+                    if (/tomorrow/.test(q) && d.time.length > 1) return describeDay(1, 'tomorrow');
+                    let namedIdx = -1;
+                    for (let k = 0; k < 7; k++) { if (q.includes(dayNames[k].toLowerCase())) { for (let i = 0; i < d.time.length; i++) { if (wdOf(d.time[i]) === k) { namedIdx = i; break; } } break; } }
+                    if (namedIdx >= 0) return describeDay(namedIdx);
+                    if (/(hottest|warmest|coldest|coolest)/.test(q)) {
+                        const want = /(hottest|warmest)/.test(q);
+                        let bi = 0; d.temperature_2m_max.forEach((v, i) => { if (want ? v > d.temperature_2m_max[bi] : v < d.temperature_2m_max[bi]) bi = i; });
+                        return `${want ? 'Warmest' : 'Coolest'} of the next 7 days is **${bi === 0 ? 'today' : dayNames[wdOf(d.time[bi])]}** at ${Math.round(d.temperature_2m_max[bi])}°C.`;
+                    }
                     const lbl = weatherInfo(c.weather_code).label.toLowerCase();
-                    const rainToday = d && d.precipitation_probability_max ? d.precipitation_probability_max[0] : null;
-                    let s = `**${currentParkName}** now: **${Math.round(c.temperature_2m)}°C**, ${lbl}` + (typeof c.apparent_temperature === 'number' ? ` (feels ${Math.round(c.apparent_temperature)}°C)` : '') + '.';
-                    if (d) s += ` Today ${Math.round(d.temperature_2m_min[0])}–${Math.round(d.temperature_2m_max[0])}°C`;
-                    if (rainToday != null) s += `, ${rainToday}% rain`;
+                    let s = `**${currentParkName}** right now: **${Math.round(c.temperature_2m)}°C**, ${lbl}` + (typeof c.apparent_temperature === 'number' ? ` (feels ${Math.round(c.apparent_temperature)}°C)` : '') + '.';
+                    s += ` Today ${Math.round(d.temperature_2m_min[0])}–${Math.round(d.temperature_2m_max[0])}°C`;
+                    if (rainAt(0) != null) s += `, ${rainAt(0)}% rain`;
                     s += '.';
-                    if (rainToday != null && rainToday >= 50) s += ` Good window for **indoor** rides — dark rides and shows stay dry.`;
+                    if (typeof c.wind_speed_10m === 'number' && c.wind_speed_10m >= 35) s += ` Heads up: strong winds (${Math.round(c.wind_speed_10m)} km/h) can pause outdoor coasters.`;
+                    if (rainAt(0) != null && rainAt(0) >= 50) s += ` Good day to bank **indoor** rides.`;
                     return s;
                 }
-                if (/(open|closed|closing|\bclose\b|hours|shut)/.test(q)) {
-                    return 'Park status — ' + GLOBAL_PARKS[activeRegion].map(p => `${p.name}: ${(parkStatus[p.id] || 'unknown').toUpperCase()}`).join(' · ') + '.';
+
+                // CLOSING TIME (before generic open/closed)
+                if (/(closing time|what time.*(close|shut|end)|when.*(close|shut|end)|park hours|opening hours|how late)/.test(q)) {
+                    const parts = GLOBAL_PARKS[activeRegion].map(p => {
+                        const r = rides.find(x => x.parkId === p.id);
+                        if (!r || typeof r.minsToClose !== 'number' || r.minsToClose <= 0 || r.minsToClose >= 900) return `${p.name}: closed / no schedule`;
+                        const close = new Date(Date.now() + r.minsToClose * 60000 + getTzOffsetMs(PARK_TZ[p.id] || 'UTC'));
+                        const hh = close.getUTCHours().toString().padStart(2, '0'), mm = close.getUTCMinutes().toString().padStart(2, '0');
+                        return `${p.name}: closes **${hh}:${mm}** (${Math.floor(r.minsToClose / 60)}h ${Math.round(r.minsToClose % 60)}m from now)`;
+                    });
+                    return 'Closing — ' + parts.join(' · ') + '.';
                 }
-                if (/(nearest|closest|near me|around me|by me)/.test(q)) {
+                if (/(is.*open|are.*open|open now|open yet|is.*closed|are.*closed|park status|which.*open|\bshut\b)/.test(q)) {
+                    return 'Park status — ' + GLOBAL_PARKS[activeRegion].map(p => `${p.name}: **${(parkStatus[p.id] || 'unknown').toUpperCase()}**`).join(' · ') + '.';
+                }
+
+                // NEAREST + DISTANCE-TO-A-RIDE
+                if (/(nearest|closest|near me|around me|by me|what.*close.*me)/.test(q)) {
                     if (nearestRide) return `Closest un-ridden target: **${nearestRide.ride.name}** in ${nearestRide.ride.landName} — ${nearestRide.dir} ${nearestRide.distLabel}, ${nearestRide.timeLabel}, currently ${Math.round(nearestRide.ride.wait_time)}m wait.`;
                     return gpsEnabled ? "GPS is on but I don't have a fix yet — give it a moment." : "Turn on **GPS** (top-right) and I'll point you to the closest un-ridden ride.";
                 }
-                if (/(next|what.*(ride|do|now)|where.*go|recommend|should i)/.test(q)) {
+                if (/(how far|how close|distance to|which way|direction to|\bfar\b)/.test(q)) {
+                    const r = findRideByText(raw);
+                    if (r) { const g = gpsForRide(r); return g ? `**${r.name}** is ${g.dir} of you — ${g.distLabel}, about ${g.timeLabel}.` : (gpsEnabled ? "I need a live GPS fix to measure that." : "Turn on **GPS** and I'll give you distance and direction to any ride."); }
+                }
+
+                // NEXT / RECOMMENDATION
+                if (/(next|what.*(ride|do|now)|where.*go|recommend|should i (ride|do|go)|first ride|start with)/.test(q)) {
                     if (!nextRide) return "No active objectives right now — the park may be closed or everything's done. Check the sector selection.";
                     let s = `Next up: **${nextRide.name}** (${nextRide.landName})`;
                     s += typeof nextRide.plannedWait === 'number' ? ` — ETA ${nextRide.plannedEta}, ~${nextRide.plannedWait}m queue.` : ` — ${Math.round(nextRide.wait_time)}m now.`;
-                    if (nearestRide && nearestRide.ride.id !== nextRide.id) s += ` Closest to you is ${nearestRide.ride.name} (${nearestRide.distLabel}).`;
+                    if (masterSequence[1]) s += ` Then **${masterSequence[1].name}**.`;
+                    if (nearestRide && nearestRide.ride.id !== nextRide.id) s += ` (Closest to you is ${nearestRide.ride.name}, ${nearestRide.distLabel}.)`;
                     return s;
                 }
-                // A named ride wins over generic "busy/how long" phrasing.
+
+                // COMPARISON: X or Y
+                if (/\bor\b/.test(q)) {
+                    const bits = raw.split(/\bor\b/i);
+                    if (bits.length === 2) {
+                        const ra = findRideByText(bits[0]), rb = findRideByText(bits[1]);
+                        if (ra && rb && ra.id !== rb.id) {
+                            const wa = ra.is_open ? Math.round(ra.wait_time) : null, wb = rb.is_open ? Math.round(rb.wait_time) : null;
+                            if (wa == null) return `**${ra.name}** is closed — take **${rb.name}** (${wb}m).`;
+                            if (wb == null) return `**${rb.name}** is closed — take **${ra.name}** (${wa}m).`;
+                            const win = wa <= wb ? ra : rb;
+                            return `Take **${win.name}** first — ${Math.min(wa, wb)}m now vs ${Math.max(wa, wb)}m for ${(win === ra ? rb : ra).name}. Double back for the other after.`;
+                        }
+                    }
+                }
+
+                // SHORTEST / LONGEST WAITS
+                if (/(shortest|lowest|quickest|smallest|least|walk ?on|quick win|easy win).*(wait|queue|line|ride)?|any short|what.*quick/.test(q)) {
+                    const s = openPool.slice().sort((a, b) => a.wait_time - b.wait_time).slice(0, 5);
+                    return s.length ? `Shortest waits right now: ${listRides(s)}. Grab these while they're cheap.` : "No open rides with waits to compare yet.";
+                }
+                if (/(longest|highest|busiest|worst|biggest).*(wait|queue|line|ride)?|what.*avoid|most crowded/.test(q)) {
+                    const s = openPool.slice().sort((a, b) => b.wait_time - a.wait_time).slice(0, 5);
+                    return s.length ? `Biggest lines to avoid or save for later: ${listRides(s)}.` : "No open rides to compare yet.";
+                }
+
+                // THRILL / FAMILY
+                if (/(thrill|coaster|roller|intense|adrenaline|scary|fastest|big ride|high g)/.test(q)) {
+                    const t = openPool.filter(r => /thrill|high intensity|drop tower/.test(tagStr(r))).sort((a, b) => a.wait_time - b.wait_time).slice(0, 6);
+                    return t.length ? `Thrill lineup, quietest first: ${listRides(t)}.` : "No open thrill rides match right now.";
+                }
+                if (/(family|kids?|children|gentle|chill|relax|toddler|little ones|calm|slow ride|all ages)/.test(q)) {
+                    const f = openPool.filter(r => /family|relax|all ages/.test(tagStr(r))).sort((a, b) => a.wait_time - b.wait_time).slice(0, 6);
+                    return f.length ? `Family-friendly and low wait: ${listRides(f)}.` : "Nothing tagged family is open at the moment.";
+                }
+
+                // NAMED RIDE (wins over generic totals/busy phrasing)
                 const namedRide = findRideByText(raw);
                 if (namedRide) {
-                    if (!namedRide.is_open) return `**${namedRide.name}** is currently **closed**.`;
+                    if (!namedRide.is_open) return `**${namedRide.name}** is currently **closed**. I'll flag it the moment it reopens.`;
                     let s = `**${namedRide.name}** — ${Math.round(namedRide.wait_time)}m now`;
-                    if (typeof namedRide.projection60m === 'number') s += `, ~${namedRide.projection60m}m in an hour`;
+                    if (typeof namedRide.projection60m === 'number') s += `, trending to ~${namedRide.projection60m}m within the hour`;
                     s += `. ${namedRide.routingReason}.`;
-                    if (namedRide.analytics && namedRide.analytics.bestHour !== 'Calibrating') s += ` Quietest around ${namedRide.analytics.bestHour}.`;
+                    if (namedRide.analytics && namedRide.analytics.bestHour !== 'Calibrating') s += ` Historically quietest around **${namedRide.analytics.bestHour}** (~${namedRide.analytics.low}m), busiest ${namedRide.analytics.worstHour} (~${namedRide.analytics.high}m).`;
+                    const g = gpsForRide(namedRide);
+                    if (g) s += ` It's ${g.dir} of you, ${g.distLabel}.`;
                     return s;
                 }
-                if (/(how long|total|queue time|saved|efficien|walking)/.test(q)) {
-                    return `Plan totals — expected queueing **${Math.floor(metrics.totalQueueTimeMins / 60)}h ${metrics.totalQueueTimeMins % 60}m**, walking ~${Math.floor(metrics.walkMins / 60)}h ${metrics.walkMins % 60}m, roughly ${Math.floor(metrics.totalSavedMins / 60)}h ${metrics.totalSavedMins % 60}m saved vs an unplanned day.`;
+
+                // TOTALS / PROGRESS / PRIORITIES / QUIET DAY / BREAKS
+                if (/(how long|total|queue time|saved|efficien|walking|time.*queue)/.test(q)) {
+                    return `Plan totals — expected queueing **${Math.floor(metrics.totalQueueTimeMins / 60)}h ${metrics.totalQueueTimeMins % 60}m**, walking ~${Math.floor(metrics.walkMins / 60)}h ${metrics.walkMins % 60}m, roughly **${Math.floor(metrics.totalSavedMins / 60)}h ${metrics.totalSavedMins % 60}m saved** vs an unplanned day.`;
                 }
-                if (/(left|remaining|priorit|objective|how many)/.test(q)) {
+                if (/(progress|sitrep|status report|how.*going|how many.*(done|complete|left)|percent|completion)/.test(q)) {
+                    const done = completedTargets.size, total = done + masterSequence.length, pct = total ? Math.round(done / total * 100) : 0;
+                    return `Sitrep: **${done}** cleared, **${masterSequence.length}** remaining (${pct}% complete), ${remainingPri} of those priority targets. ${masterSequence.length ? `Next is ${nextRide.name}.` : 'Route complete — outstanding work.'}`;
+                }
+                if (/(left|remaining|priorit|objective)/.test(q)) {
                     return `**${remainingPri}** priority targets are queued on the active route and ${completedTargets.size} are logged complete (${masterSequence.length} objectives total).`;
                 }
-                if (/(busy|crowd|quiet|best day|which day|when.*go)/.test(q)) {
-                    if (recommendedDay && forecastDaysRow[recommendedDay.index]) return `Quietest of the next 7 days looks like **${forecastDaysRow[recommendedDay.index].label}** (~${recommendedDay.avg}m average across priority rides). See the Forecast tab for detail.`;
+                if (/(busy|crowd|quiet|best day|which day|when.*go|less busy|avoid.*crowd)/.test(q)) {
+                    if (recommendedDay && forecastDaysRow[recommendedDay.index]) return `Quietest of the next 7 days looks like **${forecastDaysRow[recommendedDay.index].label}** (~${recommendedDay.avg}m average across priority rides). Open the Forecast tab for the full breakdown.`;
                     return "I need ~7 days of telemetry before I can call the quietest day — the forecast model is still calibrating.";
                 }
-                if (/(break|lunch|dinner|\beat\b|food|\brest\b)/.test(q)) {
+                if (/(break|lunch|dinner|\beat\b|food|\brest\b|hungry|snack)/.test(q)) {
                     const on = Object.keys(breaks).filter(k => breaks[k]);
-                    return on.length ? `Breaks enabled: ${on.join(' & ')}. Every ride after a break is re-timed for your true later arrival.` : "No breaks scheduled — toggle Lunch/Dinner in the Breaks panel and I'll fold them into the plan.";
+                    return on.length ? `Breaks enabled: ${on.join(' & ')}. Every ride after a break is re-timed for your true later arrival — smart move.` : "No breaks scheduled — toggle **Lunch/Dinner** in the Breaks panel and I'll fold them into the plan and re-time everything after.";
                 }
-                return "I read your live plan. Ask me: what to ride **next**, the **nearest** ride, the **weather**, whether a park is **open**, your **total** queue time, how many **priorities** are left, the **quietest day**, or about a **specific ride** by name.";
+
+                // IMPROVED FALLBACK: loose ride guess, else contextual help
+                const nq = normName(raw);
+                const toks = new Set(nq.split(' ').filter(t => t.length > 2));
+                let guess = null, gc = 0;
+                rides.forEach(r => { if (!inScope(r)) return; const c = normName(r.name).split(' ').filter(t => t.length > 2).filter(t => toks.has(t)).length; if (c > gc) { gc = c; guess = r; } });
+                if (guess && gc >= 1) return `Did you mean **${guess.name}**? It's ${guess.is_open ? `${Math.round(guess.wait_time)}m now` : 'currently closed'}. Ask "how busy is ${guess.name}" for the full read.`;
+                let tail = '';
+                if (weather && weather.current) tail = ` It's ${Math.round(weather.current.temperature_2m)}°C at ${currentParkName} right now.`;
+                return `I didn't catch a specific request.${tail} I can cover: **next ride**, **nearest**, **weather** (today/tomorrow/any day), **park open/closing**, **shortest/longest waits**, **thrill/family/indoor** picks, **quietest day**, **progress**, or any **ride by name**.`;
             };
             const handleAsk = () => {
                 if (!chatInput.trim() || isThinking) return;
@@ -2235,7 +2366,7 @@
                                     <p className="mb-1 text-emerald-500 font-bold">SECURE COMMS ESTABLISHED.</p>
                                     <p>I read your live plan, GPS, and weather.</p>
                                     <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
-                                        {["What should I ride next?", "What's the weather?", "Is the park open?", "How much queue time left?", "Quietest day?"].map(s => (
+                                        {["What should I ride next?", "Weather on Saturday?", "Closing time?", "Shortest waits right now", "Thrill rides", "What if it rains?", "My progress?"].map(s => (
                                             <button key={s} onClick={() => { setChatInput(s); setTimeout(handleAsk, 0); }} className="text-[10px] bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-full px-2.5 py-1 hover:border-emerald-400 text-slate-600 dark:text-slate-400">{s}</button>
                                         ))}
                                     </div>
