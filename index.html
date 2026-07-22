@@ -377,6 +377,21 @@
             const [breaks, setBreaks] = useState(() => { try { return JSON.parse(localStorage.getItem('dlp_breaks_v1') || '{"lunch":false,"dinner":false}'); } catch (e) { return { lunch: false, dinner: false }; } });
             useEffect(() => localStorage.setItem('dlp_breaks_v1', JSON.stringify(breaks)), [breaks]);
             const toggleBreak = (k) => setBreaks(prev => ({ ...prev, [k]: !prev[k] }));
+            const [customBreaks, setCustomBreaks] = useState(() => { try { return JSON.parse(localStorage.getItem('dlp_custombreaks_v1') || '[]'); } catch (e) { return []; } });
+            useEffect(() => localStorage.setItem('dlp_custombreaks_v1', JSON.stringify(customBreaks)), [customBreaks]);
+            const [newBreakTime, setNewBreakTime] = useState('13:00');
+            const [newBreakMins, setNewBreakMins] = useState(45);
+            const [newBreakLabel, setNewBreakLabel] = useState('');
+            const fmtHM = (atMin) => `${String(Math.floor(atMin / 60)).padStart(2, '0')}:${String(atMin % 60).padStart(2, '0')}`;
+            const addCustomBreak = () => {
+                const m = /^(\d{1,2}):(\d{2})$/.exec((newBreakTime || '').trim());
+                if (!m) return;
+                const atMin = Math.min(1439, Math.max(0, Number(m[1]) * 60 + Number(m[2])));
+                const mins = Math.max(5, Math.min(240, parseInt(newBreakMins) || 30));
+                setCustomBreaks(prev => [...prev, { id: Date.now(), label: (newBreakLabel || 'Break').slice(0, 20), atMin, mins }]);
+                setNewBreakLabel('');
+            };
+            const removeCustomBreak = (id) => setCustomBreaks(prev => prev.filter(b => b.id !== id));
             useEffect(() => {
                 if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
             }, [chatHistory, isThinking, isChatOpen]);
@@ -1189,18 +1204,23 @@
                 {
                     let clock = 0;
                     const takenBreaks = {};
+                    // Unified break list: enabled presets + user's custom breaks, earliest first.
+                    // Each is inserted at the first land boundary once its park-local time arrives;
+                    // the break pushes the clock so everything after is re-predicted for its true
+                    // later arrival time.
+                    const activeBreaks = [];
+                    Object.keys(BREAK_DEFS).forEach(bk => { if (breaks[bk]) activeBreaks.push({ key: bk, label: BREAK_DEFS[bk].label, atMin: BREAK_DEFS[bk].atMin, mins: BREAK_DEFS[bk].mins }); });
+                    customBreaks.forEach(b => activeBreaks.push({ key: 'c' + b.id, label: b.label, atMin: b.atMin, mins: b.mins }));
+                    activeBreaks.sort((a, b) => a.atMin - b.atMin);
                     tspSortedLands.forEach(zone => {
-                        // Insert enabled meal breaks at this land boundary once their park-local
-                        // time has arrived. The break pushes the clock, so everything after is
-                        // re-predicted at its real later arrival time.
-                        Object.keys(BREAK_DEFS).forEach(bk => {
-                            if (!breaks[bk] || takenBreaks[bk]) return;
-                            const targetDt = BREAK_DEFS[bk].atMin - (parkBaseMins[zone.parkId] || 0);
+                        activeBreaks.forEach(br => {
+                            if (takenBreaks[br.key]) return;
+                            const targetDt = br.atMin - (parkBaseMins[zone.parkId] || 0);
                             if (targetDt >= 0 && clock >= targetDt) {
                                 const startEta = fmtEta(clock, zone.parkId);
-                                clock += BREAK_DEFS[bk].mins;
-                                takenBreaks[bk] = true;
-                                zone.breakBefore = { label: BREAK_DEFS[bk].label, mins: BREAK_DEFS[bk].mins, at: startEta };
+                                clock += br.mins;
+                                takenBreaks[br.key] = true;
+                                (zone.breaksBefore = zone.breaksBefore || []).push({ label: br.label, mins: br.mins, at: startEta });
                             }
                         });
                         clock += (typeof zone.travelTimeFromLast === 'number' ? zone.travelTimeFromLast : 0);
@@ -1286,7 +1306,7 @@
                     completedSequence, minorSequence, closedSequence,
                     metrics: { walkMins: chosenWalk, totalSavedMins: totalSavedMins, totalQueueTimeMins: Math.round(totalQueueTimeMins) }
                 };
-            }, [rides, activePark, completedTargets, activatedMinors, gpsEnabled, userGPS, activeRegion, routeMode, manualOrder, breaks]);
+            }, [rides, activePark, completedTargets, activatedMinors, gpsEnabled, userGPS, activeRegion, routeMode, manualOrder, breaks, customBreaks]);
             const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
             // Per-park operating status (from schedule minsToClose) for the selector badges.
             const parkStatus = useMemo(() => {
@@ -1911,8 +1931,9 @@
                     return "I need ~7 days of telemetry before I can call the quietest day — the forecast model is still calibrating.";
                 }
                 if (/(break|lunch|dinner|\beat\b|food|\brest\b|hungry|snack)/.test(q)) {
-                    const on = Object.keys(breaks).filter(k => breaks[k]);
-                    return on.length ? `Breaks enabled: ${on.join(' & ')}. Every ride after a break is re-timed for your true later arrival — smart move.` : "No breaks scheduled — toggle **Lunch/Dinner** in the Breaks panel and I'll fold them into the plan and re-time everything after.";
+                    const on = Object.keys(breaks).filter(k => breaks[k]).map(k => `${BREAK_DEFS[k].label} ~${fmtHM(BREAK_DEFS[k].atMin)}`);
+                    customBreaks.slice().sort((a, b) => a.atMin - b.atMin).forEach(b => on.push(`${b.label} ${fmtHM(b.atMin)} (${b.mins}m)`));
+                    return on.length ? `Breaks scheduled: ${on.join(', ')}. Every ride after a break is re-timed for your true later arrival — smart move.` : "No breaks scheduled — toggle **Lunch/Dinner** or add a custom time+duration in the Breaks panel and I'll fold them in.";
                 }
 
                 // IMPROVED FALLBACK: loose ride guess, else contextual help
@@ -1949,8 +1970,9 @@
                 if (steps.length) L.push('Next steps: ' + steps.join('; ') + '.');
                 if (nearestRide) L.push(`Nearest un-ridden: ${nearestRide.ride.name} ${nearestRide.dir} ${nearestRide.distLabel} (${nearestRide.timeLabel}).`);
                 if (recommendedDay && forecastDaysRow[recommendedDay.index]) L.push(`Quietest upcoming day: ${forecastDaysRow[recommendedDay.index].label} (~${recommendedDay.avg}m avg).`);
-                const on = Object.keys(breaks).filter(k => breaks[k]);
-                L.push(`Breaks: ${on.length ? on.join('+') : 'none'}.`);
+                const on = Object.keys(breaks).filter(k => breaks[k]).map(k => `${BREAK_DEFS[k].label} ~${fmtHM(BREAK_DEFS[k].atMin)} ${BREAK_DEFS[k].mins}m`);
+                customBreaks.forEach(b => on.push(`${b.label} ${fmtHM(b.atMin)} ${b.mins}m`));
+                L.push(`Breaks: ${on.length ? on.join(', ') : 'none'}.`);
                 const pool = rides.filter(r => activePark === 'all' || r.parkId === parseInt(activePark)).slice().sort((a, b) => (a.is_open === b.is_open) ? a.wait_time - b.wait_time : (a.is_open ? -1 : 1));
                 L.push('Rides (name [land] wait, *=priority, tags):\n' + pool.slice(0, 32).map(r => `${r.name} [${r.landName}] ${r.is_open ? Math.round(r.wait_time) + 'm' : 'CLOSED'}${r.isPriority ? ' *' : ''} ${((r.aiIntel && r.aiIntel.tags) || []).join('/')}`).join('\n'));
                 return L.join('\n');
@@ -2299,11 +2321,29 @@
                                         <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                                             <Icon path={I.Timer} size={12} /> Breaks
                                         </h2>
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-2 gap-2 mb-3">
                                             <button onClick={() => toggleBreak('lunch')} className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all ${breaks.lunch ? 'bg-amber-500 border-amber-400 text-white shadow-md' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>Lunch 60m</button>
                                             <button onClick={() => toggleBreak('dinner')} className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all ${breaks.dinner ? 'bg-amber-500 border-amber-400 text-white shadow-md' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300'}`}>Dinner 45m</button>
                                         </div>
-                                        <p className="mt-2 text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">Inserted near 13:00 / 18:30 park time. Every ride after a break is re-predicted for its true later arrival.</p>
+                                        {customBreaks.length > 0 && (
+                                            <div className="space-y-1.5 mb-3">
+                                                {customBreaks.slice().sort((a, b) => a.atMin - b.atMin).map(b => (
+                                                    <div key={b.id} className="flex items-center gap-2 bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1.5">
+                                                        <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 shrink-0">{fmtHM(b.atMin)}</span>
+                                                        <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 flex-grow truncate">{b.label} · {b.mins}m</span>
+                                                        <button onClick={() => removeCustomBreak(b.id)} aria-label={`Remove ${b.label} break`} className="text-slate-400 hover:text-rose-500 shrink-0"><Icon path={I.X} size={12} /></button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        <input type="text" value={newBreakLabel} onChange={e => setNewBreakLabel(e.target.value)} placeholder="Break name (optional)" className="w-full mb-1.5 bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1.5 text-[10px] text-slate-700 dark:text-slate-300 focus:outline-none focus:border-emerald-500" />
+                                        <div className="flex gap-1.5 items-center">
+                                            <input type="time" value={newBreakTime} onChange={e => setNewBreakTime(e.target.value)} aria-label="Break time" className="flex-grow bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1.5 text-[10px] text-slate-700 dark:text-slate-300 focus:outline-none focus:border-emerald-500" />
+                                            <input type="number" min="5" max="240" value={newBreakMins} onChange={e => setNewBreakMins(e.target.value)} aria-label="Break minutes" className="w-12 bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded-lg px-1.5 py-1.5 text-[10px] text-slate-700 dark:text-slate-300 focus:outline-none focus:border-emerald-500" />
+                                            <span className="text-[9px] text-slate-400">min</span>
+                                            <button onClick={addCustomBreak} className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-wider">Add</button>
+                                        </div>
+                                        <p className="mt-2 text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">Presets sit near 13:00 / 18:30. Add your own at any park-time (meal, nap, show, fireworks spot). Every ride after a break is re-timed for its true later arrival.</p>
                                     </div>
                                     <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-3 hidden md:block">
                                         <TacticalMap />
@@ -2365,13 +2405,13 @@
                                                     const isFirstInZone = idx === 0 || ride.zoneInfo.zoneKey !== masterSequence[idx-1].zoneInfo.zoneKey;
                                                     return (
                                                         <React.Fragment key={ride.id}>
-                                                            {isFirstInZone && ride.zoneInfo.breakBefore && (
-                                                                <div className="flex items-center justify-center w-full my-5">
+                                                            {isFirstInZone && ride.zoneInfo.breaksBefore && ride.zoneInfo.breaksBefore.map((br, bi) => (
+                                                                <div key={bi} className="flex items-center justify-center w-full my-5">
                                                                     <div className="bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700/50 rounded-full px-4 py-1.5 flex items-center gap-2 text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest shadow-sm">
-                                                                        <Icon path={I.Timer} size={12} /> {ride.zoneInfo.breakBefore.label} break · {ride.zoneInfo.breakBefore.mins}m · from {ride.zoneInfo.breakBefore.at}
+                                                                        <Icon path={I.Timer} size={12} /> {br.label} break · {br.mins}m · from {br.at}
                                                                     </div>
                                                                 </div>
-                                                            )}
+                                                            ))}
                                                             {isFirstInZone && (
                                                                 <div className="flex flex-col items-center justify-center w-full mb-4 mt-8 relative">
                                                                     <div className="h-px w-full bg-emerald-500/30 dark:bg-emerald-500/20 absolute top-1/2 -translate-y-1/2 z-0"></div>
