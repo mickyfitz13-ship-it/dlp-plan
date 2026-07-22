@@ -327,7 +327,7 @@
         // Worker (overwatch-ai-proxy.js), which holds your Gemini key server-side, then paste
         // its URL here. Leave '' to keep the bring-your-own-key model. NEVER hardcode a raw
         // API key in this file — it's public and would be scraped/abused within hours.
-        const SHARED_AI_PROXY = '';
+        const SHARED_AI_PROXY = 'https://summer-hill-0053.mickyfitz13.workers.dev';
         const App = () => {
             const [view, setView] = useState('live');
             const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v4') || "Disneyland Paris");
