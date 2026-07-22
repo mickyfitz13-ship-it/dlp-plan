@@ -349,6 +349,7 @@
             const [aiKey, setAiKey] = useState(() => localStorage.getItem('dlp_ai_key') || '');
             const [aiModel, setAiModel] = useState(() => localStorage.getItem('dlp_ai_model') || 'gemini-2.5-flash');
             const [showAiSettings, setShowAiSettings] = useState(false);
+            const [aiTestResult, setAiTestResult] = useState('');
             useEffect(() => localStorage.setItem('dlp_ai_key', aiKey), [aiKey]);
             useEffect(() => localStorage.setItem('dlp_ai_model', aiModel), [aiModel]);
             // Route mode: 'auto' = optimizer picks the land order; 'manual' = you do.
@@ -595,15 +596,15 @@
                             } catch(e) { addLog(`[WARN] Schedule extraction timeout.`, 'warn'); }
                             parksOnline++;
                             let rawRides = [];
-                            if (data.lands) {
+                            if (Array.isArray(data.lands)) {
                                 data.lands.forEach(land => {
-                                    if (land.rides) {
-                                        land.rides.forEach(r => rawRides.push({ ...r, landName: land.name }));
+                                    if (land && Array.isArray(land.rides)) {
+                                        land.rides.forEach(r => { if (r) rawRides.push({ ...r, landName: land.name || 'Park Grounds' }); });
                                     }
                                 });
                             }
-                            if (data.rides) {
-                                data.rides.forEach(r => rawRides.push({ ...r, landName: 'Park Grounds' }));
+                            if (Array.isArray(data.rides)) {
+                                data.rides.forEach(r => { if (r) rawRides.push({ ...r, landName: 'Park Grounds' }); });
                             }
                             let freshTs = 0;
                             rawRides.forEach(r => {
@@ -633,12 +634,15 @@
                                 addLog(`[WARN] ${park.name}: no confirmed queue movement for ${parkDataAgeMins} mins. Values may lag reality.`, 'warn');
                             }
                             const processed = rawRides
-                                .filter(r => r.name && !r.name.toLowerCase().includes('single rider'))
+                                .filter(r => r.id != null && typeof r.name === 'string' && r.name && !r.name.toLowerCase().includes('single rider'))
                                 .map(r => {
                                     const isPriority = PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
                                     const coords = getCoords(park.id, r.landName);
                                     return {
                                         ...r,
+                                        // Coerce upstream fields so malformed proxy payloads can't inject NaN/undefined.
+                                        wait_time: Number.isFinite(Number(r.wait_time)) ? Number(r.wait_time) : 0,
+                                        is_open: r.is_open === true || r.is_open === 'true' || r.is_open === 1,
                                         parkName: park.name,
                                         parkId: park.id,
                                         isPriority: isPriority,
@@ -1475,6 +1479,7 @@
                                         checked={!!isCompleted}
                                         onChange={(e) => isMinor ? toggleMinor(e, ride.id) : toggleRide(e, ride.id)}
                                         onClick={(e) => e.stopPropagation()}
+                                        aria-label={isMinor ? `Add ${ride.name} to the active route` : `Mark ${ride.name} as ridden`}
                                         className={`w-5 h-5 rounded cursor-pointer bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 ${isMinor ? 'accent-slate-500 dark:accent-slate-600' : 'accent-emerald-500'}`}
                                     />
                                 )}
@@ -1933,22 +1938,48 @@
                 L.push('Rides (name [land] wait, *=priority, tags):\n' + pool.slice(0, 45).map(r => `${r.name} [${r.landName}] ${r.is_open ? Math.round(r.wait_time) + 'm' : 'CLOSED'}${r.isPriority ? ' *' : ''} ${((r.aiIntel && r.aiIntel.tags) || []).join('/')}`).join('\n'));
                 return L.join('\n');
             };
-            const callLLM = async (hist) => {
+            // One Gemini call. useTools toggles Google Search grounding (a common 400 cause,
+            // so we can retry without it). Surfaces the REAL error text for debugging.
+            const callLLM = async (hist, useTools) => {
+                const key = (aiKey || '').trim();
+                const model = (aiModel || 'gemini-2.5-flash').trim();
+                if (!key) throw new Error('No API key set.');
                 const sys = `You are "Overwatch", a concise, upbeat tactical theme-park advisor built into a live touring-plan app. Answer using the LIVE DATA below; use web search for facts the data lacks (parade/show times, height requirements, general tips). If unsure, say so briefly. Be specific (ride names, waits, ETAs, temps). Keep replies under ~6 sentences unless asked for detail. Use **bold** for key items.\n\nLIVE DATA:\n${buildAiContext()}`;
                 const body = {
                     systemInstruction: { parts: [{ text: sys }] },
                     contents: hist.slice(-8).map(m => ({ role: m.role === 'model' ? 'model' : 'user', parts: m.parts })),
-                    tools: [{ google_search: {} }],
                     generationConfig: { temperature: 0.6, maxOutputTokens: 600 }
                 };
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(aiModel)}:generateContent?key=${encodeURIComponent(aiKey)}`;
-                const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                if (!res.ok) { const t = await res.text().catch(() => ''); throw new Error(`HTTP ${res.status} ${t.slice(0, 140)}`); }
+                if (useTools) body.tools = [{ google_search: {} }];
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+                let res;
+                try {
+                    res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
+                } catch (e) {
+                    throw new Error(`Network/CORS blocked (${e.message}). Likely an HTTP-referrer restriction on the key, an ad-blocker, or no connection.`);
+                }
+                if (!res.ok) {
+                    let msg = `HTTP ${res.status}`;
+                    try { const ej = await res.json(); if (ej && ej.error) msg += ` — ${ej.error.status || ''} ${ej.error.message || ''}`.trim(); } catch (_) {}
+                    const err = new Error(msg); err.status = res.status; throw err;
+                }
                 const j = await res.json();
-                const parts = j && j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts;
+                const cand = j && j.candidates && j.candidates[0];
+                const parts = cand && cand.content && cand.content.parts;
                 const txt = parts ? parts.map(p => p.text).filter(Boolean).join('') : '';
-                if (!txt) throw new Error('empty response');
+                if (!txt) throw new Error('Empty response' + (cand && cand.finishReason ? ` (finishReason: ${cand.finishReason})` : '') + '.');
                 return txt.trim();
+            };
+            const askLLM = async (hist) => {
+                try { return await callLLM(hist, true); }
+                catch (e1) { if (e1.status === 400) return await callLLM(hist, false); throw e1; }
+            };
+            const testAiKey = async () => {
+                setAiTestResult('Testing…');
+                try {
+                    const r = await callLLM([{ role: 'user', parts: [{ text: 'Reply with exactly: online' }] }], false);
+                    setAiTestResult('✓ Connected — model replied "' + r.slice(0, 30) + '"');
+                } catch (e) { setAiTestResult('✗ ' + e.message); }
             };
             const handleAsk = async () => {
                 if (!chatInput.trim() || isThinking) return;
@@ -1959,11 +1990,11 @@
                 setIsThinking(true);
                 if (aiKey) {
                     try {
-                        const reply = await callLLM(newHist);
+                        const reply = await askLLM(newHist);
                         setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: reply }] }]);
                     } catch (e) {
-                        addLog(`[WARN] Overwatch AI link failed: ${e.message}`, 'warn');
-                        setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: answerQuery(q) + "\n\n_(AI link failed — offline mode. Check your key/model in ⚙.)_" }] }]);
+                        addLog(`[ERR] Overwatch AI: ${e.message}`, 'error');
+                        setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: `AI link failed — **${e.message}** (using the ⚙ Test button will confirm the key). Offline answer below:\n\n` + answerQuery(q) }] }]);
                     } finally { setIsThinking(false); }
                 } else {
                     setTimeout(() => {
@@ -2438,8 +2469,8 @@
                                 <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${aiKey ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>{aiKey ? 'AI' : 'Local'}</span>
                             </h3>
                             <div className="flex items-center gap-1">
-                                <button onClick={() => setShowAiSettings(s => !s)} className="text-slate-400 hover:text-emerald-500 p-1"><Icon path={I.Settings} size={16} /></button>
-                                <button onClick={() => setIsChatOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"><Icon path={I.X} size={18} /></button>
+                                <button onClick={() => setShowAiSettings(s => !s)} aria-label="AI settings" title="AI settings" className="text-slate-400 hover:text-emerald-500 p-1"><Icon path={I.Settings} size={16} /></button>
+                                <button onClick={() => setIsChatOpen(false)} aria-label="Close assistant" title="Close" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"><Icon path={I.X} size={18} /></button>
                             </div>
                         </div>
                         <div ref={chatScrollRef} className="flex-grow overflow-y-auto p-4 space-y-4 text-sm bg-slate-50/50 dark:bg-[#05070a]/50 terminal-scroll">
@@ -2450,10 +2481,12 @@
                                     <input type="password" value={aiKey} onChange={e => setAiKey(e.target.value)} placeholder="Gemini API key" className="w-full bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500" />
                                     <input type="text" value={aiModel} onChange={e => setAiModel(e.target.value)} placeholder="model" className="w-full bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-[11px] font-mono focus:outline-none focus:border-emerald-500" />
                                     <div className="flex gap-2 items-center">
+                                        <button onClick={testAiKey} disabled={!aiKey} className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg py-1.5 px-3 text-[10px] font-black uppercase tracking-wider">Test</button>
                                         <button onClick={() => setShowAiSettings(false)} className="flex-grow bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-1.5 text-[10px] font-black uppercase tracking-wider">Done</button>
-                                        {aiKey && <button onClick={() => setAiKey('')} className="text-[10px] font-bold text-rose-500 border border-rose-300 dark:border-rose-800 rounded-lg px-2 py-1.5">Clear key</button>}
+                                        {aiKey && <button onClick={() => { setAiKey(''); setAiTestResult(''); }} className="text-[10px] font-bold text-rose-500 border border-rose-300 dark:border-rose-800 rounded-lg px-2 py-1.5">Clear</button>}
                                     </div>
-                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">Note: a browser-side key is visible on this device — use a key with only Generative Language enabled, and revoke it if the page is shared.</p>
+                                    {aiTestResult && <p className={`text-[10px] font-mono leading-relaxed break-words ${aiTestResult.startsWith('✓') ? 'text-emerald-600 dark:text-emerald-400' : aiTestResult.startsWith('✗') ? 'text-rose-500' : 'text-slate-400'}`}>{aiTestResult}</p>}
+                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">Note: a browser-side key is visible on this device — use a key with only the Generative Language API enabled and <strong>no HTTP-referrer restriction</strong> (referrer limits block browser calls), and revoke it if you share the page.</p>
                                 </div>
                             )}
                             {chatHistory.length === 0 && (
@@ -2484,10 +2517,10 @@
                         </div>
                         <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111a] rounded-b-2xl flex gap-2">
                             <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAsk()} placeholder="Ask about your plan…" className="flex-grow bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 shadow-inner" disabled={isThinking} />
-                            <button onClick={handleAsk} disabled={isThinking || !chatInput.trim()} className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg p-2 transition-colors shadow-sm"><Icon path={I.Send} size={16} /></button>
+                            <button onClick={handleAsk} disabled={isThinking || !chatInput.trim()} aria-label="Send message" className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg p-2 transition-colors shadow-sm"><Icon path={I.Send} size={16} /></button>
                         </div>
                     </div>
-                    <button onClick={() => setIsChatOpen(prev => !prev)} className={`fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-emerald-600 text-white p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:scale-110 transition-all z-40 ${isChatOpen ? 'opacity-0 pointer-events-none scale-50' : 'opacity-100 scale-100'}`}>
+                    <button onClick={() => setIsChatOpen(prev => !prev)} aria-label="Open Overwatch AI assistant" title="Overwatch AI" className={`fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-emerald-600 text-white p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:scale-110 transition-all z-40 ${isChatOpen ? 'opacity-0 pointer-events-none scale-50' : 'opacity-100 scale-100'}`}>
                         <Icon path={I.MessageSquare} size={24} />
                     </button>
                 </div>
