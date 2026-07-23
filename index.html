@@ -2435,54 +2435,104 @@
                                 </div>
                                 <div className="space-y-6 text-sm text-slate-600 dark:text-slate-300">
                                     <p className="leading-relaxed text-base">
-                                        This planner pulls live queue times every 5 minutes and, combined with your historical telemetry, <strong>simulates your whole day</strong> to build the route that spends the least time queuing and walking. It re-optimises whenever you tick off a ride, move (GPS), or change any option.
+                                        This is a live touring planner for 12 Disney parks worldwide. It pulls real queue times every ~5 minutes, blends them with years of historical crowd data, and <strong>simulates your whole day</strong> to build the route that spends the least time queuing and walking — then re-optimises whenever you tick off a ride, move (GPS), or change an option. Below: a quick start, what every feature does, and a full FAQ.
                                     </p>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="space-y-4">
-                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">I. Routing & the plan</h3>
-                                            <ul className="space-y-3">
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.Navigation} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Master Sequence:</strong> For every possible land order the engine predicts what each queue will be <em>at your real arrival time</em> — the live trend for the next ~90 min, blending into that ride's own hour-by-hour, day-of-week history — and picks the lowest total. Ride order inside each land is exact-optimised too; walking legs use measured Disneyland Paris distances. Each card shows its <strong>ETA</strong> and the expected queue then; anything past park close is flagged red.</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Tick rides off:</strong> Check the box when you join a queue. It logs the ride, sets your position as the new origin, and instantly recomputes the route.</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.RefreshCw} size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Return visits:</strong> If a ride is 15+ min cheaper later, its land is split into a first visit plus a deliberate <em>return visit</em> at the cheap hour (pointless splits are merged away).</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.Layers} size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Auto vs Manual & Breaks:</strong> Auto sequences the lands for you; switch to Manual to drag lands into your own order (ETAs follow). Toggle <strong>Lunch/Dinner</strong> and every ride after the break is re-timed for its true later arrival.</span>
-                                                </li>
+
+                                    <div className="bg-emerald-50 dark:bg-emerald-900/15 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4">
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-2 flex items-center gap-2"><Icon path={I.Activity} size={15} /> Quick start</h3>
+                                        <ol className="list-decimal list-inside space-y-1.5 leading-relaxed">
+                                            <li>Pick your <strong>region</strong> (e.g. Disneyland Paris) and a <strong>park</strong> in the left panel — or "Full Resort" for everything.</li>
+                                            <li>The ride list <em>is</em> your plan, already ordered to minimise waiting + walking. Scroll it top to bottom.</li>
+                                            <li><strong>Tick a ride off</strong> when you join its queue — the plan re-routes from where you are.</li>
+                                            <li>On-site, turn <strong>GPS ON</strong> (top right) for live distance, walking time and the live map with your blue dot.</li>
+                                            <li>Tap the <strong>chat button</strong> (bottom-right) and use the option chips to ask anything — no typing needed.</li>
+                                        </ol>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                                        <div className="space-y-3">
+                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">I. The plan &amp; routing</h3>
+                                            <ul className="space-y-2.5">
+                                                <li className="flex items-start gap-2"><Icon path={I.Navigation} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Master Sequence:</strong> for every possible land order the engine predicts each queue <em>at your real arrival time</em> — the live trend for the next ~90 min blending into that ride's own hour-by-hour, day-of-week history — and picks the lowest total. Ride order within a land is exact-optimised; walking uses measured distances. Each card shows its <strong>ETA</strong> and the expected wait then.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Tick rides off:</strong> check the box when you join a queue. It logs the ride, makes your position the new start point, and recomputes instantly.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.RefreshCw} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Return visits:</strong> if a ride is 15+ min cheaper later, its land is split into a first visit plus a deliberate <em>return</em> at the cheap hour (pointless splits are merged away).</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Layers} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Auto vs Manual &amp; breaks:</strong> Auto orders the lands for you; Manual lets you set your own land order (ETAs follow). Add <strong>Lunch/Dinner</strong> or your own custom breaks at any time — every ride after a break is re-timed for its true later arrival.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Activity} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Saved vs Unplanned:</strong> the minutes you save versus an average unplanned land order — pure queue + walking time, not a sales figure.</span></li>
                                             </ul>
                                         </div>
-                                        <div className="space-y-4">
-                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">II. On-site tools</h3>
-                                            <ul className="space-y-3">
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.MapPin} size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                                                    <span><strong>GPS & live compass:</strong> With GPS on, every park, land and ride shows live distance, walking time and a direction arrow that <em>rotates using your phone's compass</em> to point the real way as you turn. A banner names the nearest un-ridden ride. (iOS asks permission on first tap; needs HTTPS.)</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.Cloud} size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Weather & forecast:</strong> The left pane shows current conditions and a 7-day outlook for the selected park. The <strong>Multi-Day Forecast</strong> tab flags the quietest upcoming day; the selector badges parks as Open / Closing / Closed from the live schedule.</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.Cpu} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Overwatch AI:</strong> The chat button reads your live plan, GPS and weather — ask "what's next", "shortest thrill wait", "weather Saturday", "is the park open". It works offline; add a free Gemini key (⚙) for open-ended answers and live web lookups.</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.AlertTriangle} size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Data honesty:</strong> Tap a card for its full read — now/30/60-min projections and its quietest & busiest hours. If the upstream feed stops moving, an amber banner warns you the exact numbers may lag.</span>
-                                                </li>
+                                        <div className="space-y-3">
+                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">II. Live map &amp; GPS navigation</h3>
+                                            <ul className="space-y-2.5">
+                                                <li className="flex items-start gap-2"><Icon path={I.MapPin} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Turn GPS on</strong> (top right) to unlock everything location-based. iOS prompts for location + motion on the first tap; the site must be on HTTPS.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.MapIcon} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Schematic vs Live Map:</strong> toggle at the top of the map card. Live Map is a real map (OpenStreetMap) with numbered pins for your plan, a blue dot for you, and a line to your next ride. Schematic is the offline diagram fallback.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Navigation} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Follow &amp; heading:</strong> tap <strong>Follow</strong> and the map tracks you as you walk (pan it by hand to release). Your dot shows a cone for which way you're facing, and a banner points to the next ride with walk time, distance and direction. <strong>Recenter</strong> re-fits your whole plan.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.MapPin} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>On every card:</strong> with GPS on, each ride, land and park shows live distance, walking time and a compass arrow that rotates with your phone to point the real way. A banner flags the nearest un-ridden ride.</span></li>
+                                            </ul>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">III. Weather &amp; forecasting</h3>
+                                            <ul className="space-y-2.5">
+                                                <li className="flex items-start gap-2"><Icon path={I.Cloud} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Weather pane:</strong> current conditions plus a 7-day outlook for the selected park, on the left (no key needed).</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Database} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Multi-Day Forecast tab:</strong> pick any of the next 7 days to see each ride's expected average and peak wait, and it flags the <strong>quietest upcoming day</strong> — backed by real crowd-calendar history so it works from day one.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.AlertTriangle} size={16} className="text-amber-500 shrink-0 mt-0.5" /><span><strong>Park status:</strong> the selector badges each park Open / Closing / Closed from the live operating schedule.</span></li>
+                                            </ul>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">IV. Overwatch AI assistant</h3>
+                                            <ul className="space-y-2.5">
+                                                <li className="flex items-start gap-2"><Icon path={I.Cpu} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>It reads your live state</strong> — plan, GPS, weather, park hours. Ask "what's next", "shortest thrill wait", "weather Saturday", "is the park open".</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Send} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Tap-menu, no typing:</strong> the chips above the box drill down (What to ride › Waits › Weather › …). "About a ride" lists your actual plan so you can tap a ride to ask about it.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Cpu} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>AI On/Off:</strong> Off gives instant offline answers from your plan only (no network, no quota). On adds open-ended, conversational answers.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Globe} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Web On/Off:</strong> lets the AI search the internet for live answers (only when AI is on; uses more quota, so it's off by default).</span></li>
                                             </ul>
                                         </div>
                                     </div>
+
+                                    <div className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4">
+                                        <h3 className="text-base font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-2"><Icon path={I.BookOpen} size={16} /> Frequently asked questions</h3>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                                            <div className="space-y-3">
+                                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Getting started</p>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Do I need an account or to install anything?</p><p>No. It runs in your browser — nothing to install, no sign-up. Add it to your home screen for an app-like shortcut.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Which parks are supported?</p><p>Disneyland Paris (both parks), Walt Disney World (all four), Disneyland Resort California (both), Tokyo (both), plus Hong Kong and Shanghai — 12 parks. Switch region and park on the left.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Can I plan from home, or only in the park?</p><p>Both. From home you get the full plan, waits, forecasts and the map. The blue dot, follow-me and per-card distances need GPS, so those come alive once you're on-site (or wherever your device reports you are).</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">How often does it update?</p><p>Live queue times refresh about every 5 minutes; the plan re-optimises on every refresh and whenever you tick a ride, move, or change an option.</p></div>
+
+                                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 pt-1">The plan</p>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">What do the two wait numbers on a card mean?</p><p>The big one is the live wait now; the small amber one is the predicted wait ~60 minutes out. The plan itself uses the wait predicted for your <em>actual</em> arrival time, shown as the card's ETA.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">What does "Saved vs Unplanned" mean?</p><p>The minutes this route saves compared with doing the same rides in an average unplanned land order — purely queue + walking time.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Why did a ride become a "return visit"?</p><p>Its history says the queue drops 15+ minutes later in the day, so the engine deliberately sends you back at the cheaper hour instead of forcing it into the first pass.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Auto vs Manual?</p><p>Auto orders the lands to save the most time. Manual lets you fix your own land order (handy if you want to start somewhere specific) — ETAs and predictions still follow your order.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Why is a ride red / "CLOSING" / "CLOSED"?</p><p>Red means its ETA falls after park close. CLOSING means under ~60 min of operating time left; CLOSED means it's shut now (refurb or outside hours).</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Can I add meal breaks?</p><p>Yes — toggle Lunch/Dinner or add custom breaks at any park-time (meal, nap, show, fireworks). Everything after a break is re-timed for the later arrival.</p></div>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Map &amp; navigation</p>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Why isn't the map following me?</p><p>Tap <strong>Follow</strong> (bottom-right of the map). It tracks you as you move; panning the map by hand releases it so it never fights you — tap it again to re-lock.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">What's the cone on my dot?</p><p>Your facing direction from the phone's compass. The map stays north-up (sharper, less disorienting than spinning it) and the cone + the top banner arrow show which way to walk.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Does it give turn-by-turn directions?</p><p>It shows a straight guide-line and an accurate walking time/distance to your next ride. Full turn-by-turn isn't used on purpose — routing engines don't know Disney's internal paths, so a direct line + measured time is usually more reliable on-property.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">A pin looks slightly off — why?</p><p>Ride positions come live from themeparks.wiki and are accurate. On first load the map briefly uses rough fallback coordinates, then snaps to the real ones once the sync lands — give it a second.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">The iPhone arrow/cone isn't moving.</p><p>iOS needs motion &amp; orientation permission — it's requested when you toggle GPS. If you declined, re-enable it in Safari settings, or just use the distance/time (which work without the compass).</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">The map is blank or won't load.</p><p>It needs a connection to fetch map tiles. If it can't, switch to the Schematic view — everything else keeps working.</p></div>
+
+                                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 pt-1">The AI assistant</p>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Do I need an API key?</p><p>No — a shared assistant is built in. You can add your own free Gemini key (⚙) for your own quota, or turn AI off entirely and use fast offline answers.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Does the AI see my plan?</p><p>Yes — it's given a snapshot of your live plan, GPS, weather and park hours, so answers are about <em>your</em> day, not generic. With Web on it can also look things up online.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">It hit a quota / rate limit.</p><p>The free AI tier is capped per minute/day. Wait a minute, turn Web off to save quota, or add your own key. You always get an offline answer as a fallback.</p></div>
+
+                                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 pt-1">Data, accuracy &amp; privacy</p>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Where does the data come from?</p><p>Live waits and historical stats from Queue-Times.com; park schedules and ride coordinates from themeparks.wiki; weather from Open-Meteo. Your own visit history builds a private day-of-week model over time.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Is my location tracked or shared?</p><p>No. GPS is read only in your browser to place your dot and measure distances — it isn't sent to us or stored. Your settings and history stay on your device.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Are the predictions guaranteed?</p><p>No — queues are unpredictable, so these are best-estimates from live + historical data. That's why the plan re-optimises every few minutes. If a feed stops moving, an amber banner warns you the exact numbers may lag.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Nothing loads / "network nodes isolated".</p><p>Live data is fetched through public proxies that occasionally rate-limit. Wait a moment and it retries automatically across backups; a refresh usually clears it.</p></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed border-t border-slate-200 dark:border-slate-800 pt-3">
-                                        Predictions are best-estimates from live and historical data, not guarantees — queues are stochastic, so the plan re-optimises every 5 minutes to stay honest. Same-day-of-week forecasting sharpens as your telemetry log grows.
+                                        Live &amp; historical wait data by Queue-Times.com · schedules &amp; ride positions by themeparks.wiki · weather by Open-Meteo. Predictions are best-estimates, not guarantees — the plan re-optimises every ~5 minutes to stay honest, and same-day-of-week forecasting sharpens as your own history grows.
                                     </p>
                                 </div>
                             </div>
