@@ -379,6 +379,91 @@
         // its URL here. Leave '' to keep the bring-your-own-key model. NEVER hardcode a raw
         // API key in this file — it's public and would be scraped/abused within hours.
         const SHARED_AI_PROXY = 'https://summer-hill-0053.mickyfitz13.workers.dev';
+        // Live map (Leaflet + OpenStreetMap) — defined at MODULE scope on purpose. If it were
+        // nested inside App, every App re-render (GPS ticks, telemetry timers) would create a new
+        // component identity and React would destroy + rebuild the whole Leaflet map — that was the
+        // flashing / zoom-reset. At module scope its identity is stable, so the map instance persists.
+        const LiveMap = ({ masterSequence, userGPS, gpsEnabled, activePark, activeRegion, gpsForRide }) => {
+            const mapEl = useRef(null);
+            const mapRef = useRef(null);
+            const pinLayerRef = useRef(null);
+            const gpsLayerRef = useRef(null);
+            const fittedRef = useRef(false);
+            const leafletMissing = typeof L === 'undefined';
+            const pins = [];
+            masterSequence.forEach(r => {
+                if (activePark !== 'all' && r.parkId.toString() !== activePark) return;
+                const g = rideGeo(r.parkId, r.name);
+                if (g) pins.push({ step: r.globalStep, name: r.name, lat: g.lat, lng: g.lng, parkId: r.parkId });
+            });
+            const pinsSig = pins.map(p => p.step + ':' + p.lat.toFixed(5) + ',' + p.lng.toFixed(5)).join('|') + '#' + activePark;
+            const recenter = () => {
+                const map = mapRef.current; if (!map) return;
+                const b = pins.map(p => [p.lat, p.lng]);
+                if (gpsEnabled && userGPS) b.push([userGPS.lat, userGPS.lng]);
+                if (b.length) map.fitBounds(b, { padding: [28, 28], maxZoom: 17 });
+                else { const c = PARK_CENTROID[activePark] || PARK_CENTROID[(GLOBAL_PARKS[activeRegion][0] || {}).id]; if (c) map.setView([c.lat, c.lng], 15); }
+            };
+            useEffect(() => {
+                if (leafletMissing || !mapEl.current || mapRef.current) return;
+                const map = L.map(mapEl.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false });
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+                map.on('focus', () => map.scrollWheelZoom.enable());
+                map.on('blur', () => map.scrollWheelZoom.disable());
+                mapRef.current = map;
+                pinLayerRef.current = L.layerGroup().addTo(map);
+                gpsLayerRef.current = L.layerGroup().addTo(map);
+                setTimeout(() => map.invalidateSize(), 120);
+                return () => { map.remove(); mapRef.current = null; pinLayerRef.current = null; gpsLayerRef.current = null; fittedRef.current = false; };
+            }, [leafletMissing]);
+            useEffect(() => {
+                const map = mapRef.current, lg = pinLayerRef.current;
+                if (!map || !lg || leafletMissing) return;
+                lg.clearLayers();
+                if (pins.length > 1) L.polyline(pins.map(p => [p.lat, p.lng]), { color: '#10b981', weight: 3, dashArray: '6 8', opacity: 0.85 }).addTo(lg);
+                const bounds = [];
+                pins.forEach(p => {
+                    const html = `<div style="width:26px;height:26px;border-radius:50%;background:#10b981;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;font-family:monospace">${p.step}</div>`;
+                    L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html, iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(lg).bindPopup(`<b>#${p.step}</b> ${p.name}`);
+                    bounds.push([p.lat, p.lng]);
+                });
+                if (!fittedRef.current) {
+                    if (bounds.length) { map.fitBounds(bounds, { padding: [28, 28], maxZoom: 17 }); fittedRef.current = true; }
+                    else { const c = PARK_CENTROID[activePark] || PARK_CENTROID[(GLOBAL_PARKS[activeRegion][0] || {}).id]; if (c) { map.setView([c.lat, c.lng], 15); fittedRef.current = true; } }
+                }
+                setTimeout(() => map.invalidateSize(), 60);
+            }, [pinsSig, leafletMissing]);
+            useEffect(() => {
+                const map = mapRef.current, lg = gpsLayerRef.current;
+                if (!map || !lg || leafletMissing) return;
+                lg.clearLayers();
+                if (!(gpsEnabled && userGPS)) return;
+                L.circleMarker([userGPS.lat, userGPS.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(lg).bindPopup('You are here');
+                if (pins.length) {
+                    const nxt = pins[0];
+                    L.polyline([[userGPS.lat, userGPS.lng], [nxt.lat, nxt.lng]], { color: '#2563eb', weight: 3, opacity: 0.7 }).addTo(lg);
+                    const g = gpsForRide({ parkId: nxt.parkId, name: nxt.name });
+                    if (g) {
+                        const mid = [(userGPS.lat + nxt.lat) / 2, (userGPS.lng + nxt.lng) / 2];
+                        const lbl = `<div style="background:#2563eb;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.35)">→ #${nxt.step} · ${g.timeLabel} · ${g.distLabel}</div>`;
+                        L.marker(mid, { icon: L.divIcon({ className: '', html: lbl, iconSize: [140, 20], iconAnchor: [70, 10] }) }).addTo(lg);
+                    }
+                }
+            }, [userGPS && userGPS.lat, userGPS && userGPS.lng, gpsEnabled, pinsSig, leafletMissing]);
+            if (leafletMissing) {
+                return (
+                    <div className="w-full aspect-[4/3] bg-slate-100 dark:bg-[#080b12] rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center p-4 text-center">
+                        <p className="text-xs text-slate-500 font-mono">Live map library failed to load.<br/>Check your connection, or use the schematic view.</p>
+                    </div>
+                );
+            }
+            return (
+                <div className="relative w-full aspect-[4/3] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-inner z-0">
+                    <div ref={mapEl} className="absolute inset-0" />
+                    <button onClick={recenter} title="Recenter on your plan" className="absolute bottom-2 right-2 z-[1000] bg-white/90 dark:bg-[#0c111a]/90 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 shadow hover:bg-white dark:hover:bg-[#0c111a]">Recenter</button>
+                </div>
+            );
+        };
         const App = () => {
             const [view, setView] = useState('live');
             const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v4') || "Disneyland Paris");
@@ -1767,99 +1852,6 @@
             };
             const [mapMode, setMapMode] = useState(() => localStorage.getItem('dlp_mapmode') || 'schematic');
             useEffect(() => localStorage.setItem('dlp_mapmode', mapMode), [mapMode]);
-            // Live map (Leaflet + OpenStreetMap): real basemap, blue-dot GPS, numbered ride
-            // pins in plan order, and a guide-line + walking time from you to your next ride.
-            // Reuses the same attraction coordinates and walk-time math as the rest of the app.
-            const LiveMap = () => {
-                const mapEl = useRef(null);
-                const mapRef = useRef(null);
-                const pinLayerRef = useRef(null);
-                const gpsLayerRef = useRef(null);
-                const fittedRef = useRef(false);
-                const leafletMissing = typeof L === 'undefined';
-                // Ride pins from the current plan. Recomputed each render (cheap), but the string
-                // signature below is what drives the pin redraw — so a GPS tick (which rebuilds
-                // masterSequence into a fresh array) no longer rebuilds the whole map. That constant
-                // rebuild + re-fit was the flashing.
-                const pins = [];
-                masterSequence.forEach(r => {
-                    if (activePark !== 'all' && r.parkId.toString() !== activePark) return;
-                    const g = rideGeo(r.parkId, r.name);
-                    if (g) pins.push({ step: r.globalStep, name: r.name, lat: g.lat, lng: g.lng, parkId: r.parkId });
-                });
-                const pinsSig = pins.map(p => p.step + ':' + p.lat.toFixed(5) + ',' + p.lng.toFixed(5)).join('|') + '#' + activePark;
-                const recenter = () => {
-                    const map = mapRef.current; if (!map) return;
-                    const b = pins.map(p => [p.lat, p.lng]);
-                    if (gpsEnabled && userGPS) b.push([userGPS.lat, userGPS.lng]);
-                    if (b.length) map.fitBounds(b, { padding: [28, 28], maxZoom: 17 });
-                    else { const c = PARK_CENTROID[activePark] || PARK_CENTROID[(GLOBAL_PARKS[activeRegion][0] || {}).id]; if (c) map.setView([c.lat, c.lng], 15); }
-                };
-                // One-time map init (two layer groups: pins vs the moving blue-dot).
-                useEffect(() => {
-                    if (leafletMissing || !mapEl.current || mapRef.current) return;
-                    const map = L.map(mapEl.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false });
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
-                    map.on('focus', () => map.scrollWheelZoom.enable());
-                    map.on('blur', () => map.scrollWheelZoom.disable());
-                    mapRef.current = map;
-                    pinLayerRef.current = L.layerGroup().addTo(map);
-                    gpsLayerRef.current = L.layerGroup().addTo(map);
-                    setTimeout(() => map.invalidateSize(), 120);
-                    return () => { map.remove(); mapRef.current = null; pinLayerRef.current = null; gpsLayerRef.current = null; fittedRef.current = false; };
-                }, [leafletMissing]);
-                // Numbered ride pins + route line: redraw ONLY when the pin set actually changes.
-                useEffect(() => {
-                    const map = mapRef.current, lg = pinLayerRef.current;
-                    if (!map || !lg || leafletMissing) return;
-                    lg.clearLayers();
-                    if (pins.length > 1) L.polyline(pins.map(p => [p.lat, p.lng]), { color: '#10b981', weight: 3, dashArray: '6 8', opacity: 0.85 }).addTo(lg);
-                    const bounds = [];
-                    pins.forEach(p => {
-                        const html = `<div style="width:26px;height:26px;border-radius:50%;background:#10b981;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;font-family:monospace">${p.step}</div>`;
-                        L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html, iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(lg).bindPopup(`<b>#${p.step}</b> ${p.name}`);
-                        bounds.push([p.lat, p.lng]);
-                    });
-                    // Fit to the pins ONCE (first draw). Never auto-fit again — that was the jump/flash.
-                    if (!fittedRef.current) {
-                        if (bounds.length) { map.fitBounds(bounds, { padding: [28, 28], maxZoom: 17 }); fittedRef.current = true; }
-                        else { const c = PARK_CENTROID[activePark] || PARK_CENTROID[(GLOBAL_PARKS[activeRegion][0] || {}).id]; if (c) { map.setView([c.lat, c.lng], 15); fittedRef.current = true; } }
-                    }
-                    setTimeout(() => map.invalidateSize(), 60);
-                }, [pinsSig, leafletMissing]);
-                // Blue-dot + guide-line to the next ride. Cheap redraw, and it NEVER re-fits the view,
-                // so moving around no longer makes the map flash — use Recenter to reframe on demand.
-                useEffect(() => {
-                    const map = mapRef.current, lg = gpsLayerRef.current;
-                    if (!map || !lg || leafletMissing) return;
-                    lg.clearLayers();
-                    if (!(gpsEnabled && userGPS)) return;
-                    L.circleMarker([userGPS.lat, userGPS.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(lg).bindPopup('You are here');
-                    if (pins.length) {
-                        const nxt = pins[0];
-                        L.polyline([[userGPS.lat, userGPS.lng], [nxt.lat, nxt.lng]], { color: '#2563eb', weight: 3, opacity: 0.7 }).addTo(lg);
-                        const g = gpsForRide({ parkId: nxt.parkId, name: nxt.name });
-                        if (g) {
-                            const mid = [(userGPS.lat + nxt.lat) / 2, (userGPS.lng + nxt.lng) / 2];
-                            const lbl = `<div style="background:#2563eb;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.35)">→ #${nxt.step} · ${g.timeLabel} · ${g.distLabel}</div>`;
-                            L.marker(mid, { icon: L.divIcon({ className: '', html: lbl, iconSize: [140, 20], iconAnchor: [70, 10] }) }).addTo(lg);
-                        }
-                    }
-                }, [userGPS && userGPS.lat, userGPS && userGPS.lng, gpsEnabled, pinsSig, leafletMissing]);
-                if (leafletMissing) {
-                    return (
-                        <div className="w-full aspect-[4/3] bg-slate-100 dark:bg-[#080b12] rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center p-4 text-center">
-                            <p className="text-xs text-slate-500 font-mono">Live map library failed to load.<br/>Check your connection, or use the schematic view.</p>
-                        </div>
-                    );
-                }
-                return (
-                    <div className="relative w-full aspect-[4/3] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-inner z-0">
-                        <div ref={mapEl} className="absolute inset-0" />
-                        <button onClick={recenter} title="Recenter on your plan" className="absolute bottom-2 right-2 z-[1000] bg-white/90 dark:bg-[#0c111a]/90 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 shadow hover:bg-white dark:hover:bg-[#0c111a]">Recenter</button>
-                    </div>
-                );
-            };
             const TacticalMap = () => {
                 if (activePark === 'all' || !TACTICAL_COORDS[activePark]) {
                     return (
@@ -2544,7 +2536,7 @@
                                             <button onClick={() => setMapMode('schematic')} className={`flex-1 text-[10px] font-black uppercase tracking-wider py-1.5 rounded-lg transition-colors ${mapMode === 'schematic' ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-[#080b12] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>Schematic</button>
                                             <button onClick={() => setMapMode('live')} className={`flex-1 text-[10px] font-black uppercase tracking-wider py-1.5 rounded-lg transition-colors ${mapMode === 'live' ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-[#080b12] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>Live Map</button>
                                         </div>
-                                        {mapMode === 'live' ? <LiveMap /> : <TacticalMap />}
+                                        {mapMode === 'live' ? <LiveMap masterSequence={masterSequence} userGPS={userGPS} gpsEnabled={gpsEnabled} activePark={activePark} activeRegion={activeRegion} gpsForRide={gpsForRide} /> : <TacticalMap />}
                                     </div>
                                 </div>
                                 <div className="lg:col-span-3 space-y-6">
