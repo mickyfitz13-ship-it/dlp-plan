@@ -195,9 +195,13 @@
         Object.keys(RIDE_GEO_RAW).forEach(pid => {
             RIDE_GEO[pid] = RIDE_GEO_RAW[pid].map(row => { const _n = normName(row[0]); return { name: row[0], lat: row[1], lng: row[2], _n, _t: _n.split(' ').filter(t => t.length > 2) }; });
         });
+        // Accurate coordinates fetched live from themeparks.wiki at runtime (populated per park on
+        // first sync). rideGeo prefers these real positions; the static RIDE_GEO above is the
+        // offline fallback used until the fetch lands (or if it fails).
+        const RIDE_GEO_LIVE = {};
         // Best-effort match of a live queue-times ride name to a coordinate entry.
         const rideGeo = (parkId, name) => {
-            const list = RIDE_GEO[parkId];
+            const list = RIDE_GEO_LIVE[parkId] || RIDE_GEO[parkId];
             const q = normName(name);
             if (!list || !q) return null;
             let hit = list.find(g => g._n === q);
@@ -781,6 +785,26 @@
                                     }
                                 }
                             } catch(e) { addLog(`[WARN] Schedule extraction timeout.`, 'warn'); }
+                            // Pull accurate attraction coordinates once per park (themeparks.wiki), so the
+                            // live map and GPS use real ride positions instead of the static estimates.
+                            if (!RIDE_GEO_LIVE[park.id]) {
+                                try {
+                                    const childrenRaw = await fetchWithTimeout(`https://api.themeparks.wiki/v1/entity/${park.tpUuid}/children`);
+                                    const cj = JSON.parse(childrenRaw);
+                                    if (cj && Array.isArray(cj.children)) {
+                                        const geo = [];
+                                        cj.children.forEach(c => {
+                                            if (!c || !c.location) return;
+                                            const lat = c.location.latitude, lng = c.location.longitude;
+                                            if ((c.entityType === 'ATTRACTION' || c.entityType === 'SHOW') && typeof lat === 'number' && typeof lng === 'number') {
+                                                const _n = normName(c.name);
+                                                geo.push({ name: c.name, lat, lng, _n, _t: _n.split(' ').filter(t => t.length > 2) });
+                                            }
+                                        });
+                                        if (geo.length) { RIDE_GEO_LIVE[park.id] = geo; addLog(`[GEO] Synced ${geo.length} real ride positions for ${park.name}.`, 'success'); }
+                                    }
+                                } catch(e) { addLog(`[WARN] Coordinate sync skipped for ${park.name}.`, 'warn'); }
+                            }
                             parksOnline++;
                             let rawRides = [];
                             if (Array.isArray(data.lands)) {
