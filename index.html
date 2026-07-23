@@ -71,6 +71,7 @@
             MessageSquare: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>',
             Send: '<line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>',
             Cloud: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>',
+            Globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
             CloudRain: '<line x1="16" y1="13" x2="16" y2="21"></line><line x1="8" y1="13" x2="8" y2="21"></line><line x1="12" y1="15" x2="12" y2="23"></line><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path>',
             CloudSnow: '<path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"></path><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="8" y1="20" x2="8.01" y2="20"></line><line x1="12" y1="18" x2="12.01" y2="18"></line><line x1="12" y1="22" x2="12.01" y2="22"></line><line x1="16" y1="16" x2="16.01" y2="16"></line><line x1="16" y1="20" x2="16.01" y2="20"></line>',
             CloudLightning: '<path d="M19 16.9A5 5 0 0 0 18 7h-1.26a8 8 0 1 0-11.62 9"></path><polyline points="13 11 9 17 15 17 11 23"></polyline>',
@@ -543,6 +544,10 @@
             const [showAiSettings, setShowAiSettings] = useState(false);
             const [aiTestResult, setAiTestResult] = useState('');
             const [aiSearch, setAiSearch] = useState(() => { const v = localStorage.getItem('dlp_ai_search'); return v === null ? false : v === 'true'; });
+            // User preference to use cloud AI at all. Off = always answer locally (offline rule-based),
+            // even when a key/proxy is available. Defaults on.
+            const [aiOn, setAiOn] = useState(() => { const v = localStorage.getItem('dlp_ai_on'); return v === null ? true : v === 'true'; });
+            useEffect(() => localStorage.setItem('dlp_ai_on', String(aiOn)), [aiOn]);
             const [aiProvider, setAiProvider] = useState(() => localStorage.getItem('dlp_ai_provider') || 'gemini');
             const [aiBaseUrl, setAiBaseUrl] = useState(() => localStorage.getItem('dlp_ai_baseurl') || 'https://openrouter.ai/api/v1');
             useEffect(() => localStorage.setItem('dlp_ai_provider', aiProvider), [aiProvider]);
@@ -2299,6 +2304,8 @@
                 } catch (e) { setAiTestResult('✗ ' + e.message); }
             };
             const aiEnabled = aiProvider === 'gemini' ? (!!aiKey || !!SHARED_AI_PROXY) : !!aiKey;
+            // Cloud AI is used only when it's available AND the user has it switched on.
+            const useCloud = aiOn && aiEnabled;
             const handleAsk = async () => {
                 if (!chatInput.trim() || isThinking) return;
                 const q = chatInput;
@@ -2306,7 +2313,7 @@
                 setChatHistory(newHist);
                 setChatInput('');
                 setIsThinking(true);
-                if (aiEnabled) {
+                if (useCloud) {
                     try {
                         const reply = await askLLM(newHist);
                         setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: reply }] }]);
@@ -2829,7 +2836,7 @@
                         <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800 bg-emerald-500/10 rounded-t-2xl">
                             <h3 className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
                                 <Icon path={I.Cpu} size={16} className={isThinking ? 'animate-pulse' : ''} /> Overwatch AI
-                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${aiEnabled ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>{aiEnabled ? (aiProvider === 'gemini' ? 'Gemini' : 'AI') : 'Local'}</span>
+                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${useCloud ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>{useCloud ? (aiProvider === 'gemini' ? 'Gemini' : 'AI') : 'Local'}</span>
                             </h3>
                             <div className="flex items-center gap-1">
                                 <button onClick={() => setShowAiSettings(s => !s)} aria-label="AI settings" title="AI settings" className="text-slate-400 hover:text-emerald-500 p-1"><Icon path={I.Settings} size={16} /></button>
@@ -2897,9 +2904,16 @@
                                 </div>
                             )}
                         </div>
-                        <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111a] rounded-b-2xl flex gap-2">
-                            <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAsk()} placeholder="Ask about your plan…" className="flex-grow bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 shadow-inner" disabled={isThinking} />
-                            <button onClick={handleAsk} disabled={isThinking || !chatInput.trim()} aria-label="Send message" className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg p-2 transition-colors shadow-sm"><Icon path={I.Send} size={16} /></button>
+                        <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111a] rounded-b-2xl">
+                            <div className="flex items-center gap-1.5 mb-2">
+                                <button onClick={() => setAiOn(v => !v)} disabled={!aiEnabled} title={aiEnabled ? 'Toggle cloud AI. Off = fast offline answers from your plan only.' : 'No AI key or shared proxy configured.'} className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider border transition-colors disabled:opacity-40 ${useCloud ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-slate-100 dark:bg-[#05070a] text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700'}`}><Icon path={I.Cpu} size={10} /> AI {useCloud ? 'On' : 'Off'}</button>
+                                <button onClick={() => setAiSearch(v => !v)} disabled={!useCloud} title={useCloud ? 'Let the AI search the web for live answers (uses more quota).' : 'Turn AI on to enable web search.'} className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider border transition-colors disabled:opacity-40 ${(useCloud && aiSearch) ? 'bg-blue-600 text-white border-blue-400' : 'bg-slate-100 dark:bg-[#05070a] text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700'}`}><Icon path={I.Globe} size={10} /> Web {aiSearch ? 'On' : 'Off'}</button>
+                                <span className="ml-auto text-[9px] font-mono text-slate-400 dark:text-slate-500">{useCloud ? (aiProvider === 'gemini' ? 'Gemini' : 'Cloud') : 'Offline'}</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAsk()} placeholder={useCloud ? 'Ask anything…' : 'Ask about your plan…'} className="flex-grow bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 shadow-inner" disabled={isThinking} />
+                                <button onClick={handleAsk} disabled={isThinking || !chatInput.trim()} aria-label="Send message" className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg p-2 transition-colors shadow-sm"><Icon path={I.Send} size={16} /></button>
+                            </div>
                         </div>
                     </div>
                     <button onClick={() => setIsChatOpen(prev => !prev)} aria-label="Open Overwatch AI assistant" title="Overwatch AI" className={`fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-emerald-600 text-white p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:scale-110 transition-all z-40 ${isChatOpen ? 'opacity-0 pointer-events-none scale-50' : 'opacity-100 scale-100'}`}>
