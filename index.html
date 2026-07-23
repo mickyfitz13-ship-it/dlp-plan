@@ -379,6 +379,41 @@
         // A break advances the clock, so every ride after it is predicted for its true
         // post-break arrival time (realistic - you don't ride 15 things back to back).
         const BREAK_DEFS = { lunch: { label: 'Lunch', atMin: 13 * 60, mins: 60 }, dinner: { label: 'Dinner', atMin: 18 * 60 + 30, mins: 45 } };
+        // Guided chat menu: tap-to-drill-down so you don't have to type. Nodes with `to` open a
+        // submenu; nodes with `q` send that question through the normal ask pipeline (local or AI).
+        // The 'rides' submenu is generated live from the current plan.
+        const CHAT_MENU = {
+            root: [
+                { label: 'What to ride', to: 'ride' },
+                { label: 'Waits & timing', to: 'timing' },
+                { label: 'Weather', to: 'weather' },
+                { label: 'Park & status', to: 'park' },
+                { label: 'About a ride', to: 'rides' }
+            ],
+            ride: [
+                { label: 'Next ride', q: 'what should I ride next' },
+                { label: 'Nearest to me', q: 'nearest ride' },
+                { label: 'Shortest waits', q: 'shortest waits right now' },
+                { label: 'Thrill rides', q: 'thrill rides' },
+                { label: 'Family rides', q: 'family rides' },
+                { label: 'Indoor rides', q: 'indoor rides' }
+            ],
+            timing: [
+                { label: 'Longest waits', q: 'longest waits right now' },
+                { label: 'Quietest day', q: 'quietest day' },
+                { label: 'My progress', q: 'my progress' }
+            ],
+            weather: [
+                { label: 'Right now', q: 'weather now' },
+                { label: 'Tomorrow', q: 'weather tomorrow' },
+                { label: 'On Saturday', q: 'weather on saturday' },
+                { label: 'If it rains', q: 'what if it rains' }
+            ],
+            park: [
+                { label: 'Is the park open?', q: 'is the park open' },
+                { label: 'Closing time', q: 'closing time' }
+            ]
+        };
         // Shared AI for ALL visitors WITHOUT their own key: deploy the included Cloudflare
         // Worker (overwatch-ai-proxy.js), which holds your Gemini key server-side, then paste
         // its URL here. Leave '' to keep the bring-your-own-key model. NEVER hardcode a raw
@@ -532,6 +567,7 @@
             const [chatHistory, setChatHistory] = useState([]);
             const [chatInput, setChatInput] = useState('');
             const [isThinking, setIsThinking] = useState(false);
+            const [menuKey, setMenuKey] = useState('root');
             const chatScrollRef = useRef(null);
             const [aiKey, setAiKey] = useState(() => localStorage.getItem('dlp_ai_key') || '');
             const [aiModel, setAiModel] = useState(() => {
@@ -2306,9 +2342,10 @@
             const aiEnabled = aiProvider === 'gemini' ? (!!aiKey || !!SHARED_AI_PROXY) : !!aiKey;
             // Cloud AI is used only when it's available AND the user has it switched on.
             const useCloud = aiOn && aiEnabled;
-            const handleAsk = async () => {
-                if (!chatInput.trim() || isThinking) return;
-                const q = chatInput;
+            const handleAsk = async (override) => {
+                // override lets menu chips ask a preset question without touching the text box.
+                const q = (typeof override === 'string' ? override : chatInput);
+                if (!q.trim() || isThinking) return;
                 const newHist = [...chatHistory, { role: 'user', parts: [{ text: q }] }];
                 setChatHistory(newHist);
                 setChatInput('');
@@ -2883,11 +2920,7 @@
                                     <Icon path={I.Activity} size={24} className="mx-auto mb-2 opacity-50" />
                                     <p className="mb-1 text-emerald-500 font-bold">SECURE COMMS ESTABLISHED.</p>
                                     <p>I read your live plan, GPS, and weather.</p>
-                                    <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
-                                        {["What should I ride next?", "Best rides right now", "Weather on Saturday?", "Closing time?", "Shortest wait for thrill rides", "What if it rains?", "My progress?"].map(s => (
-                                            <button key={s} onClick={() => { setChatInput(s); setTimeout(handleAsk, 0); }} className="text-[10px] bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-full px-2.5 py-1 hover:border-emerald-400 text-slate-600 dark:text-slate-400">{s}</button>
-                                        ))}
-                                    </div>
+                                    <p className="mt-2 text-[10px] text-emerald-500 font-bold">Tap an option below to explore — or type your own question.</p>
                                     {!aiEnabled && <p className="mt-3 text-[9px] text-slate-400 dark:text-slate-500">Tip: add a free Gemini key via the <Icon path={I.Settings} size={9} className="inline" /> for open-ended answers &amp; live web lookups.</p>}
                                 </div>
                             )}
@@ -2905,6 +2938,22 @@
                             )}
                         </div>
                         <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111a] rounded-b-2xl">
+                            {(() => {
+                                const opts = menuKey === 'rides'
+                                    ? masterSequence.slice(0, 10).map(r => ({ label: r.name.length > 24 ? r.name.slice(0, 23) + '…' : r.name, q: 'tell me about ' + r.name }))
+                                    : (CHAT_MENU[menuKey] || CHAT_MENU.root);
+                                return (
+                                    <div className="flex flex-wrap gap-1.5 mb-2 max-h-24 overflow-y-auto">
+                                        {menuKey !== 'root' && (
+                                            <button onClick={() => setMenuKey('root')} className="text-[10px] bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-full px-2.5 py-1 text-slate-500 dark:text-slate-400 hover:border-emerald-400 font-bold">← Menu</button>
+                                        )}
+                                        {opts.length === 0 && <span className="text-[10px] text-slate-400 self-center">No rides in your plan yet.</span>}
+                                        {opts.map(opt => (
+                                            <button key={opt.label} onClick={() => opt.to ? setMenuKey(opt.to) : handleAsk(opt.q)} disabled={isThinking && !opt.to} className={`text-[10px] rounded-full px-2.5 py-1 border transition-colors disabled:opacity-40 ${opt.to ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:border-emerald-400 font-bold' : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-emerald-400'}`}>{opt.to ? opt.label + ' ›' : opt.label}</button>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
                             <div className="flex items-center gap-1.5 mb-2">
                                 <button onClick={() => setAiOn(v => !v)} disabled={!aiEnabled} title={aiEnabled ? 'Toggle cloud AI. Off = fast offline answers from your plan only.' : 'No AI key or shared proxy configured.'} className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider border transition-colors disabled:opacity-40 ${useCloud ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-slate-100 dark:bg-[#05070a] text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700'}`}><Icon path={I.Cpu} size={10} /> AI {useCloud ? 'On' : 'Off'}</button>
                                 <button onClick={() => setAiSearch(v => !v)} disabled={!useCloud} title={useCloud ? 'Let the AI search the web for live answers (uses more quota).' : 'Turn AI on to enable web search.'} className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider border transition-colors disabled:opacity-40 ${(useCloud && aiSearch) ? 'bg-blue-600 text-white border-blue-400' : 'bg-slate-100 dark:bg-[#05070a] text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700'}`}><Icon path={I.Globe} size={10} /> Web {aiSearch ? 'On' : 'Off'}</button>
