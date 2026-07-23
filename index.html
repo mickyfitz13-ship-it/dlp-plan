@@ -206,6 +206,56 @@
             list.forEach(g => { const c = g._t.filter(t => qt.has(t)).length; if (c > bestC) { bestC = c; best = g; } });
             return bestC >= 2 ? best : null;
         };
+        // ---- Historical priors from queue-times.com (all-time statistics) ----
+        // Per park: d = crowd% by weekday (Sun..Sat), m = crowd% by month (Jan..Dec),
+        // r = normalized ride name -> [avg, max] all-time queue minutes. HOURLY_SHAPE is a
+        // mean-normalized intraday multiplier (queues build to a midday peak, ease by evening).
+        // Together these seed the forecast so the day-simulation is sharp from the first visit,
+        // before the user's own telemetry has accumulated. Powered by Queue-Times.com.
+        const HOURLY_SHAPE = [0.52,0.52,0.52,0.52,0.52,0.52,0.52,0.52,0.52,0.52,0.63,1.15,1.57,1.57,1.57,1.57,1.36,0.94,0.94,0.73,0.63,0.63,0.63,0.63];
+        const RIDE_STATS = {
+    4:{d:[50,52,49,44,47,49,71],m:[37,52,54,61,56,55,51,64,41,51,40,55],r:{"princess pavilion":[73,122],"meet mickey mouse":[52,82],"big thunder mountain":[44,71],"peter pan s flight":[43,64],"buzz lightyear laser blast":[31,55],"autopia":[28,52],"star wars hyperspace mountain":[28,52],"dumbo the flying elephant":[26,41],"orbitron":[26,43],"welcome to starport a star wars encounter":[25,45],"star wars hyperspace mountain single rider":[22,36],"star tours the adventures continue":[21,47],"les voyages de pinocchio":[20,32],"indiana jones and the temple of peril":[18,40],"thunder mesa riverboat landing":[18,19],"pirates of the caribbean":[17,36],"blanche neige et les sept nains":[15,27],"casey jr":[15,29],"phantom manor":[13,28],"indiana jones and the temple of peril single rider":[12,26],"it s a small world":[10,23],"le carrousel de lancelot":[10,16],"mickey s philharmagic":[10,10],"mad hatter s tea cups":[9,15],"le pays des contes de fees":[7,12],"main street vehicles":[7,7],"alice s curious labyrinth":[5,6],"la cabane des robinson":[5,6],"les mysteres du nautilus":[5,5]}},
+    28:{d:[55,45,50,44,45,46,59],m:[38,53,53,62,54,59,52,58,44,51,32,38],r:{"frozen ever after":[71,121],"crush s coaster":[65,88],"crush s coaster single rider":[49,74],"spider man w e b adventure":[44,71],"ratatouille":[42,73],"toy soldiers parachute drop":[36,55],"rc racer":[35,58],"the twilight zone tower of terror":[30,63],"rc racer single rider":[25,50],"avengers assemble flight force":[18,39],"spider man w e b adventure single rider":[16,36],"cars quatre roues rallye":[12,25],"cars road trip":[12,25],"les tapis volants":[12,26],"avengers assemble flight force single rider":[11,28],"raiponce tangled spin":[11,29],"toy soldiers parachute drop single rider":[11,26],"slinky dog zigzag spin":[10,23],"entry to world of frozen":[8,28],"ratatouille single rider":[8,22]}},
+    6:{d:[44,60,52,57,49,49,58],m:[55,64,68,59,47,54,56,45,28,46,52,58],r:{"seven dwarfs mine train":[68,95],"tron lightcycle run":[62,92],"peter pan s flight":[52,73],"jungle cruise":[44,75],"space mountain":[43,68],"big thunder mountain railroad":[36,63],"haunted mansion":[34,59],"tiana s bayou adventure":[34,58],"meet cinderella and princess tiana at princess fairytale hall":[34,55],"meet ariel at her grotto":[32,55],"meet mickey at town square theater":[31,65],"meet visiting princesses at princess fairytale hall":[31,52],"pirates of the caribbean":[27,52],"the many adventures of winnie the pooh":[27,44],"buzz lightyear s space ranger spin":[26,48],"enchanted tales with belle":[26,55],"astro orbiter":[23,41],"it s a small world":[17,36],"tomorrowland speedway":[17,32],"the magic carpets of aladdin":[16,32],"under the sea journey of the little mermaid":[16,34],"the barnstormer":[15,29],"walt disney world railroad fantasyland":[15,21],"dumbo the flying elephant":[14,32],"monsters inc laugh floor":[14,26],"the hall of presidents":[14,14],"walt disney world railroad main street":[14,17],"mickey s philharmagic":[13,20],"tomorrowland transit authority peoplemover":[11,18],"walt disney s enchanted tiki room":[11,12],"mad tea party":[10,19],"prince charming regal carrousel":[9,13],"swiss family treehouse":[5,6],"walt disney s carousel of progress":[5,6]}},
+    5:{d:[51,58,51,43,49,49,56],m:[46,58,67,59,50,58,44,36,29,48,53,63],r:{"guardians of the galaxy cosmic rewind":[62,83],"test track":[57,88],"remy s ratatouille adventure":[56,81],"frozen ever after":[53,76],"meet anna and elsa at royal sommerhus":[34,59],"meet beloved disney pals at mickey friends":[24,42],"mission space":[20,42],"soarin across america":[20,37],"spaceship earth":[14,31],"turtle talk with crush":[14,21],"canada far and wide in circle vision 360":[13,13],"awesome planet":[12,14],"journey into imagination with figment":[12,26],"living with the land":[11,26],"the seas with nemo friends":[11,26],"gran fiesta tour starring the three caballeros":[10,16],"disney and pixar short film festival":[8,13],"journey of water inspired by moana":[6,6]}},
+    7:{d:[52,58,53,47,50,55,51],m:[58,64,65,54,49,56,54,45,27,46,52,60],r:{"star wars rise of the resistance":[72,102],"slinky dog dash":[71,98],"the little mermaid a musical adventure":[49,75],"the twilight zone tower of terror":[47,84],"toy story mania":[43,73],"mickey minnie s runaway railway":[42,62],"millennium falcon smugglers run":[41,70],"meet disney stars at red carpet dreams":[37,59],"alien swirling saucers":[23,42],"meet olaf at celebrity spotlight":[18,40],"star tours the adventures continue":[15,35],"walt disney presents":[15,16],"meet edna mode":[13,15],"vacation fun":[10,11]}},
+    8:{d:[56,57,50,45,49,54,58],m:[56,64,64,60,54,57,55,42,27,44,52,58],r:{"avatar flight of passage":[82,117],"na vi river journey":[46,70],"kilimanjaro safaris":[38,73],"meet favorite disney pals at adventurers outpost":[34,65],"kali river rapids":[30,60],"expedition everest":[26,46],"zootopia better zoogether":[14,22],"wildlife express train":[8,11],"gorilla falls exploration trail":[5,5]}},
+    16:{d:[40,58,54,49,51,44,57],m:[45,51,58,59,58,50,50,40,35,58,49,52],r:{"star wars rise of the resistance":[65,100],"hyperspace mountain":[47,79],"indiana jones adventure":[43,69],"matterhorn bobsleds":[40,69],"tiana s bayou adventure":[38,76],"haunted mansion":[36,63],"mickey minnie s runaway railway":[34,66],"millennium falcon smugglers run":[34,75],"peter pan s flight":[34,44],"roger rabbit s car toon spin":[33,57],"big thunder mountain railroad":[32,55],"meet disney princesses at royal hall":[32,52],"mickey s house and meet mickey mouse":[28,51],"alice in wonderland":[25,36],"star tours the adventures continue":[24,47],"chip n dale s gadgetcoaster":[21,38],"finding nemo submarine voyage":[21,38],"pirates of the caribbean":[21,38],"dumbo the flying elephant":[20,33],"autopia":[19,42],"jungle cruise":[19,35],"astro orbitor":[18,34],"buzz lightyear astro blasters":[18,35],"storybook land canal boats":[17,29],"it s a small world":[16,35],"mr toad s wild ride":[15,24],"snow white s enchanted wish":[15,24],"adventureland treehouse":[15,19],"casey jr circus train":[13,23],"disneyland railroad":[13,21],"pinocchio s daring journey":[12,20],"davy crockett s explorer canoes":[11,14],"mad tea party":[10,17],"mark twain riverboat":[10,10],"sailing ship columbia":[10,10],"the many adventures of winnie the pooh":[10,23],"king arthur carrousel":[8,13],"walt disney s enchanted tiki room":[8,8],"disneyland monorail":[7,13],"pirate s lair on tom sawyer island":[5,5]}},
+    17:{d:[49,53,50,54,46,47,54],m:[46,57,63,62,56,53,53,41,32,52,44,47],r:{"radiator springs racers":[75,112],"guardians of the galaxy mission breakout":[46,80],"toy story midway mania":[45,76],"soarin over california":[38,73],"web slingers a spider man adventure":[34,58],"goofy s sky school":[28,51],"incredicoaster":[27,54],"pixar pal a round swinging":[26,48],"grizzly river run":[24,52],"luigi s rollickin roadsters":[23,38],"pixar pal a round non swinging":[23,47],"monsters inc mike sulley to the rescue":[22,41],"inside out emotional whirlwind":[17,32],"mater s junkyard jamboree":[14,29],"jumpin jellyfish":[10,19],"mickey s philharmagic":[10,10],"silly symphony swings":[10,18],"the little mermaid ariel s undersea adventure":[10,22],"golden zephyr":[7,12],"jessie s critter carousel":[6,7],"animation academy":[5,5],"games of pixar pier":[5,5],"redwood creek challenge trail":[5,5],"turtle talk with crush":[5,5]}},
+    274:{d:[50,52,43,42,45,49,56],m:[46,50,60,47,47,39,29,38,36,54,63,62],r:{"enchanted tale of beauty and the beast":[74,115],"the happy ride with baymax":[50,80],"splash mountain":[47,70],"monsters inc ride go seek":[40,62],"big thunder mountain":[38,58],"pooh s hunny hunt":[38,58],"haunted mansion":[28,50],"dumbo the flying elephant":[24,35],"peter pan s flight":[24,37],"roger rabbit s car toon spin":[18,30],"jungle cruise wildlife expeditions":[17,29],"western river railroad":[17,28],"snow white s adventures":[14,22],"gadget s go coaster":[13,22],"star tours the adventures continue":[13,25],"stitch encounter":[13,15],"beaver brothers explorer canoes":[12,26],"it s a small world with groot":[11,20],"pirates of the caribbean":[11,19],"cinderella s fairy tale hall":[10,17],"castle carrousel":[9,17],"mickey s philharmagic":[9,14],"pinocchio s daring journey":[9,17],"alice s tea party":[7,12]}},
+    275:{d:[48,50,43,43,45,49,55],m:[45,49,63,46,43,37,28,39,39,51,66,59],r:{"anna and elsa s frozen journey":[101,156],"soaring fantastic flight":[97,132],"toy story mania":[71,106],"journey to the center of the earth":[66,95],"rapunzel s lantern festival":[61,102],"tower of terror":[61,90],"peter pan s never land adventure":[57,98],"indiana jones adventure temple of the crystal skull":[46,72],"raging spirits":[44,67],"fairy tinker bell s busy buggies":[41,68],"turtle talk":[26,43],"nemo friends searider":[25,42],"the magic lamp theater":[21,36],"venetian gondolas":[20,40],"20 000 leagues under the sea":[19,36],"blowfish balloon race":[18,30],"aquatopia":[17,31],"flounder s flying fish coaster":[17,29],"jasmine s flying carpets":[13,21],"the whirlpool":[13,23],"scuttle s scooters":[11,19],"jumpin jellyfish":[11,19],"sindbad s storybook voyage":[7,11]}},
+    31:{d:[52,43,48,40,52,53,58],m:[65,62,51,51,40,41,53,62,22,45,41,63],r:{"the royal reception hall":[44,54],"wandering oaken s sliding sleighs":[33,53],"toy soldier parachute drop":[33,51],"frozen ever after":[32,56],"rc racer":[29,47],"big grizzly mountain runaway mine cars":[24,43],"iron man tech showcase":[24,29],"dumbo the flying elephant":[22,32],"slinky dog spin":[22,39],"the many adventures of winnie the pooh":[20,35],"mystic manor":[19,44],"jungle river cruise":[18,27],"hyperspace mountain":[16,27],"mickey s philharmagic":[15,18],"iron man experience":[13,25],"orbitron":[12,21],"mad hatter tea cups":[11,19],"it s a small world":[10,23],"ant man and the wasp nano battle":[10,20],"cinderella carousel":[9,14]}},
+    30:{d:[47,52,48,44,48,54,54],m:[45,51,39,66,60,67,59,61,35,42,39,36],r:{"soaring over the horizon":[81,116],"seven dwarfs mine train":[69,101],"zootopia hot pursuit":[64,97],"roaring rapids":[54,85],"rex s racer":[50,81],"tron lightcycle power run":[48,80],"jet packs":[35,54],"dumbo the flying elephant":[31,51],"peter pan s flight":[31,56],"the many adventures of winnie the pooh":[31,56],"explorer canoes":[27,42],"challenge trails at camp discovery":[25,45],"slinky dog spin":[25,43],"pirates of the caribbean battle for the sunken treasure":[24,45],"woody s roundup":[24,44],"fantasia carousel":[22,44],"voyage to the crystal grotto":[20,40],"space chat with stitch":[16,24],"hunny pot spin":[15,29],"once upon a time adventure":[11,23],"buzz lightyear planet rescue":[11,23],"become iron man at the marvel universe":[9,16]}}
+        };
+        // Pre-tokenized index for fuzzy name matching (mirrors rideGeo's strategy).
+        const RIDE_STATS_IDX = {};
+        Object.keys(RIDE_STATS).forEach(pid => {
+            RIDE_STATS_IDX[pid] = Object.keys(RIDE_STATS[pid].r).map(k => ({ _n: k, _t: k.split(' ').filter(t => t.length > 2), v: RIDE_STATS[pid].r[k] }));
+        });
+        const rideStat = (parkId, name) => {
+            const list = RIDE_STATS_IDX[parkId];
+            const q = normName(name);
+            if (!list || !q) return null;
+            let hit = list.find(g => g._n === q);
+            if (!hit) hit = list.find(g => (q.includes(g._n) || g._n.includes(q)) && Math.min(q.length, g._n.length) >= 5);
+            if (!hit) { const qt = new Set(q.split(' ').filter(t => t.length > 2)); let best = null, bestC = 0; list.forEach(g => { const c = g._t.filter(t => qt.has(t)).length; if (c > bestC) { bestC = c; best = g; } }); hit = bestC >= 2 ? best : null; }
+            return hit ? { avg: hit.v[0], max: hit.v[1] } : null;
+        };
+        // Historical expected-wait curve by hour = avg * intraday shape, capped at all-time max.
+        const statCurve = (parkId, name) => {
+            const s = rideStat(parkId, name);
+            if (!s) return null;
+            const c = new Array(24).fill(null);
+            for (let h = 7; h < 24; h++) c[h] = Math.min(s.max, Math.max(0, Math.round(s.avg * HOURLY_SHAPE[h])));
+            return c;
+        };
+        // Crowd multiplier for a weekday vs the park's own weekly mean (1.0 = an average day).
+        const crowdDowFactor = (parkId, dow) => {
+            const st = RIDE_STATS[parkId];
+            if (!st || !st.d || typeof dow !== 'number') return 1;
+            const mean = st.d.reduce((a, b) => a + b, 0) / st.d.length;
+            return mean > 0 ? st.d[dow] / mean : 1;
+        };
         // Park centroids (from ride coordinates) for weather lookups, independent of GPS.
         const PARK_CENTROID = {};
         Object.keys(RIDE_GEO_RAW).forEach(pid => {
@@ -817,6 +867,19 @@
                             }
                         }
 
+                        // Fill any hours the telemetry hasn't covered with the queue-times.com
+                        // historical prior, so the day-simulation has a full intraday curve even
+                        // before 7 days of telemetry exist. Live-derived hours always take priority.
+                        const priorCurve = statCurve(ride.parkId, ride.name);
+                        let hasCurve = allPoints.length >= 24;
+                        if (priorCurve) {
+                            if (!hourlyCurve) hourlyCurve = new Array(24).fill(null);
+                            for (let hh = 7; hh < 24; hh++) {
+                                if (typeof hourlyCurve[hh] !== 'number') hourlyCurve[hh] = priorCurve[hh];
+                            }
+                            hasCurve = true;
+                        }
+
                         const trendGain = Math.max(-30, Math.min(60, pred60 - ride.wait_time));
                         const dealBonus = allPoints.length >= 8 ? Math.max(-20, Math.min(20, avgMarker - ride.wait_time)) : 0;
                         const priorityBonus = ride.isPriority ? 18 : 0;
@@ -841,6 +904,7 @@
                             routingScore: routingScore,
                             routingReason: routingReason,
                             hourlyCurve: hourlyCurve,
+                            hasCurve: hasCurve,
                             curveSamples: allPoints.length,
                             aiIntel: generateTacticalIntelligence(ride),
                             analytics: { low: lowMarker, high: highMarker, avg: avgMarker, bestHour: bestHourStr, worstHour: worstHourStr, samples: allPoints.length, timeSpan: timeSpanStr }
@@ -915,10 +979,20 @@
                     let calculatedAvg = 0;
                     let calculatedPeak = 0;
                     let trafficVerdict = "Insufficient Data";
-                    if (relevantPoints.length > 0) {
+                    if (relevantPoints.length >= 3) {
                         const values = relevantPoints.map(p => p.w);
                         calculatedAvg = Math.round(values.reduce((a,b) => a+b, 0) / values.length);
                         calculatedPeak = Math.max(...values);
+                    } else {
+                        // Backfill from queue-times.com history, scaled to the target weekday's crowd level.
+                        const stat = rideStat(r.parkId, r.name);
+                        if (stat) {
+                            const f = crowdDowFactor(r.parkId, targetDayOfWeek);
+                            calculatedAvg = Math.round(stat.avg * f);
+                            calculatedPeak = Math.round(stat.max * f);
+                        }
+                    }
+                    if (calculatedAvg > 0) {
                         if (calculatedAvg > 45) trafficVerdict = "Very busy";
                         else if (calculatedAvg > 30) trafficVerdict = "Busy";
                         else trafficVerdict = "Moderate";
@@ -963,7 +1037,7 @@
                 const expectedWaitAt = (ride, dtMins) => {
                     const liveEst = Math.max(0, ride.wait_time + (ride.velocity || 0) * Math.min(dtMins, 90));
                     const curve = ride.hourlyCurve;
-                    if (curve && ride.curveSamples >= 24) {
+                    if (curve && ride.hasCurve) {
                         const base = parkBaseMins[ride.parkId] || 0;
                         const hist = curve[Math.floor(((base + dtMins) % 1440) / 60)];
                         if (typeof hist === 'number') {
@@ -991,7 +1065,7 @@
                     if (zone.rides.length >= 2) {
                         zone.rides.forEach(r => {
                             let deferred = false;
-                            if (r.hourlyCurve && r.curveSamples >= 24 && typeof r.minsToClose === 'number' && r.minsToClose > 180 && r.minsToClose < 900) {
+                            if (r.hourlyCurve && r.hasCurve && typeof r.minsToClose === 'number' && r.minsToClose > 180 && r.minsToClose < 900) {
                                 const nearTerm = expectedWaitAt(r, 45);
                                 let minLater = Infinity;
                                 for (let t = 150; t <= r.minsToClose - 45; t += 30) {
@@ -1365,18 +1439,26 @@
             }, [gpsEnabled, userGPS, rides, completedTargets, activePark]);
             // Quietest of the next 7 days, averaged across priority rides (park-local weekday).
             const recommendedDay = useMemo(() => {
-                if (!telemetryStats.isReady || rides.length === 0) return null;
+                if (rides.length === 0) return null;
                 const tzOffset = getTzOffsetMs(PARK_TZ[GLOBAL_PARKS[activeRegion][0].id] || 'UTC');
                 let best = null;
                 for (let i = 0; i < 7; i++) {
                     const dow = new Date(Date.now() + tzOffset + i * 86400000).getUTCDay();
-                    let sum = 0, cnt = 0;
+                    // Prefer same-weekday telemetry across priority rides; otherwise fall back to
+                    // queue-times.com crowd-calendar levels scaled onto each ride's historical average,
+                    // so the quietest-day call works from day one instead of waiting 7 days.
+                    let telSum = 0, telCnt = 0, priSum = 0, priCnt = 0;
                     rides.forEach(r => {
                         if (!r.isPriority) return;
                         const pts = (globalTelemetryLog[r.id] || []).filter(p => getParkDay(p.t, r.parkId) === dow && getParkHour(p.t, r.parkId) >= EARLIEST_PARK_HOUR);
-                        if (pts.length) { sum += pts.reduce((a, b) => a + b.w, 0) / pts.length; cnt++; }
+                        if (pts.length) { telSum += pts.reduce((a, b) => a + b.w, 0) / pts.length; telCnt++; }
+                        const stat = rideStat(r.parkId, r.name);
+                        if (stat) { priSum += stat.avg * crowdDowFactor(r.parkId, dow); priCnt++; }
                     });
-                    if (cnt >= 3) { const avg = sum / cnt; if (!best || avg < best.avg) best = { index: i, avg: Math.round(avg) }; }
+                    let avg = null;
+                    if (telCnt >= 3) avg = telSum / telCnt;
+                    else if (priCnt >= 1) avg = priSum / priCnt;
+                    if (avg != null && (!best || avg < best.avg)) best = { index: i, avg: Math.round(avg) };
                 }
                 return best;
             }, [rides, globalTelemetryLog, telemetryStats.isReady, activeRegion]);
@@ -2581,7 +2663,7 @@
                             )}
                         </div>
                         <p className="mt-4 text-center text-[9px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-600">
-                            Live wait times powered by <a href="https://queue-times.com/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">Queue-Times.com</a> &middot; Park schedules via <a href="https://themeparks.wiki/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">ThemeParks.wiki</a> &middot; Weather via <a href="https://open-meteo.com/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">Open-Meteo</a>
+                            Live &amp; historical wait data powered by <a href="https://queue-times.com/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">Queue-Times.com</a> &middot; Park schedules via <a href="https://themeparks.wiki/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">ThemeParks.wiki</a> &middot; Weather via <a href="https://open-meteo.com/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">Open-Meteo</a>
                         </p>
                     </div>
                     <div className={`fixed bottom-0 right-0 md:bottom-6 md:right-6 w-full md:w-[400px] bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-t-2xl md:rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${isChatOpen ? 'opacity-100 h-[80vh] md:h-[560px]' : 'opacity-0 pointer-events-none h-0'}`}>
