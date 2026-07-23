@@ -14,6 +14,9 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Leaflet: free, keyless live maps (OpenStreetMap tiles) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <style>
         body { -webkit-font-smoothing: antialiased; background-color: #f1f5f9; }
         .dark body { background-color: #05070a; }
@@ -45,7 +48,6 @@
             ChevronRight: '<polyline points="9 18 15 12 9 6"></polyline>',
             ChevronDown: '<polyline points="6 9 12 15 18 9"></polyline>',
             ChevronUp: '<polyline points="18 15 12 9 6 15"></polyline>',
-            Terminal: '<polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line>',
             MapIcon: '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line>',
             Footprints: '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"></path><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"></path>',
             MapPin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path><circle cx="12" cy="10" r="3"></circle>',
@@ -69,11 +71,11 @@
             MessageSquare: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>',
             Send: '<line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>',
             Cloud: '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>',
+            Globe: '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>',
             CloudRain: '<line x1="16" y1="13" x2="16" y2="21"></line><line x1="8" y1="13" x2="8" y2="21"></line><line x1="12" y1="15" x2="12" y2="23"></line><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path>',
             CloudSnow: '<path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"></path><line x1="8" y1="16" x2="8.01" y2="16"></line><line x1="8" y1="20" x2="8.01" y2="20"></line><line x1="12" y1="18" x2="12.01" y2="18"></line><line x1="12" y1="22" x2="12.01" y2="22"></line><line x1="16" y1="16" x2="16.01" y2="16"></line><line x1="16" y1="20" x2="16.01" y2="20"></line>',
             CloudLightning: '<path d="M19 16.9A5 5 0 0 0 18 7h-1.26a8 8 0 1 0-11.62 9"></path><polyline points="13 11 9 17 15 17 11 23"></polyline>',
             Droplet: '<path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>',
-            Wind: '<path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"></path>',
             Settings: '<line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line>'
         };
         const GLOBAL_PARKS = {
@@ -194,9 +196,13 @@
         Object.keys(RIDE_GEO_RAW).forEach(pid => {
             RIDE_GEO[pid] = RIDE_GEO_RAW[pid].map(row => { const _n = normName(row[0]); return { name: row[0], lat: row[1], lng: row[2], _n, _t: _n.split(' ').filter(t => t.length > 2) }; });
         });
+        // Accurate coordinates fetched live from themeparks.wiki at runtime (populated per park on
+        // first sync). rideGeo prefers these real positions; the static RIDE_GEO above is the
+        // offline fallback used until the fetch lands (or if it fails).
+        const RIDE_GEO_LIVE = {};
         // Best-effort match of a live queue-times ride name to a coordinate entry.
         const rideGeo = (parkId, name) => {
-            const list = RIDE_GEO[parkId];
+            const list = RIDE_GEO_LIVE[parkId] || RIDE_GEO[parkId];
             const q = normName(name);
             if (!list || !q) return null;
             let hit = list.find(g => g._n === q);
@@ -207,6 +213,56 @@
             let best = null, bestC = 0;
             list.forEach(g => { const c = g._t.filter(t => qt.has(t)).length; if (c > bestC) { bestC = c; best = g; } });
             return bestC >= 2 ? best : null;
+        };
+        // ---- Historical priors from queue-times.com (all-time statistics) ----
+        // Per park: d = crowd% by weekday (Sun..Sat), m = crowd% by month (Jan..Dec),
+        // r = normalized ride name -> [avg, max] all-time queue minutes. HOURLY_SHAPE is a
+        // mean-normalized intraday multiplier (queues build to a midday peak, ease by evening).
+        // Together these seed the forecast so the day-simulation is sharp from the first visit,
+        // before the user's own telemetry has accumulated. Powered by Queue-Times.com.
+        const HOURLY_SHAPE = [0.52,0.52,0.52,0.52,0.52,0.52,0.52,0.52,0.52,0.52,0.63,1.15,1.57,1.57,1.57,1.57,1.36,0.94,0.94,0.73,0.63,0.63,0.63,0.63];
+        const RIDE_STATS = {
+    4:{d:[50,52,49,44,47,49,71],m:[37,52,54,61,56,55,51,64,41,51,40,55],r:{"princess pavilion":[73,122],"meet mickey mouse":[52,82],"big thunder mountain":[44,71],"peter pan s flight":[43,64],"buzz lightyear laser blast":[31,55],"autopia":[28,52],"star wars hyperspace mountain":[28,52],"dumbo the flying elephant":[26,41],"orbitron":[26,43],"welcome to starport a star wars encounter":[25,45],"star wars hyperspace mountain single rider":[22,36],"star tours the adventures continue":[21,47],"les voyages de pinocchio":[20,32],"indiana jones and the temple of peril":[18,40],"thunder mesa riverboat landing":[18,19],"pirates of the caribbean":[17,36],"blanche neige et les sept nains":[15,27],"casey jr":[15,29],"phantom manor":[13,28],"indiana jones and the temple of peril single rider":[12,26],"it s a small world":[10,23],"le carrousel de lancelot":[10,16],"mickey s philharmagic":[10,10],"mad hatter s tea cups":[9,15],"le pays des contes de fees":[7,12],"main street vehicles":[7,7],"alice s curious labyrinth":[5,6],"la cabane des robinson":[5,6],"les mysteres du nautilus":[5,5]}},
+    28:{d:[55,45,50,44,45,46,59],m:[38,53,53,62,54,59,52,58,44,51,32,38],r:{"frozen ever after":[71,121],"crush s coaster":[65,88],"crush s coaster single rider":[49,74],"spider man w e b adventure":[44,71],"ratatouille":[42,73],"toy soldiers parachute drop":[36,55],"rc racer":[35,58],"the twilight zone tower of terror":[30,63],"rc racer single rider":[25,50],"avengers assemble flight force":[18,39],"spider man w e b adventure single rider":[16,36],"cars quatre roues rallye":[12,25],"cars road trip":[12,25],"les tapis volants":[12,26],"avengers assemble flight force single rider":[11,28],"raiponce tangled spin":[11,29],"toy soldiers parachute drop single rider":[11,26],"slinky dog zigzag spin":[10,23],"entry to world of frozen":[8,28],"ratatouille single rider":[8,22]}},
+    6:{d:[44,60,52,57,49,49,58],m:[55,64,68,59,47,54,56,45,28,46,52,58],r:{"seven dwarfs mine train":[68,95],"tron lightcycle run":[62,92],"peter pan s flight":[52,73],"jungle cruise":[44,75],"space mountain":[43,68],"big thunder mountain railroad":[36,63],"haunted mansion":[34,59],"tiana s bayou adventure":[34,58],"meet cinderella and princess tiana at princess fairytale hall":[34,55],"meet ariel at her grotto":[32,55],"meet mickey at town square theater":[31,65],"meet visiting princesses at princess fairytale hall":[31,52],"pirates of the caribbean":[27,52],"the many adventures of winnie the pooh":[27,44],"buzz lightyear s space ranger spin":[26,48],"enchanted tales with belle":[26,55],"astro orbiter":[23,41],"it s a small world":[17,36],"tomorrowland speedway":[17,32],"the magic carpets of aladdin":[16,32],"under the sea journey of the little mermaid":[16,34],"the barnstormer":[15,29],"walt disney world railroad fantasyland":[15,21],"dumbo the flying elephant":[14,32],"monsters inc laugh floor":[14,26],"the hall of presidents":[14,14],"walt disney world railroad main street":[14,17],"mickey s philharmagic":[13,20],"tomorrowland transit authority peoplemover":[11,18],"walt disney s enchanted tiki room":[11,12],"mad tea party":[10,19],"prince charming regal carrousel":[9,13],"swiss family treehouse":[5,6],"walt disney s carousel of progress":[5,6]}},
+    5:{d:[51,58,51,43,49,49,56],m:[46,58,67,59,50,58,44,36,29,48,53,63],r:{"guardians of the galaxy cosmic rewind":[62,83],"test track":[57,88],"remy s ratatouille adventure":[56,81],"frozen ever after":[53,76],"meet anna and elsa at royal sommerhus":[34,59],"meet beloved disney pals at mickey friends":[24,42],"mission space":[20,42],"soarin across america":[20,37],"spaceship earth":[14,31],"turtle talk with crush":[14,21],"canada far and wide in circle vision 360":[13,13],"awesome planet":[12,14],"journey into imagination with figment":[12,26],"living with the land":[11,26],"the seas with nemo friends":[11,26],"gran fiesta tour starring the three caballeros":[10,16],"disney and pixar short film festival":[8,13],"journey of water inspired by moana":[6,6]}},
+    7:{d:[52,58,53,47,50,55,51],m:[58,64,65,54,49,56,54,45,27,46,52,60],r:{"star wars rise of the resistance":[72,102],"slinky dog dash":[71,98],"the little mermaid a musical adventure":[49,75],"the twilight zone tower of terror":[47,84],"toy story mania":[43,73],"mickey minnie s runaway railway":[42,62],"millennium falcon smugglers run":[41,70],"meet disney stars at red carpet dreams":[37,59],"alien swirling saucers":[23,42],"meet olaf at celebrity spotlight":[18,40],"star tours the adventures continue":[15,35],"walt disney presents":[15,16],"meet edna mode":[13,15],"vacation fun":[10,11]}},
+    8:{d:[56,57,50,45,49,54,58],m:[56,64,64,60,54,57,55,42,27,44,52,58],r:{"avatar flight of passage":[82,117],"na vi river journey":[46,70],"kilimanjaro safaris":[38,73],"meet favorite disney pals at adventurers outpost":[34,65],"kali river rapids":[30,60],"expedition everest":[26,46],"zootopia better zoogether":[14,22],"wildlife express train":[8,11],"gorilla falls exploration trail":[5,5]}},
+    16:{d:[40,58,54,49,51,44,57],m:[45,51,58,59,58,50,50,40,35,58,49,52],r:{"star wars rise of the resistance":[65,100],"hyperspace mountain":[47,79],"indiana jones adventure":[43,69],"matterhorn bobsleds":[40,69],"tiana s bayou adventure":[38,76],"haunted mansion":[36,63],"mickey minnie s runaway railway":[34,66],"millennium falcon smugglers run":[34,75],"peter pan s flight":[34,44],"roger rabbit s car toon spin":[33,57],"big thunder mountain railroad":[32,55],"meet disney princesses at royal hall":[32,52],"mickey s house and meet mickey mouse":[28,51],"alice in wonderland":[25,36],"star tours the adventures continue":[24,47],"chip n dale s gadgetcoaster":[21,38],"finding nemo submarine voyage":[21,38],"pirates of the caribbean":[21,38],"dumbo the flying elephant":[20,33],"autopia":[19,42],"jungle cruise":[19,35],"astro orbitor":[18,34],"buzz lightyear astro blasters":[18,35],"storybook land canal boats":[17,29],"it s a small world":[16,35],"mr toad s wild ride":[15,24],"snow white s enchanted wish":[15,24],"adventureland treehouse":[15,19],"casey jr circus train":[13,23],"disneyland railroad":[13,21],"pinocchio s daring journey":[12,20],"davy crockett s explorer canoes":[11,14],"mad tea party":[10,17],"mark twain riverboat":[10,10],"sailing ship columbia":[10,10],"the many adventures of winnie the pooh":[10,23],"king arthur carrousel":[8,13],"walt disney s enchanted tiki room":[8,8],"disneyland monorail":[7,13],"pirate s lair on tom sawyer island":[5,5]}},
+    17:{d:[49,53,50,54,46,47,54],m:[46,57,63,62,56,53,53,41,32,52,44,47],r:{"radiator springs racers":[75,112],"guardians of the galaxy mission breakout":[46,80],"toy story midway mania":[45,76],"soarin over california":[38,73],"web slingers a spider man adventure":[34,58],"goofy s sky school":[28,51],"incredicoaster":[27,54],"pixar pal a round swinging":[26,48],"grizzly river run":[24,52],"luigi s rollickin roadsters":[23,38],"pixar pal a round non swinging":[23,47],"monsters inc mike sulley to the rescue":[22,41],"inside out emotional whirlwind":[17,32],"mater s junkyard jamboree":[14,29],"jumpin jellyfish":[10,19],"mickey s philharmagic":[10,10],"silly symphony swings":[10,18],"the little mermaid ariel s undersea adventure":[10,22],"golden zephyr":[7,12],"jessie s critter carousel":[6,7],"animation academy":[5,5],"games of pixar pier":[5,5],"redwood creek challenge trail":[5,5],"turtle talk with crush":[5,5]}},
+    274:{d:[50,52,43,42,45,49,56],m:[46,50,60,47,47,39,29,38,36,54,63,62],r:{"enchanted tale of beauty and the beast":[74,115],"the happy ride with baymax":[50,80],"splash mountain":[47,70],"monsters inc ride go seek":[40,62],"big thunder mountain":[38,58],"pooh s hunny hunt":[38,58],"haunted mansion":[28,50],"dumbo the flying elephant":[24,35],"peter pan s flight":[24,37],"roger rabbit s car toon spin":[18,30],"jungle cruise wildlife expeditions":[17,29],"western river railroad":[17,28],"snow white s adventures":[14,22],"gadget s go coaster":[13,22],"star tours the adventures continue":[13,25],"stitch encounter":[13,15],"beaver brothers explorer canoes":[12,26],"it s a small world with groot":[11,20],"pirates of the caribbean":[11,19],"cinderella s fairy tale hall":[10,17],"castle carrousel":[9,17],"mickey s philharmagic":[9,14],"pinocchio s daring journey":[9,17],"alice s tea party":[7,12]}},
+    275:{d:[48,50,43,43,45,49,55],m:[45,49,63,46,43,37,28,39,39,51,66,59],r:{"anna and elsa s frozen journey":[101,156],"soaring fantastic flight":[97,132],"toy story mania":[71,106],"journey to the center of the earth":[66,95],"rapunzel s lantern festival":[61,102],"tower of terror":[61,90],"peter pan s never land adventure":[57,98],"indiana jones adventure temple of the crystal skull":[46,72],"raging spirits":[44,67],"fairy tinker bell s busy buggies":[41,68],"turtle talk":[26,43],"nemo friends searider":[25,42],"the magic lamp theater":[21,36],"venetian gondolas":[20,40],"20 000 leagues under the sea":[19,36],"blowfish balloon race":[18,30],"aquatopia":[17,31],"flounder s flying fish coaster":[17,29],"jasmine s flying carpets":[13,21],"the whirlpool":[13,23],"scuttle s scooters":[11,19],"jumpin jellyfish":[11,19],"sindbad s storybook voyage":[7,11]}},
+    31:{d:[52,43,48,40,52,53,58],m:[65,62,51,51,40,41,53,62,22,45,41,63],r:{"the royal reception hall":[44,54],"wandering oaken s sliding sleighs":[33,53],"toy soldier parachute drop":[33,51],"frozen ever after":[32,56],"rc racer":[29,47],"big grizzly mountain runaway mine cars":[24,43],"iron man tech showcase":[24,29],"dumbo the flying elephant":[22,32],"slinky dog spin":[22,39],"the many adventures of winnie the pooh":[20,35],"mystic manor":[19,44],"jungle river cruise":[18,27],"hyperspace mountain":[16,27],"mickey s philharmagic":[15,18],"iron man experience":[13,25],"orbitron":[12,21],"mad hatter tea cups":[11,19],"it s a small world":[10,23],"ant man and the wasp nano battle":[10,20],"cinderella carousel":[9,14]}},
+    30:{d:[47,52,48,44,48,54,54],m:[45,51,39,66,60,67,59,61,35,42,39,36],r:{"soaring over the horizon":[81,116],"seven dwarfs mine train":[69,101],"zootopia hot pursuit":[64,97],"roaring rapids":[54,85],"rex s racer":[50,81],"tron lightcycle power run":[48,80],"jet packs":[35,54],"dumbo the flying elephant":[31,51],"peter pan s flight":[31,56],"the many adventures of winnie the pooh":[31,56],"explorer canoes":[27,42],"challenge trails at camp discovery":[25,45],"slinky dog spin":[25,43],"pirates of the caribbean battle for the sunken treasure":[24,45],"woody s roundup":[24,44],"fantasia carousel":[22,44],"voyage to the crystal grotto":[20,40],"space chat with stitch":[16,24],"hunny pot spin":[15,29],"once upon a time adventure":[11,23],"buzz lightyear planet rescue":[11,23],"become iron man at the marvel universe":[9,16]}}
+        };
+        // Pre-tokenized index for fuzzy name matching (mirrors rideGeo's strategy).
+        const RIDE_STATS_IDX = {};
+        Object.keys(RIDE_STATS).forEach(pid => {
+            RIDE_STATS_IDX[pid] = Object.keys(RIDE_STATS[pid].r).map(k => ({ _n: k, _t: k.split(' ').filter(t => t.length > 2), v: RIDE_STATS[pid].r[k] }));
+        });
+        const rideStat = (parkId, name) => {
+            const list = RIDE_STATS_IDX[parkId];
+            const q = normName(name);
+            if (!list || !q) return null;
+            let hit = list.find(g => g._n === q);
+            if (!hit) hit = list.find(g => (q.includes(g._n) || g._n.includes(q)) && Math.min(q.length, g._n.length) >= 5);
+            if (!hit) { const qt = new Set(q.split(' ').filter(t => t.length > 2)); let best = null, bestC = 0; list.forEach(g => { const c = g._t.filter(t => qt.has(t)).length; if (c > bestC) { bestC = c; best = g; } }); hit = bestC >= 2 ? best : null; }
+            return hit ? { avg: hit.v[0], max: hit.v[1] } : null;
+        };
+        // Historical expected-wait curve by hour = avg * intraday shape, capped at all-time max.
+        const statCurve = (parkId, name) => {
+            const s = rideStat(parkId, name);
+            if (!s) return null;
+            const c = new Array(24).fill(null);
+            for (let h = 7; h < 24; h++) c[h] = Math.min(s.max, Math.max(0, Math.round(s.avg * HOURLY_SHAPE[h])));
+            return c;
+        };
+        // Crowd multiplier for a weekday vs the park's own weekly mean (1.0 = an average day).
+        const crowdDowFactor = (parkId, dow) => {
+            const st = RIDE_STATS[parkId];
+            if (!st || !st.d || typeof dow !== 'number') return 1;
+            const mean = st.d.reduce((a, b) => a + b, 0) / st.d.length;
+            return mean > 0 ? st.d[dow] / mean : 1;
         };
         // Park centroids (from ride coordinates) for weather lookups, independent of GPS.
         const PARK_CENTROID = {};
@@ -323,11 +379,172 @@
         // A break advances the clock, so every ride after it is predicted for its true
         // post-break arrival time (realistic - you don't ride 15 things back to back).
         const BREAK_DEFS = { lunch: { label: 'Lunch', atMin: 13 * 60, mins: 60 }, dinner: { label: 'Dinner', atMin: 18 * 60 + 30, mins: 45 } };
+        // Guided chat menu: tap-to-drill-down so you don't have to type. Nodes with `to` open a
+        // submenu; nodes with `q` send that question through the normal ask pipeline (local or AI).
+        // The 'rides' submenu is generated live from the current plan.
+        const CHAT_MENU = {
+            root: [
+                { label: 'What to ride', to: 'ride' },
+                { label: 'Waits & timing', to: 'timing' },
+                { label: 'Weather', to: 'weather' },
+                { label: 'Park & status', to: 'park' },
+                { label: 'About a ride', to: 'rides' }
+            ],
+            ride: [
+                { label: 'Next ride', q: 'what should I ride next' },
+                { label: 'Nearest to me', q: 'nearest ride' },
+                { label: 'Shortest waits', q: 'shortest waits right now' },
+                { label: 'Thrill rides', q: 'thrill rides' },
+                { label: 'Family rides', q: 'family rides' },
+                { label: 'Indoor rides', q: 'indoor rides' }
+            ],
+            timing: [
+                { label: 'Longest waits', q: 'longest waits right now' },
+                { label: 'Quietest day', q: 'quietest day' },
+                { label: 'My progress', q: 'my progress' }
+            ],
+            weather: [
+                { label: 'Right now', q: 'weather now' },
+                { label: 'Tomorrow', q: 'weather tomorrow' },
+                { label: 'On Saturday', q: 'weather on saturday' },
+                { label: 'If it rains', q: 'what if it rains' }
+            ],
+            park: [
+                { label: 'Is the park open?', q: 'is the park open' },
+                { label: 'Closing time', q: 'closing time' }
+            ]
+        };
         // Shared AI for ALL visitors WITHOUT their own key: deploy the included Cloudflare
         // Worker (overwatch-ai-proxy.js), which holds your Gemini key server-side, then paste
         // its URL here. Leave '' to keep the bring-your-own-key model. NEVER hardcode a raw
         // API key in this file — it's public and would be scraped/abused within hours.
         const SHARED_AI_PROXY = 'https://summer-hill-0053.mickyfitz13.workers.dev';
+        // Live map (Leaflet + OpenStreetMap) — defined at MODULE scope on purpose. If it were
+        // nested inside App, every App re-render (GPS ticks, telemetry timers) would create a new
+        // component identity and React would destroy + rebuild the whole Leaflet map — that was the
+        // flashing / zoom-reset. At module scope its identity is stable, so the map instance persists.
+        const LiveMap = ({ masterSequence, userGPS, gpsEnabled, activePark, activeRegion, gpsForRide, heading }) => {
+            const mapEl = useRef(null);
+            const mapRef = useRef(null);
+            const pinLayerRef = useRef(null);
+            const gpsLayerRef = useRef(null);
+            const fittedRef = useRef(false);
+            const coneRef = useRef(null);
+            const followRef = useRef(false);
+            const [follow, setFollow] = useState(false);
+            useEffect(() => { followRef.current = follow; }, [follow]);
+            const leafletMissing = typeof L === 'undefined';
+            const hasHeading = heading != null;
+            const pins = [];
+            masterSequence.forEach(r => {
+                if (activePark !== 'all' && r.parkId.toString() !== activePark) return;
+                const g = rideGeo(r.parkId, r.name);
+                if (g) pins.push({ step: r.globalStep, name: r.name, lat: g.lat, lng: g.lng, parkId: r.parkId });
+            });
+            const pinsSig = pins.map(p => p.step + ':' + p.lat.toFixed(5) + ',' + p.lng.toFixed(5)).join('|') + '#' + activePark;
+            const recenter = () => {
+                const map = mapRef.current; if (!map) return;
+                setFollow(false);
+                const b = pins.map(p => [p.lat, p.lng]);
+                if (gpsEnabled && userGPS) b.push([userGPS.lat, userGPS.lng]);
+                if (b.length) map.fitBounds(b, { padding: [28, 28], maxZoom: 17 });
+                else { const c = PARK_CENTROID[activePark] || PARK_CENTROID[(GLOBAL_PARKS[activeRegion][0] || {}).id]; if (c) map.setView([c.lat, c.lng], 15); }
+            };
+            const toggleFollow = () => setFollow(f => {
+                const nf = !f;
+                if (nf && mapRef.current && userGPS) mapRef.current.setView([userGPS.lat, userGPS.lng], Math.max(mapRef.current.getZoom() || 16, 17), { animate: true });
+                return nf;
+            });
+            useEffect(() => {
+                if (leafletMissing || !mapEl.current || mapRef.current) return;
+                const map = L.map(mapEl.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false });
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+                map.on('focus', () => map.scrollWheelZoom.enable());
+                map.on('blur', () => map.scrollWheelZoom.disable());
+                // Manual pan releases follow-mode so the map never fights you.
+                map.on('dragstart', () => { if (followRef.current) setFollow(false); });
+                mapRef.current = map;
+                pinLayerRef.current = L.layerGroup().addTo(map);
+                gpsLayerRef.current = L.layerGroup().addTo(map);
+                setTimeout(() => map.invalidateSize(), 120);
+                return () => { map.remove(); mapRef.current = null; pinLayerRef.current = null; gpsLayerRef.current = null; coneRef.current = null; fittedRef.current = false; };
+            }, [leafletMissing]);
+            useEffect(() => {
+                const map = mapRef.current, lg = pinLayerRef.current;
+                if (!map || !lg || leafletMissing) return;
+                lg.clearLayers();
+                if (pins.length > 1) L.polyline(pins.map(p => [p.lat, p.lng]), { color: '#10b981', weight: 3, dashArray: '6 8', opacity: 0.85 }).addTo(lg);
+                const bounds = [];
+                pins.forEach(p => {
+                    const html = `<div style="width:26px;height:26px;border-radius:50%;background:#10b981;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;font-family:monospace">${p.step}</div>`;
+                    L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html, iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(lg).bindPopup(`<b>#${p.step}</b> ${p.name}`);
+                    bounds.push([p.lat, p.lng]);
+                });
+                if (!fittedRef.current) {
+                    if (bounds.length) { map.fitBounds(bounds, { padding: [28, 28], maxZoom: 17 }); fittedRef.current = true; }
+                    else { const c = PARK_CENTROID[activePark] || PARK_CENTROID[(GLOBAL_PARKS[activeRegion][0] || {}).id]; if (c) { map.setView([c.lat, c.lng], 15); fittedRef.current = true; } }
+                }
+                setTimeout(() => map.invalidateSize(), 60);
+            }, [pinsSig, leafletMissing]);
+            // Blue dot (+ facing cone) + guide-line. Redraws on move; follows if follow-mode is on.
+            useEffect(() => {
+                const map = mapRef.current, lg = gpsLayerRef.current;
+                if (!map || !lg || leafletMissing) return;
+                lg.clearLayers();
+                coneRef.current = null;
+                if (!(gpsEnabled && userGPS)) return;
+                if (pins.length) {
+                    const nxt = pins[0];
+                    L.polyline([[userGPS.lat, userGPS.lng], [nxt.lat, nxt.lng]], { color: '#2563eb', weight: 3, opacity: 0.7 }).addTo(lg);
+                }
+                // Facing cone (compass heading) sits UNDER the dot; rotated live by the heading effect.
+                if (hasHeading) {
+                    const coneHtml = `<div style="width:64px;height:64px;pointer-events:none"><div class="hdg-cone" style="width:64px;height:64px;transform:rotate(${heading || 0}deg);transform-origin:32px 32px"><svg width="64" height="64" viewBox="0 0 64 64"><path d="M32 32 L20 6 A28 28 0 0 1 44 6 Z" fill="rgba(37,99,235,0.28)"></path></svg></div></div>`;
+                    coneRef.current = L.marker([userGPS.lat, userGPS.lng], { icon: L.divIcon({ className: '', html: coneHtml, iconSize: [64, 64], iconAnchor: [32, 32] }), interactive: false, keyboard: false }).addTo(lg);
+                }
+                const dotHtml = `<div style="width:16px;height:16px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)"></div>`;
+                L.marker([userGPS.lat, userGPS.lng], { icon: L.divIcon({ className: '', html: dotHtml, iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(lg).bindPopup('You are here');
+                if (followRef.current) map.setView([userGPS.lat, userGPS.lng], map.getZoom(), { animate: true });
+            }, [userGPS && userGPS.lat, userGPS && userGPS.lng, gpsEnabled, pinsSig, hasHeading, leafletMissing]);
+            // Rotate the facing cone as the compass turns — DOM-only, no layer redraw (no flicker).
+            useEffect(() => {
+                const el = mapEl.current && mapEl.current.querySelector('.hdg-cone');
+                if (el) el.style.transform = `rotate(${heading || 0}deg)`;
+            }, [heading]);
+            if (leafletMissing) {
+                return (
+                    <div className="w-full aspect-[4/3] bg-slate-100 dark:bg-[#080b12] rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center p-4 text-center">
+                        <p className="text-xs text-slate-500 font-mono">Live map library failed to load.<br/>Check your connection, or use the schematic view.</p>
+                    </div>
+                );
+            }
+            const nextNav = (() => {
+                if (!(gpsEnabled && userGPS) || !pins.length) return null;
+                const nxt = pins[0];
+                const g = gpsForRide({ parkId: nxt.parkId, name: nxt.name });
+                if (!g) return null;
+                const rot = (typeof g.bearing === 'number') ? (heading != null ? g.bearing - heading : g.bearing) : 0;
+                return { step: nxt.step, name: nxt.name, rot, dir: g.dir, distLabel: g.distLabel, timeLabel: g.timeLabel };
+            })();
+            return (
+                <div className="relative w-full aspect-[4/3] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-inner z-0">
+                    <div ref={mapEl} className="absolute inset-0" />
+                    {nextNav && (
+                        <div className="absolute top-2 left-2 right-2 z-[1000] flex items-center gap-2 bg-blue-600/95 text-white rounded-lg px-3 py-1.5 shadow pointer-events-none">
+                            <span style={{ display: 'inline-block', transform: `rotate(${nextNav.rot}deg)`, transition: 'transform 0.2s linear' }} className="text-base font-black leading-none">↑</span>
+                            <span className="text-[11px] font-bold truncate">#{nextNav.step} {nextNav.name}</span>
+                            <span className="text-[11px] font-mono ml-auto whitespace-nowrap">{nextNav.timeLabel} · {nextNav.distLabel}{nextNav.dir ? ' · ' + nextNav.dir : ''}</span>
+                        </div>
+                    )}
+                    <div className="absolute bottom-2 right-2 z-[1000] flex gap-1.5">
+                        {gpsEnabled && userGPS && (
+                            <button onClick={toggleFollow} title="Follow my location as I move" className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shadow border ${follow ? 'bg-blue-600 text-white border-blue-400' : 'bg-white/90 dark:bg-[#0c111a]/90 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-white dark:hover:bg-[#0c111a]'}`}>{follow ? '◉ Following' : '◎ Follow'}</button>
+                        )}
+                        <button onClick={recenter} title="Fit my whole plan" className="bg-white/90 dark:bg-[#0c111a]/90 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 shadow hover:bg-white dark:hover:bg-[#0c111a]">Recenter</button>
+                    </div>
+                </div>
+            );
+        };
         const App = () => {
             const [view, setView] = useState('live');
             const [activeRegion, setActiveRegion] = useState(() => localStorage.getItem('global_region_v4') || "Disneyland Paris");
@@ -350,6 +567,7 @@
             const [chatHistory, setChatHistory] = useState([]);
             const [chatInput, setChatInput] = useState('');
             const [isThinking, setIsThinking] = useState(false);
+            const [menuKey, setMenuKey] = useState('root');
             const chatScrollRef = useRef(null);
             const [aiKey, setAiKey] = useState(() => localStorage.getItem('dlp_ai_key') || '');
             const [aiModel, setAiModel] = useState(() => {
@@ -362,6 +580,10 @@
             const [showAiSettings, setShowAiSettings] = useState(false);
             const [aiTestResult, setAiTestResult] = useState('');
             const [aiSearch, setAiSearch] = useState(() => { const v = localStorage.getItem('dlp_ai_search'); return v === null ? false : v === 'true'; });
+            // User preference to use cloud AI at all. Off = always answer locally (offline rule-based),
+            // even when a key/proxy is available. Defaults on.
+            const [aiOn, setAiOn] = useState(() => { const v = localStorage.getItem('dlp_ai_on'); return v === null ? true : v === 'true'; });
+            useEffect(() => localStorage.setItem('dlp_ai_on', String(aiOn)), [aiOn]);
             const [aiProvider, setAiProvider] = useState(() => localStorage.getItem('dlp_ai_provider') || 'gemini');
             const [aiBaseUrl, setAiBaseUrl] = useState(() => localStorage.getItem('dlp_ai_baseurl') || 'https://openrouter.ai/api/v1');
             useEffect(() => localStorage.setItem('dlp_ai_provider', aiProvider), [aiProvider]);
@@ -636,6 +858,26 @@
                                     }
                                 }
                             } catch(e) { addLog(`[WARN] Schedule extraction timeout.`, 'warn'); }
+                            // Pull accurate attraction coordinates once per park (themeparks.wiki), so the
+                            // live map and GPS use real ride positions instead of the static estimates.
+                            if (!RIDE_GEO_LIVE[park.id]) {
+                                try {
+                                    const childrenRaw = await fetchWithTimeout(`https://api.themeparks.wiki/v1/entity/${park.tpUuid}/children`);
+                                    const cj = JSON.parse(childrenRaw);
+                                    if (cj && Array.isArray(cj.children)) {
+                                        const geo = [];
+                                        cj.children.forEach(c => {
+                                            if (!c || !c.location) return;
+                                            const lat = c.location.latitude, lng = c.location.longitude;
+                                            if ((c.entityType === 'ATTRACTION' || c.entityType === 'SHOW') && typeof lat === 'number' && typeof lng === 'number') {
+                                                const _n = normName(c.name);
+                                                geo.push({ name: c.name, lat, lng, _n, _t: _n.split(' ').filter(t => t.length > 2) });
+                                            }
+                                        });
+                                        if (geo.length) { RIDE_GEO_LIVE[park.id] = geo; addLog(`[GEO] Synced ${geo.length} real ride positions for ${park.name}.`, 'success'); }
+                                    }
+                                } catch(e) { addLog(`[WARN] Coordinate sync skipped for ${park.name}.`, 'warn'); }
+                            }
                             parksOnline++;
                             let rawRides = [];
                             if (Array.isArray(data.lands)) {
@@ -819,6 +1061,19 @@
                             }
                         }
 
+                        // Fill any hours the telemetry hasn't covered with the queue-times.com
+                        // historical prior, so the day-simulation has a full intraday curve even
+                        // before 7 days of telemetry exist. Live-derived hours always take priority.
+                        const priorCurve = statCurve(ride.parkId, ride.name);
+                        let hasCurve = allPoints.length >= 24;
+                        if (priorCurve) {
+                            if (!hourlyCurve) hourlyCurve = new Array(24).fill(null);
+                            for (let hh = 7; hh < 24; hh++) {
+                                if (typeof hourlyCurve[hh] !== 'number') hourlyCurve[hh] = priorCurve[hh];
+                            }
+                            hasCurve = true;
+                        }
+
                         const trendGain = Math.max(-30, Math.min(60, pred60 - ride.wait_time));
                         const dealBonus = allPoints.length >= 8 ? Math.max(-20, Math.min(20, avgMarker - ride.wait_time)) : 0;
                         const priorityBonus = ride.isPriority ? 18 : 0;
@@ -843,6 +1098,7 @@
                             routingScore: routingScore,
                             routingReason: routingReason,
                             hourlyCurve: hourlyCurve,
+                            hasCurve: hasCurve,
                             curveSamples: allPoints.length,
                             aiIntel: generateTacticalIntelligence(ride),
                             analytics: { low: lowMarker, high: highMarker, avg: avgMarker, bestHour: bestHourStr, worstHour: worstHourStr, samples: allPoints.length, timeSpan: timeSpanStr }
@@ -917,10 +1173,20 @@
                     let calculatedAvg = 0;
                     let calculatedPeak = 0;
                     let trafficVerdict = "Insufficient Data";
-                    if (relevantPoints.length > 0) {
+                    if (relevantPoints.length >= 3) {
                         const values = relevantPoints.map(p => p.w);
                         calculatedAvg = Math.round(values.reduce((a,b) => a+b, 0) / values.length);
                         calculatedPeak = Math.max(...values);
+                    } else {
+                        // Backfill from queue-times.com history, scaled to the target weekday's crowd level.
+                        const stat = rideStat(r.parkId, r.name);
+                        if (stat) {
+                            const f = crowdDowFactor(r.parkId, targetDayOfWeek);
+                            calculatedAvg = Math.round(stat.avg * f);
+                            calculatedPeak = Math.round(stat.max * f);
+                        }
+                    }
+                    if (calculatedAvg > 0) {
                         if (calculatedAvg > 45) trafficVerdict = "Very busy";
                         else if (calculatedAvg > 30) trafficVerdict = "Busy";
                         else trafficVerdict = "Moderate";
@@ -965,7 +1231,7 @@
                 const expectedWaitAt = (ride, dtMins) => {
                     const liveEst = Math.max(0, ride.wait_time + (ride.velocity || 0) * Math.min(dtMins, 90));
                     const curve = ride.hourlyCurve;
-                    if (curve && ride.curveSamples >= 24) {
+                    if (curve && ride.hasCurve) {
                         const base = parkBaseMins[ride.parkId] || 0;
                         const hist = curve[Math.floor(((base + dtMins) % 1440) / 60)];
                         if (typeof hist === 'number') {
@@ -993,7 +1259,7 @@
                     if (zone.rides.length >= 2) {
                         zone.rides.forEach(r => {
                             let deferred = false;
-                            if (r.hourlyCurve && r.curveSamples >= 24 && typeof r.minsToClose === 'number' && r.minsToClose > 180 && r.minsToClose < 900) {
+                            if (r.hourlyCurve && r.hasCurve && typeof r.minsToClose === 'number' && r.minsToClose > 180 && r.minsToClose < 900) {
                                 const nearTerm = expectedWaitAt(r, 45);
                                 let minLater = Infinity;
                                 for (let t = 150; t <= r.minsToClose - 45; t += 30) {
@@ -1367,18 +1633,26 @@
             }, [gpsEnabled, userGPS, rides, completedTargets, activePark]);
             // Quietest of the next 7 days, averaged across priority rides (park-local weekday).
             const recommendedDay = useMemo(() => {
-                if (!telemetryStats.isReady || rides.length === 0) return null;
+                if (rides.length === 0) return null;
                 const tzOffset = getTzOffsetMs(PARK_TZ[GLOBAL_PARKS[activeRegion][0].id] || 'UTC');
                 let best = null;
                 for (let i = 0; i < 7; i++) {
                     const dow = new Date(Date.now() + tzOffset + i * 86400000).getUTCDay();
-                    let sum = 0, cnt = 0;
+                    // Prefer same-weekday telemetry across priority rides; otherwise fall back to
+                    // queue-times.com crowd-calendar levels scaled onto each ride's historical average,
+                    // so the quietest-day call works from day one instead of waiting 7 days.
+                    let telSum = 0, telCnt = 0, priSum = 0, priCnt = 0;
                     rides.forEach(r => {
                         if (!r.isPriority) return;
                         const pts = (globalTelemetryLog[r.id] || []).filter(p => getParkDay(p.t, r.parkId) === dow && getParkHour(p.t, r.parkId) >= EARLIEST_PARK_HOUR);
-                        if (pts.length) { sum += pts.reduce((a, b) => a + b.w, 0) / pts.length; cnt++; }
+                        if (pts.length) { telSum += pts.reduce((a, b) => a + b.w, 0) / pts.length; telCnt++; }
+                        const stat = rideStat(r.parkId, r.name);
+                        if (stat) { priSum += stat.avg * crowdDowFactor(r.parkId, dow); priCnt++; }
                     });
-                    if (cnt >= 3) { const avg = sum / cnt; if (!best || avg < best.avg) best = { index: i, avg: Math.round(avg) }; }
+                    let avg = null;
+                    if (telCnt >= 3) avg = telSum / telCnt;
+                    else if (priCnt >= 1) avg = priSum / priCnt;
+                    if (avg != null && (!best || avg < best.avg)) best = { index: i, avg: Math.round(avg) };
                 }
                 return best;
             }, [rides, globalTelemetryLog, telemetryStats.isReady, activeRegion]);
@@ -1682,6 +1956,8 @@
                     </div>
                 );
             };
+            const [mapMode, setMapMode] = useState(() => localStorage.getItem('dlp_mapmode') || 'schematic');
+            useEffect(() => localStorage.setItem('dlp_mapmode', mapMode), [mapMode]);
             const TacticalMap = () => {
                 if (activePark === 'all' || !TACTICAL_COORDS[activePark]) {
                     return (
@@ -2064,14 +2340,17 @@
                 } catch (e) { setAiTestResult('✗ ' + e.message); }
             };
             const aiEnabled = aiProvider === 'gemini' ? (!!aiKey || !!SHARED_AI_PROXY) : !!aiKey;
-            const handleAsk = async () => {
-                if (!chatInput.trim() || isThinking) return;
-                const q = chatInput;
+            // Cloud AI is used only when it's available AND the user has it switched on.
+            const useCloud = aiOn && aiEnabled;
+            const handleAsk = async (override) => {
+                // override lets menu chips ask a preset question without touching the text box.
+                const q = (typeof override === 'string' ? override : chatInput);
+                if (!q.trim() || isThinking) return;
                 const newHist = [...chatHistory, { role: 'user', parts: [{ text: q }] }];
                 setChatHistory(newHist);
                 setChatInput('');
                 setIsThinking(true);
-                if (aiEnabled) {
+                if (useCloud) {
                     try {
                         const reply = await askLLM(newHist);
                         setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: reply }] }]);
@@ -2156,54 +2435,104 @@
                                 </div>
                                 <div className="space-y-6 text-sm text-slate-600 dark:text-slate-300">
                                     <p className="leading-relaxed text-base">
-                                        This planner pulls live queue times every 5 minutes and, combined with your historical telemetry, <strong>simulates your whole day</strong> to build the route that spends the least time queuing and walking. It re-optimises whenever you tick off a ride, move (GPS), or change any option.
+                                        This is a live touring planner for 12 Disney parks worldwide. It pulls real queue times every ~5 minutes, blends them with years of historical crowd data, and <strong>simulates your whole day</strong> to build the route that spends the least time queuing and walking — then re-optimises whenever you tick off a ride, move (GPS), or change an option. Below: a quick start, what every feature does, and a full FAQ.
                                     </p>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="space-y-4">
-                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">I. Routing & the plan</h3>
-                                            <ul className="space-y-3">
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.Navigation} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Master Sequence:</strong> For every possible land order the engine predicts what each queue will be <em>at your real arrival time</em> — the live trend for the next ~90 min, blending into that ride's own hour-by-hour, day-of-week history — and picks the lowest total. Ride order inside each land is exact-optimised too; walking legs use measured Disneyland Paris distances. Each card shows its <strong>ETA</strong> and the expected queue then; anything past park close is flagged red.</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Tick rides off:</strong> Check the box when you join a queue. It logs the ride, sets your position as the new origin, and instantly recomputes the route.</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.RefreshCw} size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Return visits:</strong> If a ride is 15+ min cheaper later, its land is split into a first visit plus a deliberate <em>return visit</em> at the cheap hour (pointless splits are merged away).</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.Layers} size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Auto vs Manual & Breaks:</strong> Auto sequences the lands for you; switch to Manual to drag lands into your own order (ETAs follow). Toggle <strong>Lunch/Dinner</strong> and every ride after the break is re-timed for its true later arrival.</span>
-                                                </li>
+
+                                    <div className="bg-emerald-50 dark:bg-emerald-900/15 border border-emerald-200 dark:border-emerald-800 rounded-xl p-4">
+                                        <h3 className="text-sm font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-2 flex items-center gap-2"><Icon path={I.Activity} size={15} /> Quick start</h3>
+                                        <ol className="list-decimal list-inside space-y-1.5 leading-relaxed">
+                                            <li>Pick your <strong>region</strong> (e.g. Disneyland Paris) and a <strong>park</strong> in the left panel — or "Full Resort" for everything.</li>
+                                            <li>The ride list <em>is</em> your plan, already ordered to minimise waiting + walking. Scroll it top to bottom.</li>
+                                            <li><strong>Tick a ride off</strong> when you join its queue — the plan re-routes from where you are.</li>
+                                            <li>On-site, turn <strong>GPS ON</strong> (top right) for live distance, walking time and the live map with your blue dot.</li>
+                                            <li>Tap the <strong>chat button</strong> (bottom-right) and use the option chips to ask anything — no typing needed.</li>
+                                        </ol>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                                        <div className="space-y-3">
+                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">I. The plan &amp; routing</h3>
+                                            <ul className="space-y-2.5">
+                                                <li className="flex items-start gap-2"><Icon path={I.Navigation} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Master Sequence:</strong> for every possible land order the engine predicts each queue <em>at your real arrival time</em> — the live trend for the next ~90 min blending into that ride's own hour-by-hour, day-of-week history — and picks the lowest total. Ride order within a land is exact-optimised; walking uses measured distances. Each card shows its <strong>ETA</strong> and the expected wait then.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Tick rides off:</strong> check the box when you join a queue. It logs the ride, makes your position the new start point, and recomputes instantly.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.RefreshCw} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Return visits:</strong> if a ride is 15+ min cheaper later, its land is split into a first visit plus a deliberate <em>return</em> at the cheap hour (pointless splits are merged away).</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Layers} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Auto vs Manual &amp; breaks:</strong> Auto orders the lands for you; Manual lets you set your own land order (ETAs follow). Add <strong>Lunch/Dinner</strong> or your own custom breaks at any time — every ride after a break is re-timed for its true later arrival.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Activity} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Saved vs Unplanned:</strong> the minutes you save versus an average unplanned land order — pure queue + walking time, not a sales figure.</span></li>
                                             </ul>
                                         </div>
-                                        <div className="space-y-4">
-                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">II. On-site tools</h3>
-                                            <ul className="space-y-3">
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.MapPin} size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                                                    <span><strong>GPS & live compass:</strong> With GPS on, every park, land and ride shows live distance, walking time and a direction arrow that <em>rotates using your phone's compass</em> to point the real way as you turn. A banner names the nearest un-ridden ride. (iOS asks permission on first tap; needs HTTPS.)</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.Cloud} size={16} className="text-blue-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Weather & forecast:</strong> The left pane shows current conditions and a 7-day outlook for the selected park. The <strong>Multi-Day Forecast</strong> tab flags the quietest upcoming day; the selector badges parks as Open / Closing / Closed from the live schedule.</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.Cpu} size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Overwatch AI:</strong> The chat button reads your live plan, GPS and weather — ask "what's next", "shortest thrill wait", "weather Saturday", "is the park open". It works offline; add a free Gemini key (⚙) for open-ended answers and live web lookups.</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <Icon path={I.AlertTriangle} size={16} className="text-amber-500 shrink-0 mt-0.5" />
-                                                    <span><strong>Data honesty:</strong> Tap a card for its full read — now/30/60-min projections and its quietest & busiest hours. If the upstream feed stops moving, an amber banner warns you the exact numbers may lag.</span>
-                                                </li>
+                                        <div className="space-y-3">
+                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">II. Live map &amp; GPS navigation</h3>
+                                            <ul className="space-y-2.5">
+                                                <li className="flex items-start gap-2"><Icon path={I.MapPin} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Turn GPS on</strong> (top right) to unlock everything location-based. iOS prompts for location + motion on the first tap; the site must be on HTTPS.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.MapIcon} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Schematic vs Live Map:</strong> toggle at the top of the map card. Live Map is a real map (OpenStreetMap) with numbered pins for your plan, a blue dot for you, and a line to your next ride. Schematic is the offline diagram fallback.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Navigation} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Follow &amp; heading:</strong> tap <strong>Follow</strong> and the map tracks you as you walk (pan it by hand to release). Your dot shows a cone for which way you're facing, and a banner points to the next ride with walk time, distance and direction. <strong>Recenter</strong> re-fits your whole plan.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.MapPin} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>On every card:</strong> with GPS on, each ride, land and park shows live distance, walking time and a compass arrow that rotates with your phone to point the real way. A banner flags the nearest un-ridden ride.</span></li>
+                                            </ul>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">III. Weather &amp; forecasting</h3>
+                                            <ul className="space-y-2.5">
+                                                <li className="flex items-start gap-2"><Icon path={I.Cloud} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Weather pane:</strong> current conditions plus a 7-day outlook for the selected park, on the left (no key needed).</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Database} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Multi-Day Forecast tab:</strong> pick any of the next 7 days to see each ride's expected average and peak wait, and it flags the <strong>quietest upcoming day</strong> — backed by real crowd-calendar history so it works from day one.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.AlertTriangle} size={16} className="text-amber-500 shrink-0 mt-0.5" /><span><strong>Park status:</strong> the selector badges each park Open / Closing / Closed from the live operating schedule.</span></li>
+                                            </ul>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">IV. Overwatch AI assistant</h3>
+                                            <ul className="space-y-2.5">
+                                                <li className="flex items-start gap-2"><Icon path={I.Cpu} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>It reads your live state</strong> — plan, GPS, weather, park hours. Ask "what's next", "shortest thrill wait", "weather Saturday", "is the park open".</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Send} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Tap-menu, no typing:</strong> the chips above the box drill down (What to ride › Waits › Weather › …). "About a ride" lists your actual plan so you can tap a ride to ask about it.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Cpu} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>AI On/Off:</strong> Off gives instant offline answers from your plan only (no network, no quota). On adds open-ended, conversational answers.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.Globe} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Web On/Off:</strong> lets the AI search the internet for live answers (only when AI is on; uses more quota, so it's off by default).</span></li>
                                             </ul>
                                         </div>
                                     </div>
+
+                                    <div className="space-y-4 border-t border-slate-200 dark:border-slate-800 pt-4">
+                                        <h3 className="text-base font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-2"><Icon path={I.BookOpen} size={16} /> Frequently asked questions</h3>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                                            <div className="space-y-3">
+                                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Getting started</p>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Do I need an account or to install anything?</p><p>No. It runs in your browser — nothing to install, no sign-up. Add it to your home screen for an app-like shortcut.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Which parks are supported?</p><p>Disneyland Paris (both parks), Walt Disney World (all four), Disneyland Resort California (both), Tokyo (both), plus Hong Kong and Shanghai — 12 parks. Switch region and park on the left.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Can I plan from home, or only in the park?</p><p>Both. From home you get the full plan, waits, forecasts and the map. The blue dot, follow-me and per-card distances need GPS, so those come alive once you're on-site (or wherever your device reports you are).</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">How often does it update?</p><p>Live queue times refresh about every 5 minutes; the plan re-optimises on every refresh and whenever you tick a ride, move, or change an option.</p></div>
+
+                                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 pt-1">The plan</p>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">What do the two wait numbers on a card mean?</p><p>The big one is the live wait now; the small amber one is the predicted wait ~60 minutes out. The plan itself uses the wait predicted for your <em>actual</em> arrival time, shown as the card's ETA.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">What does "Saved vs Unplanned" mean?</p><p>The minutes this route saves compared with doing the same rides in an average unplanned land order — purely queue + walking time.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Why did a ride become a "return visit"?</p><p>Its history says the queue drops 15+ minutes later in the day, so the engine deliberately sends you back at the cheaper hour instead of forcing it into the first pass.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Auto vs Manual?</p><p>Auto orders the lands to save the most time. Manual lets you fix your own land order (handy if you want to start somewhere specific) — ETAs and predictions still follow your order.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Why is a ride red / "CLOSING" / "CLOSED"?</p><p>Red means its ETA falls after park close. CLOSING means under ~60 min of operating time left; CLOSED means it's shut now (refurb or outside hours).</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Can I add meal breaks?</p><p>Yes — toggle Lunch/Dinner or add custom breaks at any park-time (meal, nap, show, fireworks). Everything after a break is re-timed for the later arrival.</p></div>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400">Map &amp; navigation</p>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Why isn't the map following me?</p><p>Tap <strong>Follow</strong> (bottom-right of the map). It tracks you as you move; panning the map by hand releases it so it never fights you — tap it again to re-lock.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">What's the cone on my dot?</p><p>Your facing direction from the phone's compass. The map stays north-up (sharper, less disorienting than spinning it) and the cone + the top banner arrow show which way to walk.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Does it give turn-by-turn directions?</p><p>It shows a straight guide-line and an accurate walking time/distance to your next ride. Full turn-by-turn isn't used on purpose — routing engines don't know Disney's internal paths, so a direct line + measured time is usually more reliable on-property.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">A pin looks slightly off — why?</p><p>Ride positions come live from themeparks.wiki and are accurate. On first load the map briefly uses rough fallback coordinates, then snaps to the real ones once the sync lands — give it a second.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">The iPhone arrow/cone isn't moving.</p><p>iOS needs motion &amp; orientation permission — it's requested when you toggle GPS. If you declined, re-enable it in Safari settings, or just use the distance/time (which work without the compass).</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">The map is blank or won't load.</p><p>It needs a connection to fetch map tiles. If it can't, switch to the Schematic view — everything else keeps working.</p></div>
+
+                                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 pt-1">The AI assistant</p>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Do I need an API key?</p><p>No — a shared assistant is built in. You can add your own free Gemini key (⚙) for your own quota, or turn AI off entirely and use fast offline answers.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Does the AI see my plan?</p><p>Yes — it's given a snapshot of your live plan, GPS, weather and park hours, so answers are about <em>your</em> day, not generic. With Web on it can also look things up online.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">It hit a quota / rate limit.</p><p>The free AI tier is capped per minute/day. Wait a minute, turn Web off to save quota, or add your own key. You always get an offline answer as a fallback.</p></div>
+
+                                                <p className="text-[11px] font-black uppercase tracking-wider text-slate-400 pt-1">Data, accuracy &amp; privacy</p>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Where does the data come from?</p><p>Live waits and historical stats from Queue-Times.com; park schedules and ride coordinates from themeparks.wiki; weather from Open-Meteo. Your own visit history builds a private day-of-week model over time.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Is my location tracked or shared?</p><p>No. GPS is read only in your browser to place your dot and measure distances — it isn't sent to us or stored. Your settings and history stay on your device.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Are the predictions guaranteed?</p><p>No — queues are unpredictable, so these are best-estimates from live + historical data. That's why the plan re-optimises every few minutes. If a feed stops moving, an amber banner warns you the exact numbers may lag.</p></div>
+                                                <div><p className="font-bold text-slate-700 dark:text-slate-200">Nothing loads / "network nodes isolated".</p><p>Live data is fetched through public proxies that occasionally rate-limit. Wait a moment and it retries automatically across backups; a refresh usually clears it.</p></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed border-t border-slate-200 dark:border-slate-800 pt-3">
-                                        Predictions are best-estimates from live and historical data, not guarantees — queues are stochastic, so the plan re-optimises every 5 minutes to stay honest. Same-day-of-week forecasting sharpens as your telemetry log grows.
+                                        Live &amp; historical wait data by Queue-Times.com · schedules &amp; ride positions by themeparks.wiki · weather by Open-Meteo. Predictions are best-estimates, not guarantees — the plan re-optimises every ~5 minutes to stay honest, and same-day-of-week forecasting sharpens as your own history grows.
                                     </p>
                                 </div>
                             </div>
@@ -2361,8 +2690,12 @@
                                         </div>
                                         <p className="mt-2 text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">Presets sit near 13:00 / 18:30. Add your own at any park-time (meal, nap, show, fireworks spot). Every ride after a break is re-timed for its true later arrival.</p>
                                     </div>
-                                    <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-3 hidden md:block">
-                                        <TacticalMap />
+                                    <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-3 block">
+                                        <div className="flex items-center gap-1 mb-2">
+                                            <button onClick={() => setMapMode('schematic')} className={`flex-1 text-[10px] font-black uppercase tracking-wider py-1.5 rounded-lg transition-colors ${mapMode === 'schematic' ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-[#080b12] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>Schematic</button>
+                                            <button onClick={() => setMapMode('live')} className={`flex-1 text-[10px] font-black uppercase tracking-wider py-1.5 rounded-lg transition-colors ${mapMode === 'live' ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-[#080b12] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>Live Map</button>
+                                        </div>
+                                        {mapMode === 'live' ? <LiveMap masterSequence={masterSequence} userGPS={userGPS} gpsEnabled={gpsEnabled} activePark={activePark} activeRegion={activeRegion} gpsForRide={gpsForRide} heading={heading} /> : <TacticalMap />}
                                     </div>
                                 </div>
                                 <div className="lg:col-span-3 space-y-6">
@@ -2583,14 +2916,14 @@
                             )}
                         </div>
                         <p className="mt-4 text-center text-[9px] font-mono uppercase tracking-widest text-slate-400 dark:text-slate-600">
-                            Live wait times powered by <a href="https://queue-times.com/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">Queue-Times.com</a> &middot; Park schedules via <a href="https://themeparks.wiki/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">ThemeParks.wiki</a> &middot; Weather via <a href="https://open-meteo.com/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">Open-Meteo</a>
+                            Live &amp; historical wait data powered by <a href="https://queue-times.com/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">Queue-Times.com</a> &middot; Park schedules via <a href="https://themeparks.wiki/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">ThemeParks.wiki</a> &middot; Weather via <a href="https://open-meteo.com/" target="_blank" rel="noopener" className="underline hover:text-emerald-500">Open-Meteo</a>
                         </p>
                     </div>
                     <div className={`fixed bottom-0 right-0 md:bottom-6 md:right-6 w-full md:w-[400px] bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-t-2xl md:rounded-2xl shadow-2xl transition-all duration-300 z-50 flex flex-col ${isChatOpen ? 'opacity-100 h-[80vh] md:h-[560px]' : 'opacity-0 pointer-events-none h-0'}`}>
                         <div className="flex justify-between items-center p-4 border-b border-slate-200 dark:border-slate-800 bg-emerald-500/10 rounded-t-2xl">
                             <h3 className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2">
                                 <Icon path={I.Cpu} size={16} className={isThinking ? 'animate-pulse' : ''} /> Overwatch AI
-                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${aiEnabled ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>{aiEnabled ? (aiProvider === 'gemini' ? 'Gemini' : 'AI') : 'Local'}</span>
+                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${useCloud ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>{useCloud ? (aiProvider === 'gemini' ? 'Gemini' : 'AI') : 'Local'}</span>
                             </h3>
                             <div className="flex items-center gap-1">
                                 <button onClick={() => setShowAiSettings(s => !s)} aria-label="AI settings" title="AI settings" className="text-slate-400 hover:text-emerald-500 p-1"><Icon path={I.Settings} size={16} /></button>
@@ -2637,11 +2970,7 @@
                                     <Icon path={I.Activity} size={24} className="mx-auto mb-2 opacity-50" />
                                     <p className="mb-1 text-emerald-500 font-bold">SECURE COMMS ESTABLISHED.</p>
                                     <p>I read your live plan, GPS, and weather.</p>
-                                    <div className="mt-3 flex flex-wrap gap-1.5 justify-center">
-                                        {["What should I ride next?", "Best rides right now", "Weather on Saturday?", "Closing time?", "Shortest wait for thrill rides", "What if it rains?", "My progress?"].map(s => (
-                                            <button key={s} onClick={() => { setChatInput(s); setTimeout(handleAsk, 0); }} className="text-[10px] bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-full px-2.5 py-1 hover:border-emerald-400 text-slate-600 dark:text-slate-400">{s}</button>
-                                        ))}
-                                    </div>
+                                    <p className="mt-2 text-[10px] text-emerald-500 font-bold">Tap an option below to explore — or type your own question.</p>
                                     {!aiEnabled && <p className="mt-3 text-[9px] text-slate-400 dark:text-slate-500">Tip: add a free Gemini key via the <Icon path={I.Settings} size={9} className="inline" /> for open-ended answers &amp; live web lookups.</p>}
                                 </div>
                             )}
@@ -2658,9 +2987,32 @@
                                 </div>
                             )}
                         </div>
-                        <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111a] rounded-b-2xl flex gap-2">
-                            <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAsk()} placeholder="Ask about your plan…" className="flex-grow bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 shadow-inner" disabled={isThinking} />
-                            <button onClick={handleAsk} disabled={isThinking || !chatInput.trim()} aria-label="Send message" className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg p-2 transition-colors shadow-sm"><Icon path={I.Send} size={16} /></button>
+                        <div className="p-3 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0c111a] rounded-b-2xl">
+                            {(() => {
+                                const opts = menuKey === 'rides'
+                                    ? masterSequence.slice(0, 10).map(r => ({ label: r.name.length > 24 ? r.name.slice(0, 23) + '…' : r.name, q: 'tell me about ' + r.name }))
+                                    : (CHAT_MENU[menuKey] || CHAT_MENU.root);
+                                return (
+                                    <div className="flex flex-wrap gap-1.5 mb-2 max-h-24 overflow-y-auto">
+                                        {menuKey !== 'root' && (
+                                            <button onClick={() => setMenuKey('root')} className="text-[10px] bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-full px-2.5 py-1 text-slate-500 dark:text-slate-400 hover:border-emerald-400 font-bold">← Menu</button>
+                                        )}
+                                        {opts.length === 0 && <span className="text-[10px] text-slate-400 self-center">No rides in your plan yet.</span>}
+                                        {opts.map(opt => (
+                                            <button key={opt.label} onClick={() => opt.to ? setMenuKey(opt.to) : handleAsk(opt.q)} disabled={isThinking && !opt.to} className={`text-[10px] rounded-full px-2.5 py-1 border transition-colors disabled:opacity-40 ${opt.to ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:border-emerald-400 font-bold' : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-emerald-400'}`}>{opt.to ? opt.label + ' ›' : opt.label}</button>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
+                            <div className="flex items-center gap-1.5 mb-2">
+                                <button onClick={() => setAiOn(v => !v)} disabled={!aiEnabled} title={aiEnabled ? 'Toggle cloud AI. Off = fast offline answers from your plan only.' : 'No AI key or shared proxy configured.'} className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider border transition-colors disabled:opacity-40 ${useCloud ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-slate-100 dark:bg-[#05070a] text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700'}`}><Icon path={I.Cpu} size={10} /> AI {useCloud ? 'On' : 'Off'}</button>
+                                <button onClick={() => setAiSearch(v => !v)} disabled={!useCloud} title={useCloud ? 'Let the AI search the web for live answers (uses more quota).' : 'Turn AI on to enable web search.'} className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[9px] font-black uppercase tracking-wider border transition-colors disabled:opacity-40 ${(useCloud && aiSearch) ? 'bg-blue-600 text-white border-blue-400' : 'bg-slate-100 dark:bg-[#05070a] text-slate-500 dark:text-slate-400 border-slate-300 dark:border-slate-700'}`}><Icon path={I.Globe} size={10} /> Web {aiSearch ? 'On' : 'Off'}</button>
+                                <span className="ml-auto text-[9px] font-mono text-slate-400 dark:text-slate-500">{useCloud ? (aiProvider === 'gemini' ? 'Gemini' : 'Cloud') : 'Offline'}</span>
+                            </div>
+                            <div className="flex gap-2">
+                                <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAsk()} placeholder={useCloud ? 'Ask anything…' : 'Ask about your plan…'} className="flex-grow bg-slate-100 dark:bg-[#05070a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:border-emerald-500 shadow-inner" disabled={isThinking} />
+                                <button onClick={handleAsk} disabled={isThinking || !chatInput.trim()} aria-label="Send message" className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg p-2 transition-colors shadow-sm"><Icon path={I.Send} size={16} /></button>
+                            </div>
                         </div>
                     </div>
                     <button onClick={() => setIsChatOpen(prev => !prev)} aria-label="Open Overwatch AI assistant" title="Overwatch AI" className={`fixed bottom-6 right-6 md:bottom-8 md:right-8 bg-emerald-600 text-white p-4 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:scale-110 transition-all z-40 ${isChatOpen ? 'opacity-0 pointer-events-none scale-50' : 'opacity-100 scale-100'}`}>
