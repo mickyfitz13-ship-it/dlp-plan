@@ -387,13 +387,18 @@
         // nested inside App, every App re-render (GPS ticks, telemetry timers) would create a new
         // component identity and React would destroy + rebuild the whole Leaflet map — that was the
         // flashing / zoom-reset. At module scope its identity is stable, so the map instance persists.
-        const LiveMap = ({ masterSequence, userGPS, gpsEnabled, activePark, activeRegion, gpsForRide }) => {
+        const LiveMap = ({ masterSequence, userGPS, gpsEnabled, activePark, activeRegion, gpsForRide, heading }) => {
             const mapEl = useRef(null);
             const mapRef = useRef(null);
             const pinLayerRef = useRef(null);
             const gpsLayerRef = useRef(null);
             const fittedRef = useRef(false);
+            const coneRef = useRef(null);
+            const followRef = useRef(false);
+            const [follow, setFollow] = useState(false);
+            useEffect(() => { followRef.current = follow; }, [follow]);
             const leafletMissing = typeof L === 'undefined';
+            const hasHeading = heading != null;
             const pins = [];
             masterSequence.forEach(r => {
                 if (activePark !== 'all' && r.parkId.toString() !== activePark) return;
@@ -403,26 +408,30 @@
             const pinsSig = pins.map(p => p.step + ':' + p.lat.toFixed(5) + ',' + p.lng.toFixed(5)).join('|') + '#' + activePark;
             const recenter = () => {
                 const map = mapRef.current; if (!map) return;
+                setFollow(false);
                 const b = pins.map(p => [p.lat, p.lng]);
                 if (gpsEnabled && userGPS) b.push([userGPS.lat, userGPS.lng]);
                 if (b.length) map.fitBounds(b, { padding: [28, 28], maxZoom: 17 });
                 else { const c = PARK_CENTROID[activePark] || PARK_CENTROID[(GLOBAL_PARKS[activeRegion][0] || {}).id]; if (c) map.setView([c.lat, c.lng], 15); }
             };
-            const centerOnMe = () => {
-                const map = mapRef.current; if (!map || !userGPS) return;
-                map.setView([userGPS.lat, userGPS.lng], Math.max(map.getZoom() || 16, 17), { animate: true });
-            };
+            const toggleFollow = () => setFollow(f => {
+                const nf = !f;
+                if (nf && mapRef.current && userGPS) mapRef.current.setView([userGPS.lat, userGPS.lng], Math.max(mapRef.current.getZoom() || 16, 17), { animate: true });
+                return nf;
+            });
             useEffect(() => {
                 if (leafletMissing || !mapEl.current || mapRef.current) return;
                 const map = L.map(mapEl.current, { zoomControl: true, attributionControl: true, scrollWheelZoom: false });
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
                 map.on('focus', () => map.scrollWheelZoom.enable());
                 map.on('blur', () => map.scrollWheelZoom.disable());
+                // Manual pan releases follow-mode so the map never fights you.
+                map.on('dragstart', () => { if (followRef.current) setFollow(false); });
                 mapRef.current = map;
                 pinLayerRef.current = L.layerGroup().addTo(map);
                 gpsLayerRef.current = L.layerGroup().addTo(map);
                 setTimeout(() => map.invalidateSize(), 120);
-                return () => { map.remove(); mapRef.current = null; pinLayerRef.current = null; gpsLayerRef.current = null; fittedRef.current = false; };
+                return () => { map.remove(); mapRef.current = null; pinLayerRef.current = null; gpsLayerRef.current = null; coneRef.current = null; fittedRef.current = false; };
             }, [leafletMissing]);
             useEffect(() => {
                 const map = mapRef.current, lg = pinLayerRef.current;
@@ -441,23 +450,31 @@
                 }
                 setTimeout(() => map.invalidateSize(), 60);
             }, [pinsSig, leafletMissing]);
+            // Blue dot (+ facing cone) + guide-line. Redraws on move; follows if follow-mode is on.
             useEffect(() => {
                 const map = mapRef.current, lg = gpsLayerRef.current;
                 if (!map || !lg || leafletMissing) return;
                 lg.clearLayers();
+                coneRef.current = null;
                 if (!(gpsEnabled && userGPS)) return;
-                L.circleMarker([userGPS.lat, userGPS.lng], { radius: 8, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(lg).bindPopup('You are here');
                 if (pins.length) {
                     const nxt = pins[0];
                     L.polyline([[userGPS.lat, userGPS.lng], [nxt.lat, nxt.lng]], { color: '#2563eb', weight: 3, opacity: 0.7 }).addTo(lg);
-                    const g = gpsForRide({ parkId: nxt.parkId, name: nxt.name });
-                    if (g) {
-                        const mid = [(userGPS.lat + nxt.lat) / 2, (userGPS.lng + nxt.lng) / 2];
-                        const lbl = `<div style="background:#2563eb;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.35)">→ #${nxt.step} · ${g.timeLabel} · ${g.distLabel}</div>`;
-                        L.marker(mid, { icon: L.divIcon({ className: '', html: lbl, iconSize: [140, 20], iconAnchor: [70, 10] }) }).addTo(lg);
-                    }
                 }
-            }, [userGPS && userGPS.lat, userGPS && userGPS.lng, gpsEnabled, pinsSig, leafletMissing]);
+                // Facing cone (compass heading) sits UNDER the dot; rotated live by the heading effect.
+                if (hasHeading) {
+                    const coneHtml = `<div style="width:64px;height:64px;pointer-events:none"><div class="hdg-cone" style="width:64px;height:64px;transform:rotate(${heading || 0}deg);transform-origin:32px 32px"><svg width="64" height="64" viewBox="0 0 64 64"><path d="M32 32 L20 6 A28 28 0 0 1 44 6 Z" fill="rgba(37,99,235,0.28)"></path></svg></div></div>`;
+                    coneRef.current = L.marker([userGPS.lat, userGPS.lng], { icon: L.divIcon({ className: '', html: coneHtml, iconSize: [64, 64], iconAnchor: [32, 32] }), interactive: false, keyboard: false }).addTo(lg);
+                }
+                const dotHtml = `<div style="width:16px;height:16px;border-radius:50%;background:#2563eb;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)"></div>`;
+                L.marker([userGPS.lat, userGPS.lng], { icon: L.divIcon({ className: '', html: dotHtml, iconSize: [16, 16], iconAnchor: [8, 8] }) }).addTo(lg).bindPopup('You are here');
+                if (followRef.current) map.setView([userGPS.lat, userGPS.lng], map.getZoom(), { animate: true });
+            }, [userGPS && userGPS.lat, userGPS && userGPS.lng, gpsEnabled, pinsSig, hasHeading, leafletMissing]);
+            // Rotate the facing cone as the compass turns — DOM-only, no layer redraw (no flicker).
+            useEffect(() => {
+                const el = mapEl.current && mapEl.current.querySelector('.hdg-cone');
+                if (el) el.style.transform = `rotate(${heading || 0}deg)`;
+            }, [heading]);
             if (leafletMissing) {
                 return (
                     <div className="w-full aspect-[4/3] bg-slate-100 dark:bg-[#080b12] rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center p-4 text-center">
@@ -465,12 +482,27 @@
                     </div>
                 );
             }
+            const nextNav = (() => {
+                if (!(gpsEnabled && userGPS) || !pins.length) return null;
+                const nxt = pins[0];
+                const g = gpsForRide({ parkId: nxt.parkId, name: nxt.name });
+                if (!g) return null;
+                const rot = (typeof g.bearing === 'number') ? (heading != null ? g.bearing - heading : g.bearing) : 0;
+                return { step: nxt.step, name: nxt.name, rot, dir: g.dir, distLabel: g.distLabel, timeLabel: g.timeLabel };
+            })();
             return (
                 <div className="relative w-full aspect-[4/3] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-inner z-0">
                     <div ref={mapEl} className="absolute inset-0" />
+                    {nextNav && (
+                        <div className="absolute top-2 left-2 right-2 z-[1000] flex items-center gap-2 bg-blue-600/95 text-white rounded-lg px-3 py-1.5 shadow pointer-events-none">
+                            <span style={{ display: 'inline-block', transform: `rotate(${nextNav.rot}deg)`, transition: 'transform 0.2s linear' }} className="text-base font-black leading-none">↑</span>
+                            <span className="text-[11px] font-bold truncate">#{nextNav.step} {nextNav.name}</span>
+                            <span className="text-[11px] font-mono ml-auto whitespace-nowrap">{nextNav.timeLabel} · {nextNav.distLabel}{nextNav.dir ? ' · ' + nextNav.dir : ''}</span>
+                        </div>
+                    )}
                     <div className="absolute bottom-2 right-2 z-[1000] flex gap-1.5">
                         {gpsEnabled && userGPS && (
-                            <button onClick={centerOnMe} title="Center on my location" className="flex items-center gap-1 bg-blue-600/95 text-white border border-blue-400 rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shadow hover:bg-blue-500">◎ Me</button>
+                            <button onClick={toggleFollow} title="Follow my location as I move" className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider shadow border ${follow ? 'bg-blue-600 text-white border-blue-400' : 'bg-white/90 dark:bg-[#0c111a]/90 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-white dark:hover:bg-[#0c111a]'}`}>{follow ? '◉ Following' : '◎ Follow'}</button>
                         )}
                         <button onClick={recenter} title="Fit my whole plan" className="bg-white/90 dark:bg-[#0c111a]/90 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 shadow hover:bg-white dark:hover:bg-[#0c111a]">Recenter</button>
                     </div>
@@ -2569,7 +2601,7 @@
                                             <button onClick={() => setMapMode('schematic')} className={`flex-1 text-[10px] font-black uppercase tracking-wider py-1.5 rounded-lg transition-colors ${mapMode === 'schematic' ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-[#080b12] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>Schematic</button>
                                             <button onClick={() => setMapMode('live')} className={`flex-1 text-[10px] font-black uppercase tracking-wider py-1.5 rounded-lg transition-colors ${mapMode === 'live' ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-[#080b12] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>Live Map</button>
                                         </div>
-                                        {mapMode === 'live' ? <LiveMap masterSequence={masterSequence} userGPS={userGPS} gpsEnabled={gpsEnabled} activePark={activePark} activeRegion={activeRegion} gpsForRide={gpsForRide} /> : <TacticalMap />}
+                                        {mapMode === 'live' ? <LiveMap masterSequence={masterSequence} userGPS={userGPS} gpsEnabled={gpsEnabled} activePark={activePark} activeRegion={activeRegion} gpsForRide={gpsForRide} heading={heading} /> : <TacticalMap />}
                                     </div>
                                 </div>
                                 <div className="lg:col-span-3 space-y-6">
