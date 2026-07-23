@@ -430,22 +430,32 @@
             const [gpsEnabled, setGpsEnabled] = useState(() => JSON.parse(localStorage.getItem('dlp_gps_v18') || 'false'));
             const [userGPS, setUserGPS] = useState(null);
             const [heading, setHeading] = useState(null);
+            // GPS lifecycle so the UI can show feedback instead of a blank space:
+            // 'off' (toggle off) | 'acquiring' (on, waiting for first fix) | 'active' (got a fix) | 'denied' (permission blocked) | 'lost' (was active, signal dropped)
+            const [gpsStatus, setGpsStatus] = useState('off');
             useEffect(() => {
                 localStorage.setItem('dlp_gps_v18', JSON.stringify(gpsEnabled));
                 let watchId;
                 if (gpsEnabled && navigator.geolocation) {
+                    setGpsStatus(prev => (prev === 'active' ? 'active' : 'acquiring'));
                     watchId = navigator.geolocation.watchPosition(
                         (pos) => {
                             const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                             setUserGPS(prev => (!prev || getHaversineDistance(prev.lat, prev.lng, next.lat, next.lng) > 0.008) ? next : prev);
+                            setGpsStatus('active');
                         },
-                        (err) => addLog(`[WARN] GPS Signal lost or denied: ${err.message}`, 'warn'),
+                        (err) => {
+                            setGpsStatus(err && err.code === 1 ? 'denied' : (userGPS ? 'lost' : 'acquiring'));
+                            addLog(`[WARN] GPS Signal lost or denied: ${err.message}`, 'warn');
+                        },
                         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
                     addLog(`[SYS] Satellite Tracking active. Syncing Dynamic Origin.`, 'success');
                 } else {
                     setUserGPS(null);
-                    addLog(`[SYS] Satellite Tracking offline. Reverting to manual sequencing.`, 'info');
+                    setGpsStatus('off');
+                    if (gpsEnabled && !navigator.geolocation) { setGpsStatus('denied'); addLog(`[WARN] Geolocation not supported by this browser.`, 'warn'); }
+                    else addLog(`[SYS] Satellite Tracking offline. Reverting to manual sequencing.`, 'info');
                 }
                 return () => { if(watchId) navigator.geolocation.clearWatch(watchId); };
             }, [gpsEnabled]);
@@ -2105,7 +2115,13 @@
                                     {gpsEnabled && userGPS && (
                                         <div className="flex items-center gap-1.5">
                                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                                            <span>My Location: <span className="font-bold text-slate-700 dark:text-slate-300">{userGPS.lat.toFixed(5)}, {userGPS.lng.toFixed(5)}</span>{heading != null && <span> · heading {Math.round(heading)}°</span>}</span>
+                                            <span>My Location: <span className="font-bold text-slate-700 dark:text-slate-300">{userGPS.lat.toFixed(5)}, {userGPS.lng.toFixed(5)}</span>{heading != null && <span> · heading {Math.round(heading)}°</span>}{gpsStatus === 'lost' && <span className="text-amber-500"> · signal weak</span>}</span>
+                                        </div>
+                                    )}
+                                    {gpsEnabled && !userGPS && (
+                                        <div className="flex items-center gap-1.5">
+                                            <div className={`w-1.5 h-1.5 rounded-full ${gpsStatus === 'denied' ? 'bg-red-500' : 'bg-amber-400 animate-pulse'}`}></div>
+                                            <span>My Location: <span className="font-bold text-slate-700 dark:text-slate-300">{gpsStatus === 'denied' ? 'permission blocked — allow location for this site' : 'acquiring GPS fix…'}</span></span>
                                         </div>
                                     )}
                                 </div>
