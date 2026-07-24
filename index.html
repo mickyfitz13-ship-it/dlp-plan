@@ -2094,6 +2094,8 @@
                                                     const future = hrs.filter(p => p.h >= nowH);
                                                     const quiet = (future.length ? future : hrs).reduce((a, b) => b.w < a.w ? b : a);
                                                     const st = rideStat(ride.parkId, ride.name);
+                                                    // Your planned arrival from the route (the "ETA … ≈…m queue" line under the ride name).
+                                                    const etaHour = (ride.plannedEta && typeof ride.plannedWait === 'number') ? parseInt(String(ride.plannedEta).split(':')[0], 10) : null;
                                                     const liveNow = Math.round(ride.wait_time);
                                                     const yNow = 48 - Math.min(44, (Math.min(maxW, liveNow) / maxW) * 44);
                                                     const drop = liveNow - quiet.w;
@@ -2107,7 +2109,7 @@
                                                             <svg viewBox={`0 0 ${hrs.length * 13} 52`} preserveAspectRatio="none" className="w-full h-16" role="img" aria-label="Predicted wait by hour with a line at the current wait">
                                                                 {hrs.map((p, i) => {
                                                                     const bh = Math.max(1.5, (p.w / maxW) * 44);
-                                                                    const fill = p.h === nowH ? '#3b82f6' : (p.h === quiet.h ? '#10b981' : '#94a3b8');
+                                                                    const fill = p.h === nowH ? '#3b82f6' : (p.h === etaHour ? '#f59e0b' : (p.h === quiet.h ? '#10b981' : '#94a3b8'));
                                                                     return <rect key={p.h} x={i * 13 + 1.5} y={48 - bh} width={10} height={bh} rx="2" fill={fill} opacity={p.h < nowH ? 0.35 : 1} />;
                                                                 })}
                                                                 <line x1="0" y1={yNow} x2={hrs.length * 13} y2={yNow} stroke="#2563eb" strokeWidth="1.25" strokeDasharray="3 2" opacity="0.65" vectorEffect="non-scaling-stroke" />
@@ -2116,6 +2118,9 @@
                                                                 <span>{hrs[0].h}:00</span><span>{hrs[Math.floor(hrs.length / 2)].h}:00</span><span>{hrs[hrs.length - 1].h}:00</span>
                                                             </div>
                                                             <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 leading-relaxed"><span className="text-blue-500 font-black">▬</span> dashed line = queue now (~{liveNow}m) &nbsp; <span className="text-emerald-500 font-black">●</span> quietest ahead <strong>{quiet.h}:00</strong> (~{quiet.w}m). Any bar under the line beats queuing now.</p>
+                                                            {etaHour !== null && (
+                                                                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed"><span className="text-amber-500 font-black">▮</span> your plan puts you here at <strong>{ride.plannedEta}</strong> — about <strong>{ride.plannedWait}m</strong> in the queue then.</p>
+                                                            )}
                                                             {!isClosed && (
                                                                 <div className={`mt-2 rounded-lg px-3 py-2 text-[11px] font-bold ${worthWait ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'}`}>
                                                                     {worthWait
