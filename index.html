@@ -2057,6 +2057,25 @@
                                                 <Icon path={I.RefreshCw} size={10} /> Live forecast refreshed every 5 minutes
                                             </p>
                                         </div>
+                                        <div>
+                                            <h5 className="text-sm font-bold text-slate-900 dark:text-white mb-2">Good to know</h5>
+                                            <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm space-y-2.5 text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                                                {(() => {
+                                                    const st = rideStat(ride.parkId, ride.name);
+                                                    const outdoor = /outdoor|dynamic|track/i.test(intel.env || '');
+                                                    const diff = (st && !isClosed) ? Math.round(((ride.wait_time - st.avg) / Math.max(1, st.avg)) * 100) : null;
+                                                    return (
+                                                        <>
+                                                            {diff !== null && (
+                                                                <p className="flex items-start gap-2"><Icon path={I.Activity} size={13} className={`shrink-0 mt-0.5 ${diff >= 15 ? 'text-rose-500' : diff <= -15 ? 'text-emerald-500' : 'text-slate-400'}`} /><span>{diff >= 15 ? `Busier than usual — about ${Math.abs(diff)}% over its all-time average of ${st.avg}m.` : diff <= -15 ? `Quieter than usual — about ${Math.abs(diff)}% under its ${st.avg}m average. Good time to jump on.` : `Running about its usual ${st.avg}m for this ride.`}</span></p>
+                                                            )}
+                                                            <p className="flex items-start gap-2"><Icon path={outdoor ? I.Sun : I.Cloud} size={13} className="text-blue-500 shrink-0 mt-0.5" /><span>{outdoor ? 'Outdoor ride — lines thin out in rain and late evening; check the weather pane.' : 'Mostly indoor — a solid pick during rain or midday heat.'}</span></p>
+                                                            <p className="flex items-start gap-2"><Icon path={I.Database} size={13} className="text-slate-400 shrink-0 mt-0.5" /><span>Forecast from {ride.analytics.samples} readings over {ride.analytics.timeSpan}{ride.analytics.samples < 50 ? ' — still calibrating, treat as a rough guide.' : '.'}</span></p>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="space-y-4">
                                         <div>
@@ -2075,23 +2094,35 @@
                                                     const future = hrs.filter(p => p.h >= nowH);
                                                     const quiet = (future.length ? future : hrs).reduce((a, b) => b.w < a.w ? b : a);
                                                     const st = rideStat(ride.parkId, ride.name);
+                                                    const liveNow = Math.round(ride.wait_time);
+                                                    const yNow = 48 - Math.min(44, (Math.min(maxW, liveNow) / maxW) * 44);
+                                                    const drop = liveNow - quiet.w;
+                                                    const worthWait = quiet.w <= liveNow * 0.75 && drop >= 10;
                                                     return (
                                                         <>
                                                             <div className="flex justify-between items-center mb-2">
                                                                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1"><Icon path={I.Timer} size={14} /> Now</span>
-                                                                <span className="text-lg font-black text-slate-800 dark:text-slate-200">{isClosed ? '--' : `${Math.round(ride.wait_time)} min`}</span>
+                                                                <span className="text-lg font-black text-slate-800 dark:text-slate-200">{isClosed ? '--' : `${liveNow} min`}</span>
                                                             </div>
-                                                            <svg viewBox={`0 0 ${hrs.length * 13} 52`} preserveAspectRatio="none" className="w-full h-16" role="img" aria-label="Predicted wait by hour">
+                                                            <svg viewBox={`0 0 ${hrs.length * 13} 52`} preserveAspectRatio="none" className="w-full h-16" role="img" aria-label="Predicted wait by hour with a line at the current wait">
                                                                 {hrs.map((p, i) => {
                                                                     const bh = Math.max(1.5, (p.w / maxW) * 44);
                                                                     const fill = p.h === nowH ? '#3b82f6' : (p.h === quiet.h ? '#10b981' : '#94a3b8');
                                                                     return <rect key={p.h} x={i * 13 + 1.5} y={48 - bh} width={10} height={bh} rx="2" fill={fill} opacity={p.h < nowH ? 0.35 : 1} />;
                                                                 })}
+                                                                <line x1="0" y1={yNow} x2={hrs.length * 13} y2={yNow} stroke="#2563eb" strokeWidth="1.25" strokeDasharray="3 2" opacity="0.65" vectorEffect="non-scaling-stroke" />
                                                             </svg>
                                                             <div className="flex justify-between text-[8px] text-slate-400 font-mono mt-0.5">
                                                                 <span>{hrs[0].h}:00</span><span>{hrs[Math.floor(hrs.length / 2)].h}:00</span><span>{hrs[hrs.length - 1].h}:00</span>
                                                             </div>
-                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 leading-relaxed"><span className="text-blue-500 font-black">●</span> now &nbsp; <span className="text-emerald-500 font-black">●</span> quietest ahead: <strong>{quiet.h}:00</strong> (~{quiet.w}m)</p>
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 leading-relaxed"><span className="text-blue-500 font-black">▬</span> dashed line = queue now (~{liveNow}m) &nbsp; <span className="text-emerald-500 font-black">●</span> quietest ahead <strong>{quiet.h}:00</strong> (~{quiet.w}m). Any bar under the line beats queuing now.</p>
+                                                            {!isClosed && (
+                                                                <div className={`mt-2 rounded-lg px-3 py-2 text-[11px] font-bold ${worthWait ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'}`}>
+                                                                    {worthWait
+                                                                        ? `↓ Worth waiting — expected ~${quiet.w}m around ${quiet.h}:00 (${drop}m shorter than now).`
+                                                                        : `→ Queue now — it doesn't get meaningfully shorter today (best ahead ~${quiet.w}m).`}
+                                                                </div>
+                                                            )}
                                                             <div className="grid grid-cols-3 gap-2 text-center border-t border-slate-100 dark:border-slate-800 pt-3 mt-3">
                                                                 <div>
                                                                     <span className="text-[9px] text-slate-400 block uppercase font-bold tracking-wider mb-0.5">Min ahead</span>
