@@ -1105,14 +1105,26 @@
                         // trend past ~30 min and let the hour-by-hour history pull the estimate toward
                         // the level that's actually likely at that time of day.
                         const shapeCurve = statCurve(ride.parkId, ride.name);
-                        const hrNow = getParkHour(currentTime, ride.parkId);
-                        const histNow = shapeCurve ? shapeCurve[hrNow] : null;
+                        // Read the curve at the EXACT future time (fractional hour), interpolating between
+                        // hours — reading by whole-hour buckets made +30 and +60 land in the same hour and
+                        // come out identical. Fractional park-local hour "now":
+                        const parkNowD = new Date(currentTime + getTzOffsetMs(PARK_TZ[ride.parkId] || 'UTC'));
+                        const fhNow = parkNowD.getUTCHours() + parkNowD.getUTCMinutes() / 60;
+                        const curveAtHour = (fh) => {
+                            if (!shapeCurve) return null;
+                            const h0 = Math.max(0, Math.min(23, Math.floor(fh))), h1 = Math.min(23, h0 + 1);
+                            const a = shapeCurve[h0], b = shapeCurve[h1];
+                            if (typeof a !== 'number' && typeof b !== 'number') return null;
+                            if (typeof a !== 'number') return b;
+                            if (typeof b !== 'number') return a;
+                            return a + (b - a) * (fh - h0);
+                        };
+                        const histNow = curveAtHour(fhNow);
                         // How today's live wait sits vs this ride's normal level right now (1 = normal),
                         // clamped so a single odd reading can't redefine the whole day.
                         const calibP = (typeof histNow === 'number' && histNow >= 5 && currentWait > 0) ? Math.max(0.5, Math.min(2, currentWait / histNow)) : 1;
                         const predAt = (mins, wPersist) => {
-                            const fh = getParkHour(currentTime + mins * 60000, ride.parkId);
-                            const cFut = shapeCurve ? shapeCurve[fh] : null;
+                            const cFut = curveAtHour(fhNow + mins / 60);
                             const adj = velocity * mins * Math.exp(-mins / 40) * 0.5; // gentle, decaying live momentum
                             if (typeof cFut !== 'number' || currentWait <= 0 || typeof histNow !== 'number' || histNow < 3) {
                                 return Math.min(180, Math.max(0, Math.round(currentWait + adj)));
