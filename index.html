@@ -357,6 +357,13 @@
             }
             return { brief, type, env, tags };
         };
+        // Best-effort "is this a show / parade / character meet rather than a ride?" — keeps
+        // entertainment out of the priority headliners and powers the builder's category filters.
+        const rideIsShow = (name) => {
+            const n = (name || '').toLowerCase();
+            if (/^meet\b/.test(n) || /\bmeet\b/.test(n)) return true;
+            return /(live on stage|on stage|stunt|spectacular|sing[- ]?along|the musical|a musical|\bconcert\b|\bshow\b|\bshows\b|celebration|\bparade\b|fireworks|cavalcade|philharmagic|hall of presidents|carousel of progress|country bear|tiki room|laugh floor|turtle talk|festival of the lion king|feathered friends|the big blue|disney jr|disney junior|mickey mouse clubhouse|film festival|\btheater\b|\btheatre\b|enchanted tales|muppet|\b3d\b)/.test(n);
+        };
         const fetchWithTimeout = async (url, timeout = 10000) => {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), timeout);
@@ -743,10 +750,11 @@
             const [showBuilder, setShowBuilder] = useState(false);
             const [bRides, setBRides] = useState(() => new Set());   // ride ids you want to do
             const [bPace, setBPace] = useState('balanced');          // 'relaxed' | 'balanced' | 'commando'
-            const [bLunch, setBLunch] = useState(true);
-            const [bLunchT, setBLunchT] = useState('13:00');
-            const [bDinner, setBDinner] = useState(true);
-            const [bDinnerT, setBDinnerT] = useState('18:30');
+            const [bBreaks, setBBreaks] = useState(() => ([
+                { key: 'lunch', label: 'Lunch', on: true, time: '13:00' },
+                { key: 'dinner', label: 'Dinner', on: true, time: '18:30' },
+                { key: 'break', label: 'Break', on: false, time: '15:30' }
+            ]));
             const [bAiText, setBAiText] = useState('');
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(true);
@@ -859,11 +867,12 @@
                 });
                 setRemovedTargets(rem);
                 setActivatedMinors(act);
-                const meals = [];
-                const lunchMins = bPace === 'commando' ? 30 : (bPace === 'relaxed' ? 75 : 60);
-                const dinnerMins = bPace === 'commando' ? 30 : (bPace === 'relaxed' ? 60 : 45);
-                if (bLunch && toMin(bLunchT) != null) meals.push({ id: `build-l-${Date.now()}`, label: 'Lunch', atMin: toMin(bLunchT), mins: lunchMins });
-                if (bDinner && toMin(bDinnerT) != null) meals.push({ id: `build-d-${Date.now()}`, label: 'Dinner', atMin: toMin(bDinnerT), mins: dinnerMins });
+                // Pace scales break length: relaxed = longer rests, commando = quick pit-stops.
+                const paceF = bPace === 'relaxed' ? 1.3 : (bPace === 'commando' ? 0.55 : 1.0);
+                const baseMins = (label) => { const l = (label || '').toLowerCase(); return l.includes('lunch') ? 60 : (l.includes('dinner') ? 45 : 20); };
+                const meals = bBreaks
+                    .filter(b => b.on && toMin(b.time) != null)
+                    .map((b, i) => ({ id: `build-${i}-${Date.now()}`, label: (b.label || 'Break').slice(0, 20), atMin: toMin(b.time), mins: Math.max(5, Math.round(baseMins(b.label) * paceF / 5) * 5) }));
                 setCustomBreaks(meals);
                 setBreaks({ lunch: false, dinner: false });
                 setShowBuilder(false);
@@ -1011,7 +1020,7 @@
                             const processed = rawRides
                                 .filter(r => r.id != null && typeof r.name === 'string' && r.name && !r.name.toLowerCase().includes('single rider'))
                                 .map(r => {
-                                    const isPriority = PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
+                                    const isPriority = !rideIsShow(r.name) && PRIORITY_RIDES.some(top => r.name.toLowerCase().includes(top.toLowerCase()));
                                     const coords = getCoords(park.id, r.landName);
                                     return {
                                         ...r,
@@ -2772,10 +2781,11 @@
 
                                                 <div className="flex items-center justify-between mb-1.5">
                                                     <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Rides — {bRides.size} picked</p>
-                                                    <div className="flex gap-1">
+                                                    <div className="flex flex-wrap gap-1 justify-end">
                                                         <button onClick={() => setBRides(new Set(pool.filter(r => r.isPriority).map(r => r.id)))} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-emerald-400">Headliners</button>
-                                                        <button onClick={() => setBRides(new Set(pool.filter(r => rideIsThrill(r)).map(r => r.id)))} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-emerald-400">Thrills</button>
-                                                        <button onClick={() => setBRides(new Set(pool.filter(r => !rideIsThrill(r)).map(r => r.id)))} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-emerald-400">Family</button>
+                                                        <button onClick={() => setBRides(new Set(pool.filter(r => rideIsThrill(r) && !rideIsShow(r.name)).map(r => r.id)))} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-emerald-400">Thrills</button>
+                                                        <button onClick={() => setBRides(new Set(pool.filter(r => !rideIsThrill(r) && !rideIsShow(r.name)).map(r => r.id)))} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-emerald-400">Family</button>
+                                                        <button onClick={() => setBRides(new Set(pool.filter(r => rideIsShow(r.name)).map(r => r.id)))} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-emerald-400">Shows</button>
                                                         <button onClick={() => setBRides(new Set())} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-rose-400">Clear</button>
                                                     </div>
                                                 </div>
@@ -2794,29 +2804,35 @@
                                                 </div>
 
                                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Pace</p>
-                                                <div className="grid grid-cols-3 gap-1.5 mb-4">
+                                                <div className="grid grid-cols-3 gap-1.5 mb-1">
                                                     {[['relaxed', 'Relaxed'], ['balanced', 'Balanced'], ['commando', 'Commando']].map(([v, l]) => (
                                                         <button key={v} onClick={() => setBPace(v)} className={`py-2 rounded-lg text-[10px] font-bold border transition-colors ${bPace === v ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-50 dark:bg-[#05070a] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-blue-400'}`}>{l}</button>
                                                     ))}
                                                 </div>
+                                                <p className="text-[9px] text-slate-400 dark:text-slate-500 mb-4 leading-relaxed">Sets how long your breaks are — <strong>Relaxed</strong> = longer rests, <strong>Commando</strong> = quick pit-stops.</p>
 
-                                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Meals &amp; breaks</p>
-                                                <label className="flex items-center gap-2 mb-2">
-                                                    <input type="checkbox" checked={bLunch} onChange={e => setBLunch(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
-                                                    <span className="text-[11px] flex-grow text-slate-700 dark:text-slate-300">Lunch break</span>
-                                                    <input type="time" value={bLunchT} onChange={e => setBLunchT(e.target.value)} disabled={!bLunch} className="bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-[11px] text-slate-700 dark:text-slate-300 disabled:opacity-40" />
-                                                </label>
-                                                <label className="flex items-center gap-2 mb-4">
-                                                    <input type="checkbox" checked={bDinner} onChange={e => setBDinner(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
-                                                    <span className="text-[11px] flex-grow text-slate-700 dark:text-slate-300">Dinner break</span>
-                                                    <input type="time" value={bDinnerT} onChange={e => setBDinnerT(e.target.value)} disabled={!bDinner} className="bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-[11px] text-slate-700 dark:text-slate-300 disabled:opacity-40" />
-                                                </label>
+                                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Breaks</p>
+                                                <div className="space-y-1.5 mb-1.5">
+                                                    {bBreaks.map((b, i) => (
+                                                        <div key={b.key} className="flex items-center gap-2">
+                                                            <input type="checkbox" checked={b.on} onChange={e => setBBreaks(prev => prev.map((x, j) => j === i ? { ...x, on: e.target.checked } : x))} className="accent-emerald-500 w-4 h-4 shrink-0" />
+                                                            <input type="text" value={b.label} onChange={e => setBBreaks(prev => prev.map((x, j) => j === i ? { ...x, label: e.target.value.slice(0, 20) } : x))} placeholder="Break name" className="flex-grow min-w-0 bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-[11px] text-slate-700 dark:text-slate-300" />
+                                                            <input type="time" value={b.time} onChange={e => setBBreaks(prev => prev.map((x, j) => j === i ? { ...x, time: e.target.value } : x))} disabled={!b.on} className="bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-[11px] text-slate-700 dark:text-slate-300 disabled:opacity-40 shrink-0" />
+                                                            <button onClick={() => setBBreaks(prev => prev.filter((_, j) => j !== i))} aria-label="Remove break" className="text-slate-400 hover:text-rose-500 shrink-0"><Icon path={I.X} size={14} /></button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <button onClick={() => setBBreaks(prev => [...prev, { key: `b${Date.now()}`, label: 'Break', on: true, time: '15:30' }])} className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-4 hover:underline">+ Add another break</button>
 
                                                 <button onClick={applyBuilder} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl py-2.5 text-xs font-black uppercase tracking-wider">Build my day →</button>
 
                                                 <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800">
                                                     <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1"><Icon path={I.Cpu} size={11} /> Or describe it — let Overwatch build it</p>
                                                     <textarea value={bAiText} onChange={e => setBAiText(e.target.value)} rows={2} placeholder="e.g. thrill rides only, must do Space Mountain, lunch at 1, leaving by 6pm" className="w-full bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-2 text-[11px] text-slate-700 dark:text-slate-300 focus:outline-none focus:border-emerald-500 resize-none" />
+                                                    <label className="flex items-center gap-2 mt-1.5" title="Let the AI also look up live tips (show times, height limits) — uses more quota">
+                                                        <input type="checkbox" checked={aiSearch} onChange={e => setAiSearch(e.target.checked)} disabled={!useCloud} className="accent-blue-500 w-3.5 h-3.5" />
+                                                        <span className="text-[10px] text-slate-500 dark:text-slate-400">Also search the web for tips</span>
+                                                    </label>
                                                     <button onClick={buildWithAI} disabled={!useCloud || !bAiText.trim()} title={useCloud ? '' : 'Turn AI on (chat panel) to use this'} className="w-full mt-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg py-2 text-[11px] font-black uppercase tracking-wider">{useCloud ? 'Build with AI →' : 'Turn AI on to build with AI'}</button>
                                                 </div>
                                             </div>
