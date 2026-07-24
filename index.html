@@ -2303,10 +2303,11 @@
                     const body = {
                         systemInstruction: { parts: [{ text: sys }] },
                         contents: hist.slice(-8).map(m => ({ role: m.role === 'model' ? 'model' : 'user', parts: m.parts })),
-                        // Gemini 2.5 "thinking" tokens count against maxOutputTokens; left on with a
-                        // low cap they eat the budget and truncate the visible answer mid-sentence.
-                        // Disable thinking (short park answers don't need it) and give real headroom.
-                        generationConfig: { maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } }
+                        // Gemini 2.5 "thinking" tokens count against maxOutputTokens; at a low cap (600)
+                        // they ate the budget and truncated the visible answer mid-sentence. A large cap
+                        // leaves ample room for the reply after thinking. (thinkingConfig isn't accepted
+                        // by this model alias — it returns 400 — so we just give generous headroom.)
+                        generationConfig: { maxOutputTokens: 4096 }
                     };
                     if (useTools) body.tools = [{ google_search: {} }];
                     let res, url, headers, sendBody;
