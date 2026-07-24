@@ -1,0 +1,45 @@
+name: Telemetry Tracker
+
+# Snapshots live queue times every hour and commits them to telemetry.json,
+# which the app reads to build its historical day-of-week model.
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # hourly, on the hour (UTC)
+  workflow_dispatch:       # allow manual runs from the Actions tab
+
+# Never let two sweeps overlap — avoids commit races and duplicate pushes.
+concurrency:
+  group: telemetry-tracker
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run telemetry sweep
+        run: node update_telemetry.js
+
+      - name: Commit and push updated log
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add telemetry.json
+          if git diff --staged --quiet; then
+            echo "No telemetry changes to commit."
+          else
+            git commit -m "SYS: automated telemetry update"
+            git push
+          fi
