@@ -933,7 +933,9 @@
                             for (const proxy of PROXIES) {
                                 try {
                                     addLog(`[NET] Engaging node: ${proxy.name} for ${park.name}...`, 'info');
-                                    data = await proxy.fetch(`https://queue-times.com/parks/${park.id}/queue_times.json`);
+                                    // Cache-buster (?t=...) so the CORS proxy / CDN can't hand back a stale
+                                    // overnight snapshot — that made rides show CLOSED while queue-times was live.
+                                    data = await proxy.fetch(`https://queue-times.com/parks/${park.id}/queue_times.json?t=${Date.now()}`);
                                     if (data && (data.lands || data.rides)) break;
                                 } catch(e) { addLog(`[WARN] Node timeout/failure: ${e.message}`, 'warn'); }
                             }
