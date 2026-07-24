@@ -40,7 +40,7 @@ async function updateData() {
 
     for (const parkId of PARKS) {
         try {
-            const data = await fetchJson(`https://queue-times.com/parks/${parkId}/queue_times.json`);
+            const data = await fetchJson(`https://queue-times.com/parks/${parkId}/queue_times.json?t=${Date.now()}`);
             const rides = Array.isArray(data.rides) ? [...data.rides] : [];
             if (Array.isArray(data.lands)) {
                 data.lands.forEach(land => {
