@@ -467,7 +467,15 @@
                 pinLayerRef.current = L.layerGroup().addTo(map);
                 gpsLayerRef.current = L.layerGroup().addTo(map);
                 setTimeout(() => map.invalidateSize(), 120);
-                return () => { map.remove(); mapRef.current = null; pinLayerRef.current = null; gpsLayerRef.current = null; coneRef.current = null; fittedRef.current = false; };
+                // Auto-load fix: on first paint the map card can still be 0-size, so Leaflet draws
+                // blank until something resizes it (which is why toggling Schematic and back "fixed"
+                // it). A ResizeObserver recomputes the size the instant the container gets one.
+                let ro = null;
+                if (typeof ResizeObserver !== 'undefined') {
+                    ro = new ResizeObserver(() => { if (mapRef.current) mapRef.current.invalidateSize(); });
+                    try { ro.observe(mapEl.current); } catch (e) {}
+                }
+                return () => { if (ro) ro.disconnect(); map.remove(); mapRef.current = null; pinLayerRef.current = null; gpsLayerRef.current = null; coneRef.current = null; fittedRef.current = false; };
             }, [leafletMissing]);
             useEffect(() => {
                 const map = mapRef.current, lg = pinLayerRef.current;
@@ -729,6 +737,16 @@
             }, [gpsEnabled]);
             const [completedTargets, setCompletedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_completed_v18') || '[]')));
             const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v18') || '[]')));
+            // Rides you explicitly removed from the plan — they drop to "All Other Attractions".
+            const [removedTargets, setRemovedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_removed_v1') || '[]')));
+            // "Build My Day" wizard state.
+            const [showBuilder, setShowBuilder] = useState(false);
+            const [bFocus, setBFocus] = useState('all');        // 'all' | 'thrill' | 'family'
+            const [bPace, setBPace] = useState('balanced');     // 'relaxed' | 'balanced' | 'commando'
+            const [bLunch, setBLunch] = useState(true);
+            const [bLunchT, setBLunchT] = useState('13:00');
+            const [bDinner, setBDinner] = useState(false);
+            const [bDinnerT, setBDinnerT] = useState('18:30');
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(true);
             const logsEndRef = useRef(null);
@@ -760,6 +778,7 @@
             }, [newestTelemetryTimestamp]);
             useEffect(() => localStorage.setItem('dlp_completed_v18', JSON.stringify(Array.from(completedTargets))), [completedTargets]);
             useEffect(() => localStorage.setItem('dlp_activated_v18', JSON.stringify(Array.from(activatedMinors))), [activatedMinors]);
+            useEffect(() => localStorage.setItem('dlp_removed_v1', JSON.stringify(Array.from(removedTargets))), [removedTargets]);
             const handleRegionChange = (newRegion) => {
                 setActiveRegion(newRegion);
                 setActivePark('all');
@@ -790,8 +809,16 @@
                     });
                 }
             };
+            // Remove a ride from the active route -> it drops to "All Other Attractions".
+            const removeFromPlan = (e, rideId) => {
+                e.stopPropagation();
+                setRemovedTargets(prev => { const next = new Set(prev); next.add(rideId); return next; });
+                addLog(`[SYS] Objective removed from route — parked in background attractions.`, 'warn');
+            };
             const toggleMinor = (e, rideId) => {
                 e.stopPropagation();
+                // Tapping a ride in the optional list also un-removes it (restores it to the plan).
+                setRemovedTargets(prev => { if (!prev.has(rideId)) return prev; const next = new Set(prev); next.delete(rideId); return next; });
                 setActivatedMinors(prev => {
                     const next = new Set(prev);
                     if (next.has(rideId)) { next.delete(rideId); addLog(`[SYS] Demoting attraction back to the background repository.`, 'info'); }
@@ -803,8 +830,33 @@
                 if(window.confirm("Clear all completed objectives and reset your daily sequence?")) {
                     setCompletedTargets(new Set());
                     setActivatedMinors(new Set());
+                    setRemovedTargets(new Set());
                     addLog(`[SYS] Daily routing progress manually cleared.`, 'warn');
                 }
+            };
+            const rideIsThrill = (r) => (generateTacticalIntelligence(r).tags || []).map(t => t.toLowerCase()).includes('thrill');
+            // "Build My Day": turn the wizard prefs into breaks + a focus-filtered plan.
+            const applyBuilder = () => {
+                const toMin = (hm) => { const m = /^(\d{1,2}):(\d{2})$/.exec((hm || '').trim()); return m ? Math.min(1439, Math.max(0, (+m[1]) * 60 + (+m[2]))) : null; };
+                const meals = [];
+                const lunchMins = bPace === 'commando' ? 30 : (bPace === 'relaxed' ? 75 : 60);
+                const dinnerMins = bPace === 'commando' ? 30 : (bPace === 'relaxed' ? 60 : 45);
+                if (bLunch && toMin(bLunchT) != null) meals.push({ id: `build-l-${Date.now()}`, label: 'Lunch', atMin: toMin(bLunchT), mins: lunchMins });
+                if (bDinner && toMin(bDinnerT) != null) meals.push({ id: `build-d-${Date.now()}`, label: 'Dinner', atMin: toMin(bDinnerT), mins: dinnerMins });
+                setCustomBreaks(meals);
+                setBreaks({ lunch: false, dinner: false });
+                const rem = new Set();
+                if (bFocus !== 'all') {
+                    rides.forEach(r => {
+                        if (!r.isPriority) return;
+                        const thrill = rideIsThrill(r);
+                        if ((bFocus === 'thrill' && !thrill) || (bFocus === 'family' && thrill)) rem.add(r.id);
+                    });
+                }
+                setRemovedTargets(rem);
+                setActivatedMinors(new Set());
+                setShowBuilder(false);
+                addLog('[SYS] Day plan generated from your preferences.', 'success');
             };
             const addLog = (msg, type = 'info') => {
                 const time = new Date().toLocaleTimeString('en-GB', { hour12: false, fractionalSecondDigits: 3 });
@@ -1224,6 +1276,7 @@
                     if (activePark !== 'all' && r.parkId !== parseInt(activePark)) return;
                     if (completedTargets.has(r.id)) completedSequence.push(r);
                     else if (!r.is_open) closedSequence.push(r);
+                    else if (removedTargets.has(r.id)) minorSequence.push(r);
                     else if (r.isMinor && !activatedMinors.has(r.id)) minorSequence.push(r);
                     else activePool.push(r);
                 });
@@ -1602,7 +1655,7 @@
                     completedSequence, minorSequence, closedSequence,
                     metrics: { walkMins: chosenWalk, totalSavedMins: totalSavedMins, totalQueueTimeMins: Math.round(totalQueueTimeMins) }
                 };
-            }, [rides, activePark, completedTargets, activatedMinors, gpsEnabled, userGPS, activeRegion, routeMode, manualOrder, breaks, customBreaks]);
+            }, [rides, activePark, completedTargets, activatedMinors, removedTargets, gpsEnabled, userGPS, activeRegion, routeMode, manualOrder, breaks, customBreaks]);
             const { itinerary, masterSequence, completedSequence, minorSequence, closedSequence, metrics } = memoizedData;
             // Per-park operating status (from schedule minsToClose) for the selector badges.
             const parkStatus = useMemo(() => {
@@ -1789,6 +1842,16 @@
                 }
                 return (
                     <div className="relative group mb-3">
+                        {!isMinor && !isCompleted && !isClosed && (
+                            <button
+                                onClick={(e) => removeFromPlan(e, ride.id)}
+                                title="Remove from plan — moves it down to All Other Attractions"
+                                aria-label={`Remove ${ride.name} from the plan`}
+                                className="absolute top-1 right-1 z-20 w-6 h-6 rounded-full flex items-center justify-center text-slate-400 dark:text-slate-500 bg-white/80 dark:bg-[#0c111a]/80 border border-slate-200 dark:border-slate-700 hover:text-white hover:bg-rose-500 hover:border-rose-500 transition-colors shadow-sm"
+                            >
+                                <Icon path={I.X} size={13} />
+                            </button>
+                        )}
                         <div
                             onClick={() => toggleExpand(ride.id)}
                             className={`flex items-center p-3 rounded-xl transition-all cursor-pointer border ${
@@ -2283,7 +2346,7 @@
                 L.push('Rides (name [land] wait, *=priority, tags):\n' + pool.slice(0, 32).map(r => `${r.name} [${r.landName}] ${r.is_open ? Math.round(r.wait_time) + 'm' : 'CLOSED'}${r.isPriority ? ' *' : ''} ${((r.aiIntel && r.aiIntel.tags) || []).join('/')}`).join('\n'));
                 return L.join('\n');
             };
-            const SYS_PROMPT = () => `You are "Overwatch", a concise, upbeat tactical theme-park advisor built into a live touring-plan app. Answer using the LIVE DATA below; use web search for facts the data lacks (parade/show times, height requirements, general tips). If unsure, say so briefly. Be specific (ride names, waits, ETAs, temps). Keep replies under ~6 sentences unless asked for detail. Use **bold** for key items.\n\nLIVE DATA:\n${buildAiContext()}`;
+            const SYS_PROMPT = () => `You are "Overwatch", a concise, upbeat tactical theme-park advisor built into a live touring-plan app. Answer using the LIVE DATA below; use web search for facts the data lacks (parade/show times, height requirements, general tips). If unsure, say so briefly. Be specific (ride names, waits, ETAs, temps). Keep replies under ~6 sentences unless asked for detail. Use **bold** for key items. If the user asks to change their plan (add or remove a ride, or set a meal/break time), append a fenced block exactly like \`\`\`plan-actions {"remove":["Exact Ride Name"],"add":["Exact Ride Name"],"breaks":[{"label":"Dinner","time":"19:00","mins":45}]}\`\`\` — include only the keys you need, use exact ride names from the data, and keep your short normal reply above the block.\n\nLIVE DATA:\n${buildAiContext()}`;
             // Provider-aware call. Gemini (native, CORS-friendly) or any OpenAI-COMPATIBLE
             // endpoint that allows browser calls (e.g. OpenRouter). Note: api.openai.com itself
             // sends no CORS headers, so it can't be called from a static page.
@@ -2366,6 +2429,18 @@
             const aiEnabled = aiProvider === 'gemini' ? (!!aiKey || !!SHARED_AI_PROXY) : !!aiKey;
             // Cloud AI is used only when it's available AND the user has it switched on.
             const useCloud = aiOn && aiEnabled;
+            // Parse a ```plan-actions {json}``` block from an AI reply and apply it to the plan.
+            const applyPlanActions = (text) => {
+                const m = /```plan-actions\s*([\s\S]*?)```/.exec(text);
+                if (!m) return { clean: text, note: '' };
+                const clean = text.replace(m[0], '').trim();
+                let obj; try { obj = JSON.parse(m[1].trim()); } catch (e) { return { clean, note: '' }; }
+                const done = [];
+                if (Array.isArray(obj.remove)) obj.remove.forEach(nm => { const r = findRideByText(String(nm)); if (r) { setRemovedTargets(p => { const n = new Set(p); n.add(r.id); return n; }); done.push('removed ' + r.name); } });
+                if (Array.isArray(obj.add)) obj.add.forEach(nm => { const r = findRideByText(String(nm)); if (r) { setRemovedTargets(p => { const n = new Set(p); n.delete(r.id); return n; }); setActivatedMinors(p => { const n = new Set(p); n.add(r.id); return n; }); done.push('added ' + r.name); } });
+                if (Array.isArray(obj.breaks)) obj.breaks.forEach(b => { const mm = /^(\d{1,2}):(\d{2})$/.exec(String(b.time || '').trim()); if (mm) { const atMin = Math.min(1439, (+mm[1]) * 60 + (+mm[2])); setCustomBreaks(p => [...p, { id: `ai-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, label: String(b.label || 'Break').slice(0, 20), atMin, mins: Math.max(5, Math.min(240, parseInt(b.mins) || 30)) }]); done.push(String(b.label || 'break') + ' at ' + b.time); } });
+                return { clean, note: done.length ? `\n\n✓ **Applied:** ${done.join(', ')}.` : '' };
+            };
             const handleAsk = async (override) => {
                 // override lets menu chips ask a preset question without touching the text box.
                 const q = (typeof override === 'string' ? override : chatInput);
@@ -2377,7 +2452,8 @@
                 if (useCloud) {
                     try {
                         const reply = await askLLM(newHist);
-                        setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: reply }] }]);
+                        const { clean, note } = applyPlanActions(reply);
+                        setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: clean + note }] }]);
                     } catch (e) {
                         addLog(`[ERR] Overwatch AI: ${e.message}`, 'error');
                         const is429 = e.status === 429 || /RESOURCE_EXHAUSTED|quota|\b429\b/.test(e.message);
@@ -2659,6 +2735,44 @@
                                             );
                                         })()}
                                     </div>
+                                    <button onClick={() => setShowBuilder(true)} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white rounded-2xl py-3 text-xs font-black uppercase tracking-wider shadow-md transition-all">
+                                        <Icon path={I.Cpu} size={14} /> Build My Day
+                                    </button>
+                                    {showBuilder && (
+                                        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4" onClick={() => setShowBuilder(false)}>
+                                            <div className="bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-5 w-full max-w-md shadow-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <h2 className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2"><Icon path={I.Cpu} size={16} /> Build My Day</h2>
+                                                    <button onClick={() => setShowBuilder(false)} aria-label="Close"><Icon path={I.X} size={18} className="text-slate-400 hover:text-slate-700 dark:hover:text-white" /></button>
+                                                </div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">What do you want to ride?</p>
+                                                <div className="grid grid-cols-3 gap-1.5 mb-4">
+                                                    {[['all', 'Everything'], ['thrill', 'Thrills'], ['family', 'Family']].map(([v, l]) => (
+                                                        <button key={v} onClick={() => setBFocus(v)} className={`py-2 rounded-lg text-[10px] font-bold border transition-colors ${bFocus === v ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-50 dark:bg-[#05070a] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-emerald-400'}`}>{l}</button>
+                                                    ))}
+                                                </div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Pace</p>
+                                                <div className="grid grid-cols-3 gap-1.5 mb-4">
+                                                    {[['relaxed', 'Relaxed'], ['balanced', 'Balanced'], ['commando', 'Commando']].map(([v, l]) => (
+                                                        <button key={v} onClick={() => setBPace(v)} className={`py-2 rounded-lg text-[10px] font-bold border transition-colors ${bPace === v ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-50 dark:bg-[#05070a] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-blue-400'}`}>{l}</button>
+                                                    ))}
+                                                </div>
+                                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Meals &amp; breaks</p>
+                                                <label className="flex items-center gap-2 mb-2">
+                                                    <input type="checkbox" checked={bLunch} onChange={e => setBLunch(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
+                                                    <span className="text-[11px] flex-grow text-slate-700 dark:text-slate-300">Lunch break</span>
+                                                    <input type="time" value={bLunchT} onChange={e => setBLunchT(e.target.value)} disabled={!bLunch} className="bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-[11px] text-slate-700 dark:text-slate-300 disabled:opacity-40" />
+                                                </label>
+                                                <label className="flex items-center gap-2 mb-4">
+                                                    <input type="checkbox" checked={bDinner} onChange={e => setBDinner(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
+                                                    <span className="text-[11px] flex-grow text-slate-700 dark:text-slate-300">Dinner break</span>
+                                                    <input type="time" value={bDinnerT} onChange={e => setBDinnerT(e.target.value)} disabled={!bDinner} className="bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-[11px] text-slate-700 dark:text-slate-300 disabled:opacity-40" />
+                                                </label>
+                                                <button onClick={applyBuilder} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl py-2.5 text-xs font-black uppercase tracking-wider">Build it →</button>
+                                                <p className="mt-2 text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">Sets your meals as breaks, filters the plan to your picks, and re-optimises. Tweak after with the × on any ride{useCloud ? ', or ask Overwatch (e.g. “add Space Mountain”, “move dinner to 7pm”).' : ' (turn AI on to also tweak it by chat).'}</p>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
                                         <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                                             <Icon path={I.Navigation} size={12} /> Route Order
