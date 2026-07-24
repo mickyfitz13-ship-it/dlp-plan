@@ -1111,15 +1111,19 @@
                             const a = shapeCurve[hrNow], b = shapeCurve[getParkHour(currentTime + mins * 60000, ride.parkId)];
                             return (typeof a === 'number' && a > 3 && typeof b === 'number') ? b / a : null;
                         };
-                        const predAt = (mins, wLin) => {
-                            const trend = velocity * (mins <= 30 ? mins : 30 + (mins - 30) * 0.5); // damped beyond 30m
-                            const lin = currentWait + trend;
+                        const predAt = (mins) => {
                             const r = shapeRatio(mins);
-                            const val = (r != null && currentWait > 0) ? (wLin * lin + (1 - wLin) * (currentWait * r)) : lin;
-                            return Math.min(180, Math.max(0, Math.round(val)));
+                            // Base = the historically-likely level for that time of day, anchored to the live wait.
+                            const base = (r != null && currentWait > 0) ? currentWait * r : currentWait;
+                            // Live momentum, but mean-reverting: its effect decays with the horizon so a brief
+                            // dip/spike can't run the estimate off to zero (or blow it up) an hour out.
+                            const adj = velocity * mins * Math.exp(-mins / 40);
+                            // Floor: a ride that's currently running won't realistically fall to ~0 in the next hour.
+                            const floor = currentWait > 0 ? Math.max(1, Math.round(Math.min(currentWait, base) * 0.5)) : 0;
+                            return Math.min(180, Math.max(floor, Math.round(base + adj)));
                         };
-                        const pred30 = predAt(30, 0.7);
-                        const pred60 = predAt(60, 0.45);
+                        const pred30 = predAt(30);
+                        const pred60 = predAt(60);
                         // Open/closed follows the LIVE queue feed (is_open), not the schedule — a ride
                         // reporting a wait during early entry shouldn't read CLOSED just because the
                         // park's official operating window hasn't ticked over yet. Schedule only flags CLOSING.
