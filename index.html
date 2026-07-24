@@ -739,14 +739,15 @@
             const [activatedMinors, setActivatedMinors] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_activated_v18') || '[]')));
             // Rides you explicitly removed from the plan — they drop to "All Other Attractions".
             const [removedTargets, setRemovedTargets] = useState(() => new Set(JSON.parse(localStorage.getItem('dlp_removed_v1') || '[]')));
-            // "Build My Day" wizard state.
+            // "Build My Day" planner state.
             const [showBuilder, setShowBuilder] = useState(false);
-            const [bFocus, setBFocus] = useState('all');        // 'all' | 'thrill' | 'family'
-            const [bPace, setBPace] = useState('balanced');     // 'relaxed' | 'balanced' | 'commando'
+            const [bRides, setBRides] = useState(() => new Set());   // ride ids you want to do
+            const [bPace, setBPace] = useState('balanced');          // 'relaxed' | 'balanced' | 'commando'
             const [bLunch, setBLunch] = useState(true);
             const [bLunchT, setBLunchT] = useState('13:00');
-            const [bDinner, setBDinner] = useState(false);
+            const [bDinner, setBDinner] = useState(true);
             const [bDinnerT, setBDinnerT] = useState('18:30');
+            const [bAiText, setBAiText] = useState('');
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(true);
             const logsEndRef = useRef(null);
@@ -835,9 +836,29 @@
                 }
             };
             const rideIsThrill = (r) => (generateTacticalIntelligence(r).tags || []).map(t => t.toLowerCase()).includes('thrill');
-            // "Build My Day": turn the wizard prefs into breaks + a focus-filtered plan.
+            // Open rides you can pick in the builder (respects the selected park), priorities first.
+            const builderPool = () => rides
+                .filter(r => (activePark === 'all' || r.parkId === parseInt(activePark)) && r.is_open)
+                .slice()
+                .sort((a, b) => (b.isPriority ? 1 : 0) - (a.isPriority ? 1 : 0) || a.name.localeCompare(b.name));
+            // Open the planner, pre-selecting the current priority headliners.
+            const openBuilder = () => {
+                setBRides(new Set(builderPool().filter(r => r.isPriority).map(r => r.id)));
+                setBAiText('');
+                setShowBuilder(true);
+            };
+            // "Build My Day": turn your picks + meals into a fully re-optimised plan.
             const applyBuilder = () => {
                 const toMin = (hm) => { const m = /^(\d{1,2}):(\d{2})$/.exec((hm || '').trim()); return m ? Math.min(1439, Math.max(0, (+m[1]) * 60 + (+m[2]))) : null; };
+                const rem = new Set(), act = new Set();
+                rides.forEach(r => {
+                    if (activePark !== 'all' && r.parkId !== parseInt(activePark)) return;
+                    const want = bRides.has(r.id);
+                    if (r.isPriority && !want) rem.add(r.id);        // a headliner you unticked -> parked
+                    else if (!r.isPriority && want && r.is_open) act.add(r.id); // an extra you ticked -> into the plan
+                });
+                setRemovedTargets(rem);
+                setActivatedMinors(act);
                 const meals = [];
                 const lunchMins = bPace === 'commando' ? 30 : (bPace === 'relaxed' ? 75 : 60);
                 const dinnerMins = bPace === 'commando' ? 30 : (bPace === 'relaxed' ? 60 : 45);
@@ -845,18 +866,16 @@
                 if (bDinner && toMin(bDinnerT) != null) meals.push({ id: `build-d-${Date.now()}`, label: 'Dinner', atMin: toMin(bDinnerT), mins: dinnerMins });
                 setCustomBreaks(meals);
                 setBreaks({ lunch: false, dinner: false });
-                const rem = new Set();
-                if (bFocus !== 'all') {
-                    rides.forEach(r => {
-                        if (!r.isPriority) return;
-                        const thrill = rideIsThrill(r);
-                        if ((bFocus === 'thrill' && !thrill) || (bFocus === 'family' && thrill)) rem.add(r.id);
-                    });
-                }
-                setRemovedTargets(rem);
-                setActivatedMinors(new Set());
                 setShowBuilder(false);
-                addLog('[SYS] Day plan generated from your preferences.', 'success');
+                addLog(`[SYS] Day plan built: ${act.size + (builderPool().filter(r => r.isPriority && bRides.has(r.id)).length)} rides, ${meals.length} breaks. Route re-optimised.`, 'success');
+            };
+            // Hand the whole thing to Gemini: it configures rides + breaks via a plan-actions block.
+            const buildWithAI = () => {
+                const t = bAiText.trim();
+                if (!t) return;
+                setShowBuilder(false);
+                setIsChatOpen(true);
+                handleAsk(`Plan my day at ${currentParkName} based on this: "${t}". Use the plan-actions block to set which rides to add or remove and any meal/break times so my plan matches.`);
             };
             const addLog = (msg, type = 'info') => {
                 const time = new Date().toLocaleTimeString('en-GB', { hour12: false, fractionalSecondDigits: 3 });
@@ -2542,6 +2561,7 @@
                                         <h3 className="text-sm font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-2 flex items-center gap-2"><Icon path={I.Activity} size={15} /> Quick start</h3>
                                         <ol className="list-decimal list-inside space-y-1.5 leading-relaxed">
                                             <li>Pick your <strong>region</strong> (e.g. Disneyland Paris) and a <strong>park</strong> in the left panel — or "Full Resort" for everything.</li>
+                                            <li>Tap <strong>Build My Day</strong> to plan the whole day at once — choose your rides, meal times and pace, or just describe it and let the AI set it up.</li>
                                             <li>The ride list <em>is</em> your plan, already ordered to minimise waiting + walking. Scroll it top to bottom.</li>
                                             <li><strong>Tick a ride off</strong> when you join its queue — the plan re-routes from where you are.</li>
                                             <li>On-site, turn <strong>GPS ON</strong> (top right) for live distance, walking time and the live map with your blue dot.</li>
@@ -2553,8 +2573,9 @@
                                         <div className="space-y-3">
                                             <h3 className="text-sm font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-500 border-b border-slate-200 dark:border-slate-800 pb-2">I. The plan &amp; routing</h3>
                                             <ul className="space-y-2.5">
+                                                <li className="flex items-start gap-2"><Icon path={I.Cpu} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Build My Day (start here):</strong> the button above Route Order opens a full planner — tick the exact rides you want (with Headliners / Thrills / Family quick-picks), set your pace and lunch/dinner times, then Build to generate and fully re-optimise the day. Or type what you want ("thrills only, must-do Space Mountain, lunch at 1, leave by 6") and let Overwatch build it for you. Re-run any time.</span></li>
                                                 <li className="flex items-start gap-2"><Icon path={I.Navigation} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Master Sequence:</strong> for every possible land order the engine predicts each queue <em>at your real arrival time</em> — the live trend for the next ~90 min blending into that ride's own hour-by-hour, day-of-week history — and picks the lowest total. Ride order within a land is exact-optimised; walking uses measured distances. Each card shows its <strong>ETA</strong> and the expected wait then.</span></li>
-                                                <li className="flex items-start gap-2"><Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Tick rides off:</strong> check the box when you join a queue. It logs the ride, makes your position the new start point, and recomputes instantly.</span></li>
+                                                <li className="flex items-start gap-2"><Icon path={I.CheckSquare} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Tick rides off / remove:</strong> check the box when you join a queue — it logs the ride, makes your position the new start point, and recomputes. The <strong>×</strong> on a ride removes it from the plan entirely (it drops to All Other Attractions; tap it there to add it back).</span></li>
                                                 <li className="flex items-start gap-2"><Icon path={I.RefreshCw} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Return visits:</strong> if a ride is 15+ min cheaper later, its land is split into a first visit plus a deliberate <em>return</em> at the cheap hour (pointless splits are merged away).</span></li>
                                                 <li className="flex items-start gap-2"><Icon path={I.Layers} size={16} className="text-blue-500 shrink-0 mt-0.5" /><span><strong>Auto vs Manual &amp; breaks:</strong> Auto orders the lands for you; Manual lets you set your own land order (ETAs follow). Add <strong>Lunch/Dinner</strong> or your own custom breaks at any time — every ride after a break is re-timed for its true later arrival.</span></li>
                                                 <li className="flex items-start gap-2"><Icon path={I.Activity} size={16} className="text-emerald-500 shrink-0 mt-0.5" /><span><strong>Saved vs Unplanned:</strong> the minutes you save versus an average unplanned land order — pure queue + walking time, not a sales figure.</span></li>
@@ -2735,28 +2756,50 @@
                                             );
                                         })()}
                                     </div>
-                                    <button onClick={() => setShowBuilder(true)} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white rounded-2xl py-3 text-xs font-black uppercase tracking-wider shadow-md transition-all">
+                                    <button onClick={openBuilder} className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 text-white rounded-2xl py-3 text-xs font-black uppercase tracking-wider shadow-md transition-all">
                                         <Icon path={I.Cpu} size={14} /> Build My Day
                                     </button>
-                                    {showBuilder && (
+                                    {showBuilder && (() => {
+                                        const pool = builderPool();
+                                        return (
                                         <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4" onClick={() => setShowBuilder(false)}>
-                                            <div className="bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-5 w-full max-w-md shadow-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-                                                <div className="flex justify-between items-center mb-4">
+                                            <div className="bg-white dark:bg-[#0c111a] border border-emerald-500/30 rounded-2xl p-5 w-full max-w-lg shadow-2xl max-h-[88vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                                                <div className="flex justify-between items-center mb-1">
                                                     <h2 className="text-sm font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2"><Icon path={I.Cpu} size={16} /> Build My Day</h2>
                                                     <button onClick={() => setShowBuilder(false)} aria-label="Close"><Icon path={I.X} size={18} className="text-slate-400 hover:text-slate-700 dark:hover:text-white" /></button>
                                                 </div>
-                                                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">What do you want to ride?</p>
-                                                <div className="grid grid-cols-3 gap-1.5 mb-4">
-                                                    {[['all', 'Everything'], ['thrill', 'Thrills'], ['family', 'Family']].map(([v, l]) => (
-                                                        <button key={v} onClick={() => setBFocus(v)} className={`py-2 rounded-lg text-[10px] font-bold border transition-colors ${bFocus === v ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-slate-50 dark:bg-[#05070a] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-emerald-400'}`}>{l}</button>
-                                                    ))}
+                                                <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-4">Plan your whole day at <strong>{currentParkName}</strong>. Pick rides, set meals &amp; pace, then build — the route fully re-optimises.</p>
+
+                                                <div className="flex items-center justify-between mb-1.5">
+                                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Rides — {bRides.size} picked</p>
+                                                    <div className="flex gap-1">
+                                                        <button onClick={() => setBRides(new Set(pool.filter(r => r.isPriority).map(r => r.id)))} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-emerald-400">Headliners</button>
+                                                        <button onClick={() => setBRides(new Set(pool.filter(r => rideIsThrill(r)).map(r => r.id)))} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-emerald-400">Thrills</button>
+                                                        <button onClick={() => setBRides(new Set(pool.filter(r => !rideIsThrill(r)).map(r => r.id)))} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-emerald-400">Family</button>
+                                                        <button onClick={() => setBRides(new Set())} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-rose-400">Clear</button>
+                                                    </div>
                                                 </div>
+                                                <div className="border border-slate-200 dark:border-slate-800 rounded-lg max-h-52 overflow-y-auto mb-4">
+                                                    {pool.length === 0 && <p className="text-[11px] text-slate-400 p-3 text-center">No open rides right now — pick a specific park in the sector list.</p>}
+                                                    {pool.map(r => {
+                                                        const on = bRides.has(r.id);
+                                                        return (
+                                                            <button key={r.id} onClick={() => setBRides(p => { const n = new Set(p); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n; })} className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left border-b border-slate-100 dark:border-slate-800/50 last:border-0 transition-colors ${on ? 'bg-emerald-50 dark:bg-emerald-900/15' : 'hover:bg-slate-50 dark:hover:bg-[#05070a]'}`}>
+                                                                <span className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border ${on ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 dark:border-slate-600'}`}>{on && <span className="text-white text-[10px] font-black leading-none">✓</span>}</span>
+                                                                <span className="text-[11px] flex-grow truncate text-slate-700 dark:text-slate-300">{r.name}{r.isPriority && <span className="text-emerald-500"> ★</span>}</span>
+                                                                <span className="text-[10px] font-mono text-slate-400 shrink-0">{Math.round(r.wait_time)}m</span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+
                                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Pace</p>
                                                 <div className="grid grid-cols-3 gap-1.5 mb-4">
                                                     {[['relaxed', 'Relaxed'], ['balanced', 'Balanced'], ['commando', 'Commando']].map(([v, l]) => (
                                                         <button key={v} onClick={() => setBPace(v)} className={`py-2 rounded-lg text-[10px] font-bold border transition-colors ${bPace === v ? 'bg-blue-600 text-white border-blue-500' : 'bg-slate-50 dark:bg-[#05070a] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-blue-400'}`}>{l}</button>
                                                     ))}
                                                 </div>
+
                                                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5">Meals &amp; breaks</p>
                                                 <label className="flex items-center gap-2 mb-2">
                                                     <input type="checkbox" checked={bLunch} onChange={e => setBLunch(e.target.checked)} className="accent-emerald-500 w-4 h-4" />
@@ -2768,11 +2811,18 @@
                                                     <span className="text-[11px] flex-grow text-slate-700 dark:text-slate-300">Dinner break</span>
                                                     <input type="time" value={bDinnerT} onChange={e => setBDinnerT(e.target.value)} disabled={!bDinner} className="bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded px-2 py-1 text-[11px] text-slate-700 dark:text-slate-300 disabled:opacity-40" />
                                                 </label>
-                                                <button onClick={applyBuilder} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl py-2.5 text-xs font-black uppercase tracking-wider">Build it →</button>
-                                                <p className="mt-2 text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed">Sets your meals as breaks, filters the plan to your picks, and re-optimises. Tweak after with the × on any ride{useCloud ? ', or ask Overwatch (e.g. “add Space Mountain”, “move dinner to 7pm”).' : ' (turn AI on to also tweak it by chat).'}</p>
+
+                                                <button onClick={applyBuilder} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl py-2.5 text-xs font-black uppercase tracking-wider">Build my day →</button>
+
+                                                <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-800">
+                                                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1.5 flex items-center gap-1"><Icon path={I.Cpu} size={11} /> Or describe it — let Overwatch build it</p>
+                                                    <textarea value={bAiText} onChange={e => setBAiText(e.target.value)} rows={2} placeholder="e.g. thrill rides only, must do Space Mountain, lunch at 1, leaving by 6pm" className="w-full bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-2 text-[11px] text-slate-700 dark:text-slate-300 focus:outline-none focus:border-emerald-500 resize-none" />
+                                                    <button onClick={buildWithAI} disabled={!useCloud || !bAiText.trim()} title={useCloud ? '' : 'Turn AI on (chat panel) to use this'} className="w-full mt-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg py-2 text-[11px] font-black uppercase tracking-wider">{useCloud ? 'Build with AI →' : 'Turn AI on to build with AI'}</button>
+                                                </div>
                                             </div>
                                         </div>
-                                    )}
+                                        );
+                                    })()}
                                     <div className="bg-white dark:bg-[#0c111a] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
                                         <h2 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                                             <Icon path={I.Navigation} size={12} /> Route Order
