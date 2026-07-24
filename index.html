@@ -1098,9 +1098,12 @@
                         const pred60Raw = Math.round(currentWait + (velocity * 60));
                         const pred30 = Math.min(180, Math.max(0, pred30Raw));
                         const pred60 = Math.min(180, Math.max(0, pred60Raw));
+                        // Open/closed follows the LIVE queue feed (is_open), not the schedule — a ride
+                        // reporting a wait during early entry shouldn't read CLOSED just because the
+                        // park's official operating window hasn't ticked over yet. Schedule only flags CLOSING.
                         let predDisplay = pred60;
-                        if (ride.minsToClose <= 60 && ride.minsToClose > 0) predDisplay = "CLOSING";
-                        else if (ride.minsToClose <= 0) predDisplay = "CLOSED";
+                        if (!ride.is_open) predDisplay = "CLOSED";
+                        else if (ride.minsToClose > 0 && ride.minsToClose <= 60) predDisplay = "CLOSING";
 
                         const twentyFourHoursAgo = now - 86400000;
                         const todayPoints = allPoints.filter(p => p.t >= twentyFourHoursAgo);
@@ -1697,9 +1700,11 @@
                 const out = {};
                 Object.keys(mc).forEach(pid => {
                     const m = mc[pid];
-                    // Closed if the schedule says so now, OR nothing is actually running.
-                    if (m <= 0 || !anyOpen[pid]) out[pid] = 'closed';
-                    else if (m <= 60) out[pid] = 'closing';
+                    // Open/closed follows what's actually running (live is_open). The schedule only
+                    // adds the "closing" flag in the last hour — so early-entry mornings read OPEN,
+                    // while a truly dead park (nothing reporting) reads CLOSED.
+                    if (!anyOpen[pid]) out[pid] = 'closed';
+                    else if (m > 0 && m <= 60) out[pid] = 'closing';
                     else out[pid] = 'open';
                 });
                 return out;
