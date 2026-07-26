@@ -373,6 +373,27 @@
         };
         const getParkHour = (t, parkId) => new Date(t + getTzOffsetMs(PARK_TZ[parkId] || 'UTC')).getUTCHours();
         const getParkDay = (t, parkId) => new Date(t + getTzOffsetMs(PARK_TZ[parkId] || 'UTC')).getUTCDay();
+        // RECENT FORM: how a ride has actually been running lately versus its own historical
+        // hour-by-hour expectation. Every sample is judged against the expectation FOR ITS OWN
+        // HOUR, so this compares like with like. That matters because raw daily averages are not
+        // comparable between days: a day with longer operating hours logs more quiet early/late
+        // samples and its mean sinks, which previously made busy Saturdays look "lightest".
+        // Returns a multiplier (1 = running exactly as history predicts), damped by sample count.
+        const rideFormFactor = (parkId, name, points) => {
+            if (!points || points.length < 6) return 1;
+            const curve = statCurve(parkId, name);
+            if (!curve) return 1;
+            let obs = 0, exp = 0, n = 0;
+            points.forEach(p => {
+                if (!p || typeof p.w !== 'number') return;
+                const h = getParkHour(p.t, parkId);
+                const e = curve[h];
+                if (typeof e === 'number' && e >= 3) { obs += p.w; exp += e; n++; }
+            });
+            if (n < 6 || exp <= 0) return 1;
+            const conf = Math.min(1, n / 48);                 // full weight at ~48 hour-matched samples
+            return Math.max(0.6, Math.min(1.6, 1 + ((obs / exp) - 1) * conf));
+        };
         const normalizeTelemetry = (raw) => {
             const out = {};
             if (!raw || typeof raw !== 'object') return out;
@@ -1256,8 +1277,24 @@
                         let hasCurve = allPoints.length >= 24;
                         if (priorCurve) {
                             if (!hourlyCurve) hourlyCurve = new Array(24).fill(null);
+                            // Scale the prior fill onto the SAME level as this ride's observed hours
+                            // before splicing it in. Without this the curve has a step wherever
+                            // telemetry hours meet historical hours (observed today's level vs a
+                            // year-round average), and any forecast crossing that step jumps.
+                            // fillK combines today's crowd calendar with the ride's recent form,
+                            // then defers to a directly measured observed/prior ratio when available.
+                            let fillK = crowdFactorForDate(ride.parkId, parkNowD) * rideFormFactor(ride.parkId, ride.name, allPoints);
+                            let oSum = 0, pSum = 0, oN = 0;
                             for (let hh = 7; hh < 24; hh++) {
-                                if (typeof hourlyCurve[hh] !== 'number') hourlyCurve[hh] = priorCurve[hh];
+                                if (typeof hourlyCurve[hh] === 'number' && typeof priorCurve[hh] === 'number' && priorCurve[hh] >= 3) {
+                                    oSum += hourlyCurve[hh]; pSum += priorCurve[hh]; oN++;
+                                }
+                            }
+                            if (oN >= 3 && pSum > 0) fillK = Math.max(0.5, Math.min(2, oSum / pSum));
+                            for (let hh = 7; hh < 24; hh++) {
+                                if (typeof hourlyCurve[hh] !== 'number' && typeof priorCurve[hh] === 'number') {
+                                    hourlyCurve[hh] = Math.round(priorCurve[hh] * fillK);
+                                }
                             }
                             hasCurve = true;
                         }
@@ -1371,30 +1408,22 @@
                 const targetDayOfWeek = targetDate.getUTCDay();
                 return rides.map(r => {
                     const points = globalTelemetryLog[r.id] || [];
-                    const relevantPoints = points.filter(p => getParkDay(p.t, r.parkId) === targetDayOfWeek && getParkHour(p.t, r.parkId) >= EARLIEST_PARK_HOUR);
                     let calculatedAvg = 0;
                     let calculatedPeak = 0;
                     let trafficVerdict = "Insufficient Data";
-                    // ONE consistent basis for every ride and every day: the seasonal prior
-                    // (queue-times average x weekday x month), with same-weekday telemetry blended
-                    // in by CONFIDENCE rather than hard-switching. The old hard switch put some
-                    // rides on a telemetry scale and others on a prior scale in the same list,
-                    // which made the ranking - and the quietest-day pick - apples-to-oranges.
+                    // ONE basis for every ride and every day:
+                    //     historical average  x  crowd calendar for that date  x  recent form
+                    // Day-to-day variation comes ONLY from the crowd calendar (weekday x season),
+                    // which is consistent across days. Telemetry enters solely as an hour-matched
+                    // "recent form" multiplier, never as a raw daily mean - raw means differ by
+                    // operating hours and sample coverage, which is what made Saturday (the busiest
+                    // day) read as the quietest.
                     const stat = rideStat(r.parkId, r.name);
-                    const f = crowdFactorForDate(r.parkId, targetDate);
-                    const priorAvg = stat ? stat.avg * f : null;
-                    const priorPeak = stat ? stat.max * f : null;
-                    if (relevantPoints.length >= 3) {
-                        const values = relevantPoints.map(p => p.w);
-                        const telAvg = values.reduce((a,b) => a+b, 0) / values.length;
-                        const telPeak = Math.max(...values);
-                        // Full trust at ~24 same-weekday samples; below that, lean on the prior.
-                        const conf = Math.min(1, relevantPoints.length / 24);
-                        calculatedAvg = Math.round(priorAvg != null ? (conf * telAvg + (1 - conf) * priorAvg) : telAvg);
-                        calculatedPeak = Math.round(priorPeak != null ? Math.max(telPeak, conf * telPeak + (1 - conf) * priorPeak) : telPeak);
-                    } else if (stat) {
-                        calculatedAvg = Math.round(priorAvg);
-                        calculatedPeak = Math.round(priorPeak);
+                    if (stat) {
+                        const f = crowdFactorForDate(r.parkId, targetDate);
+                        const k = rideFormFactor(r.parkId, r.name, points);
+                        calculatedAvg = Math.round(stat.avg * f * k);
+                        calculatedPeak = Math.round(stat.max * f * k);
                     }
                     if (calculatedAvg > 0) {
                         if (calculatedAvg > 45) trafficVerdict = "Very busy";
@@ -1855,15 +1884,10 @@
                         if (rideIsShow(r.name) || rideIsNonAttraction(r.name)) return;
                         const stat = rideStat(r.parkId, r.name);
                         if (!stat) return;
-                        const prior = stat.avg * crowdFactorForDate(r.parkId, date);
-                        const pts = (globalTelemetryLog[r.id] || []).filter(p => getParkDay(p.t, r.parkId) === dow && getParkHour(p.t, r.parkId) >= EARLIEST_PARK_HOUR);
-                        let v = prior;
-                        if (pts.length >= 3) {
-                            const telAvg = pts.reduce((a, b) => a + b.w, 0) / pts.length;
-                            const conf = Math.min(1, pts.length / 24);
-                            v = conf * telAvg + (1 - conf) * prior;
-                        }
-                        sum += v; cnt++;
+                        // Identical basis to the forecast cards, so the headline pick and the
+                        // per-ride numbers can never tell different stories.
+                        sum += stat.avg * crowdFactorForDate(r.parkId, date) * rideFormFactor(r.parkId, r.name, globalTelemetryLog[r.id] || []);
+                        cnt++;
                     });
                     if (cnt >= 1) {
                         const avg = sum / cnt;
