@@ -304,6 +304,37 @@
             const mean = st.d.reduce((a, b) => a + b, 0) / st.d.length;
             return mean > 0 ? st.d[dow] / mean : 1;
         };
+        // SEASONALITY: crowd multiplier for a specific DATE vs the park's yearly mean.
+        // The per-park monthly crowd calendar was already in the data but never applied, so a
+        // week spanning school-holiday peaks read the same as a quiet week. Months are sampled
+        // by interpolating between month CENTRES, so the level glides across a boundary
+        // (31 Jul -> 1 Aug) instead of jumping ~25% overnight.
+        const crowdMonthFactor = (parkId, date) => {
+            const st = RIDE_STATS[parkId];
+            if (!st || !st.m || !date) return 1;
+            const mean = st.m.reduce((a, b) => a + b, 0) / st.m.length;
+            if (!(mean > 0)) return 1;
+            const mo = date.getUTCMonth();
+            const dim = new Date(Date.UTC(date.getUTCFullYear(), mo + 1, 0)).getUTCDate();
+            const pos = (date.getUTCDate() - 0.5) / dim - 0.5;      // -0.5 .. +0.5 around the centre
+            const nb = pos < 0 ? (mo + 11) % 12 : (mo + 1) % 12;    // nearer neighbouring month
+            const wNb = Math.min(0.5, Math.abs(pos));               // its share of the blend
+            return ((st.m[mo] * (1 - wNb)) + (st.m[nb] * wNb)) / mean;
+        };
+        // Combined expected crowd level for a date: weekday pattern x season, clamped so a
+        // single extreme calendar cell can't produce absurd numbers.
+        const crowdFactorForDate = (parkId, date) => {
+            if (!date) return 1;
+            const f = crowdDowFactor(parkId, date.getUTCDay()) * crowdMonthFactor(parkId, date);
+            return Math.max(0.5, Math.min(2.2, f));
+        };
+        // Entries that aren't really queueable attractions (meet-and-greet pavilions, transport,
+        // walkthroughs, playgrounds). They still get listed, but they're kept OUT of the
+        // "average across priority rides" so they can't skew which day looks quietest.
+        const rideIsNonAttraction = (name) => {
+            const n = (name || '').toLowerCase();
+            return /(pavilion|railroad|depot|\bstation\b|main street vehicles|riverboat|keelboat|playground|beach|shootin|gallery|entry to|\bisle\b|cabane|passage enchant|tani[eè]re|myst[eè]res du nautilus)/.test(n);
+        };
         // Park centroids (from ride coordinates) for weather lookups, independent of GPS.
         const PARK_CENTROID = {};
         Object.keys(RIDE_GEO_RAW).forEach(pid => {
@@ -1336,25 +1367,34 @@
             const calculatedForecastData = useMemo(() => {
                 if (rides.length === 0 || !telemetryStats.isReady) return [];
                 const tzOffset = getTzOffsetMs(PARK_TZ[GLOBAL_PARKS[activeRegion][0].id] || 'UTC');
-                const targetDayOfWeek = new Date(Date.now() + tzOffset + (selectedForecastDay * 86400000)).getUTCDay();
+                const targetDate = new Date(Date.now() + tzOffset + (selectedForecastDay * 86400000));
+                const targetDayOfWeek = targetDate.getUTCDay();
                 return rides.map(r => {
                     const points = globalTelemetryLog[r.id] || [];
                     const relevantPoints = points.filter(p => getParkDay(p.t, r.parkId) === targetDayOfWeek && getParkHour(p.t, r.parkId) >= EARLIEST_PARK_HOUR);
                     let calculatedAvg = 0;
                     let calculatedPeak = 0;
                     let trafficVerdict = "Insufficient Data";
+                    // ONE consistent basis for every ride and every day: the seasonal prior
+                    // (queue-times average x weekday x month), with same-weekday telemetry blended
+                    // in by CONFIDENCE rather than hard-switching. The old hard switch put some
+                    // rides on a telemetry scale and others on a prior scale in the same list,
+                    // which made the ranking - and the quietest-day pick - apples-to-oranges.
+                    const stat = rideStat(r.parkId, r.name);
+                    const f = crowdFactorForDate(r.parkId, targetDate);
+                    const priorAvg = stat ? stat.avg * f : null;
+                    const priorPeak = stat ? stat.max * f : null;
                     if (relevantPoints.length >= 3) {
                         const values = relevantPoints.map(p => p.w);
-                        calculatedAvg = Math.round(values.reduce((a,b) => a+b, 0) / values.length);
-                        calculatedPeak = Math.max(...values);
-                    } else {
-                        // Backfill from queue-times.com history, scaled to the target weekday's crowd level.
-                        const stat = rideStat(r.parkId, r.name);
-                        if (stat) {
-                            const f = crowdDowFactor(r.parkId, targetDayOfWeek);
-                            calculatedAvg = Math.round(stat.avg * f);
-                            calculatedPeak = Math.round(stat.max * f);
-                        }
+                        const telAvg = values.reduce((a,b) => a+b, 0) / values.length;
+                        const telPeak = Math.max(...values);
+                        // Full trust at ~24 same-weekday samples; below that, lean on the prior.
+                        const conf = Math.min(1, relevantPoints.length / 24);
+                        calculatedAvg = Math.round(priorAvg != null ? (conf * telAvg + (1 - conf) * priorAvg) : telAvg);
+                        calculatedPeak = Math.round(priorPeak != null ? Math.max(telPeak, conf * telPeak + (1 - conf) * priorPeak) : telPeak);
+                    } else if (stat) {
+                        calculatedAvg = Math.round(priorAvg);
+                        calculatedPeak = Math.round(priorPeak);
                     }
                     if (calculatedAvg > 0) {
                         if (calculatedAvg > 45) trafficVerdict = "Very busy";
@@ -1802,22 +1842,33 @@
                 const tzOffset = getTzOffsetMs(PARK_TZ[GLOBAL_PARKS[activeRegion][0].id] || 'UTC');
                 let best = null;
                 for (let i = 0; i < 7; i++) {
-                    const dow = new Date(Date.now() + tzOffset + i * 86400000).getUTCDay();
-                    // Prefer same-weekday telemetry across priority rides; otherwise fall back to
-                    // queue-times.com crowd-calendar levels scaled onto each ride's historical average,
-                    // so the quietest-day call works from day one instead of waiting 7 days.
-                    let telSum = 0, telCnt = 0, priSum = 0, priCnt = 0;
+                    const date = new Date(Date.now() + tzOffset + i * 86400000);
+                    const dow = date.getUTCDay();
+                    // Every day is scored the SAME way, or the comparison is meaningless: seasonal
+                    // prior (average x weekday x month) with same-weekday telemetry blended in by
+                    // confidence. The old version switched whole days between a telemetry scale and
+                    // a prior scale, so a day could "win" purely because it had logged data.
+                    // Meet-and-greets, transport and shows are excluded so they can't skew the pick.
+                    let sum = 0, cnt = 0;
                     rides.forEach(r => {
                         if (!r.isPriority) return;
-                        const pts = (globalTelemetryLog[r.id] || []).filter(p => getParkDay(p.t, r.parkId) === dow && getParkHour(p.t, r.parkId) >= EARLIEST_PARK_HOUR);
-                        if (pts.length) { telSum += pts.reduce((a, b) => a + b.w, 0) / pts.length; telCnt++; }
+                        if (rideIsShow(r.name) || rideIsNonAttraction(r.name)) return;
                         const stat = rideStat(r.parkId, r.name);
-                        if (stat) { priSum += stat.avg * crowdDowFactor(r.parkId, dow); priCnt++; }
+                        if (!stat) return;
+                        const prior = stat.avg * crowdFactorForDate(r.parkId, date);
+                        const pts = (globalTelemetryLog[r.id] || []).filter(p => getParkDay(p.t, r.parkId) === dow && getParkHour(p.t, r.parkId) >= EARLIEST_PARK_HOUR);
+                        let v = prior;
+                        if (pts.length >= 3) {
+                            const telAvg = pts.reduce((a, b) => a + b.w, 0) / pts.length;
+                            const conf = Math.min(1, pts.length / 24);
+                            v = conf * telAvg + (1 - conf) * prior;
+                        }
+                        sum += v; cnt++;
                     });
-                    let avg = null;
-                    if (telCnt >= 3) avg = telSum / telCnt;
-                    else if (priCnt >= 1) avg = priSum / priCnt;
-                    if (avg != null && (!best || avg < best.avg)) best = { index: i, avg: Math.round(avg) };
+                    if (cnt >= 1) {
+                        const avg = sum / cnt;
+                        if (!best || avg < best.avg) best = { index: i, avg: Math.round(avg) };
+                    }
                 }
                 return best;
             }, [rides, globalTelemetryLog, telemetryStats.isReady, activeRegion]);
