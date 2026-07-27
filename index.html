@@ -1599,12 +1599,6 @@
                 days.forEach(d => {
                     const morning = d.rides.filter(r => r.parkId === d.parkId);
                     const afternoon = d.hopParkId != null ? d.rides.filter(r => r.parkId === d.hopParkId) : [];
-                    // Worst queues first within each block - that's what rope drop is for.
-                    const byWorst = (a, b) => {
-                        const sa = rideStat(a.parkId, a.name), sb = rideStat(b.parkId, b.name);
-                        return ((sb ? sb.avg : 0) - (sa ? sa.avg : 0));
-                    };
-                    morning.sort(byWorst); afternoon.sort(byWorst);
                     const sched = [];
                     let clock = d.openMins, missed = 0;
                     // Pace = how much slack you want around each ride (photos, snacks, toilets).
@@ -1624,19 +1618,43 @@
                             }
                         });
                     };
+                    // Wait for a ride if you arrived at time t within this block.
+                    const waitAt = (r, t, blockOpen) => Math.max(0, shapeAt(r, t, d.date) * ropeDropMult(t - blockOpen));
+                    // Order rides by HOW MUCH THEY GAIN FROM WAITING, not by how bad they are.
+                    // At rope drop everything is cheap, so the rides that will spike hardest later
+                    // score most negative and go first. At the afternoon peak the reverse applies:
+                    // a headliner that collapses in the evening is deferred, and flatter rides fill
+                    // the busy hours. Fixed "worst-first" ordering was parking the biggest queues
+                    // squarely in the peak.
                     const runBlock = (list, blockOpen, hardStop) => {
                         let lastLand = null;
-                        list.forEach(r => {
+                        const pool = list.slice();
+                        while (pool.length) {
                             takeDueBreaks();
-                            const walk = lastLand && lastLand !== r.landName ? 6 : 2; // land change vs next door
+                            let pick = null;
+                            pool.forEach(r => {
+                                const walk = lastLand && lastLand !== r.landName ? 6 : 2;
+                                const arrive = clock + walk;
+                                const wNow = waitAt(r, arrive, blockOpen);
+                                let minLater = Infinity, bestT = null;
+                                for (let t = arrive + 30; t <= hardStop - 10; t += 30) {
+                                    const wl = waitAt(r, t, blockOpen);
+                                    if (wl < minLater) { minLater = wl; bestT = t; }
+                                }
+                                const gain = isFinite(minLater) ? (wNow - minLater) : 0;
+                                if (!pick || gain < pick.gain) pick = { r, walk, arrive, wNow, minLater, bestT, gain };
+                            });
+                            const { r, walk, arrive, wNow, minLater, bestT } = pick;
+                            pool.splice(pool.indexOf(r), 1);
                             clock += walk;
-                            if (clock > hardStop) { sched.push({ ...r, missed: true }); missed++; return; }
-                            const raw = shapeAt(r, clock, d.date);
-                            const w = Math.max(0, Math.round(raw * ropeDropMult(clock - blockOpen)));
-                            sched.push({ ...r, at: clock, expWait: w, walk, missed: false });
-                            clock += w + (r.duration || 5) + slack;
+                            if (clock > hardStop) { sched.push({ ...r, missed: true }); missed++; continue; }
+                            const w = Math.round(wNow);
+                            const better = (isFinite(minLater) && bestT != null && minLater <= wNow - 10)
+                                ? { at: bestT, wait: Math.round(minLater) } : null;
+                            sched.push({ ...r, at: arrive, expWait: w, walk, missed: false, better });
+                            clock = arrive + w + (r.duration || 5) + slack;
                             lastLand = r.landName;
-                        });
+                        }
                         takeDueBreaks();
                     };
                     runBlock(morning, d.openMins, d.hopParkId != null ? d.hopAt : d.closeMins);
@@ -3639,7 +3657,10 @@
                                                                             <span className={`text-[11px] font-black font-mono w-11 shrink-0 ${r.missed ? 'text-rose-500' : 'text-slate-500 dark:text-slate-400'}`}>{r.missed ? '--:--' : fmtMins(r.at)}</span>
                                                                             <div className="min-w-0 flex-grow">
                                                                                 <p className="text-xs text-slate-700 dark:text-slate-200 truncate">{r.name}</p>
-                                                                                <p className="text-[9px] font-mono text-slate-400 truncate">{r.landName}{r.missed ? ' · past closing — move to another day' : ''}</p>
+                                                                                <p className="text-[9px] font-mono text-slate-400 truncate">
+                                                                                    {r.landName}{r.missed ? ' · past closing — move to another day' : ''}
+                                                                                    {!r.missed && r.better && <span className="text-blue-500 dark:text-blue-400"> · better ~{fmtMins(r.better.at)} (≈{r.better.wait}m)</span>}
+                                                                                </p>
                                                                             </div>
                                                                             {!r.missed && <span className={`text-xs font-black font-mono shrink-0 ${r.expWait <= 20 ? 'text-emerald-600 dark:text-emerald-400' : r.expWait <= 45 ? 'text-amber-500' : 'text-rose-500'}`}>{r.expWait}m</span>}
                                                                             <select value={d.ds} onChange={e => setHMoves(p => ({ ...p, [r.id]: e.target.value }))} className="bg-transparent border border-slate-200 dark:border-slate-800 rounded px-1 py-0.5 text-[9px] font-mono text-slate-400 shrink-0" title="Move this ride to another day">
