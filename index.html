@@ -862,6 +862,11 @@
             const [hParks, setHParks] = useState({});    // 'YYYY-MM-DD' -> parkId (manual override)
             const [hPicks, setHPicks] = useState(() => new Set()); // ride ids to fit into the trip
             const [hMoves, setHMoves] = useState({});    // rideId -> 'YYYY-MM-DD' (manual day override)
+            const [hHop, setHHop] = useState({});       // 'YYYY-MM-DD' -> afternoon parkId (park hopping)
+            const [hHopAt, setHHopAt] = useState({});   // 'YYYY-MM-DD' -> park-local minutes of the hop
+            const [hEmh, setHEmh] = useState({});       // 'YYYY-MM-DD' -> false to opt OUT of Extra Magic Time
+            // Real operating windows per park per date, from themeparks.wiki (incl. Extra Magic Time).
+            const [parkSchedules, setParkSchedules] = useState({});
             const [logs, setLogs] = useState([]);
             const [showTerminal, setShowTerminal] = useState(true);
             const logsEndRef = useRef(null);
@@ -1064,6 +1069,27 @@
                                     } else {
                                         minsToClose = -1; // closed right now
                                     }
+                                    // Keep the FUTURE schedule too, not just today's closing time: the
+                                    // holiday planner needs each date's real opening time, and the
+                                    // EXTRA_HOURS window is what makes Extra Magic Time plannable.
+                                    const byDate = {};
+                                    const toParkMins = (iso) => {
+                                        const d = new Date(iso);
+                                        const local = new Date(d.getTime() + getTzOffsetMs(PARK_TZ[park.id] || 'UTC'));
+                                        return local.getUTCHours() * 60 + local.getUTCMinutes();
+                                    };
+                                    scheduleJson.schedule.forEach(s => {
+                                        if (!s || !s.date || !s.openingTime) return;
+                                        if (!byDate[s.date]) byDate[s.date] = { open: null, close: null, emh: null };
+                                        if (s.type === "OPERATING") {
+                                            byDate[s.date].open = toParkMins(s.openingTime);
+                                            if (s.closingTime) byDate[s.date].close = toParkMins(s.closingTime);
+                                        } else if (s.type === "EXTRA_HOURS" || s.type === "EARLY_PARK_ENTRY") {
+                                            const m = toParkMins(s.openingTime);
+                                            byDate[s.date].emh = (byDate[s.date].emh == null) ? m : Math.min(byDate[s.date].emh, m);
+                                        }
+                                    });
+                                    setParkSchedules(prev => ({ ...prev, [park.id]: byDate }));
                                 }
                             } catch(e) { addLog(`[WARN] Schedule extraction timeout.`, 'warn'); }
                             // Pull accurate attraction coordinates once per park (themeparks.wiki), so the
@@ -1500,16 +1526,33 @@
                     d.level = d.factor >= 1.25 ? 'Very busy' : d.factor >= 1.08 ? 'Busy' : d.factor >= 0.95 ? 'Moderate' : 'Quiet';
                 });
 
-                // 3. Place each must-do on its cheapest eligible day (a day at that ride's park),
-                //    with a small load penalty so one day doesn't absorb the entire trip.
+                // 2b. Park hopping: a day may run a MORNING park then an AFTERNOON park. Opening
+                //     times come from the real schedule feed; Extra Magic Time is used when it
+                //     exists for that date (you can opt out per day).
+                days.forEach(d => {
+                    const sched = (parkSchedules[d.parkId] || {})[d.ds] || {};
+                    const useEmh = hEmh[d.ds] !== false && sched.emh != null;
+                    d.emhAvailable = sched.emh != null;
+                    d.usingEmh = useEmh;
+                    d.openMins = useEmh ? sched.emh : (sched.open != null ? sched.open : 9 * 60);
+                    d.publicOpen = sched.open;
+                    d.closeMins = sched.close != null ? sched.close : 22 * 60;
+                    d.scheduleKnown = sched.open != null;
+                    d.hopParkId = hHop[d.ds] != null ? hHop[d.ds] : null;
+                    d.hopAt = hHopAt[d.ds] != null ? hHopAt[d.ds] : 14 * 60;
+                    d.hopParkName = d.hopParkId != null ? ((parks.find(p => p.id === d.hopParkId) || {}).name || '') : null;
+                    d.parkIdsToday = d.hopParkId != null ? [d.parkId, d.hopParkId] : [d.parkId];
+                });
+
+                // 3. Place each must-do on the day it's cheapest. A ride is eligible for a day if
+                //    that day visits its park (morning OR afternoon when hopping).
                 const picked = rides.filter(r => hPicks.has(r.id));
                 const unplaced = [];
-                // Hardest rides first: they have the least slack in where they fit well.
                 picked.slice().sort((a, b) => {
                     const sa = rideStat(a.parkId, a.name), sb = rideStat(b.parkId, b.name);
                     return ((sb ? sb.avg : 0) - (sa ? sa.avg : 0));
                 }).forEach(r => {
-                    const eligible = days.filter(d => d.parkId === r.parkId);
+                    const eligible = days.filter(d => d.parkIdsToday.indexOf(r.parkId) !== -1);
                     if (!eligible.length) { unplaced.push(r); return; }
                     const forced = hMoves[r.id] && eligible.find(d => d.ds === hMoves[r.id]);
                     const target = forced || eligible.reduce((best, d) => {
@@ -1517,24 +1560,75 @@
                         const score = (w == null ? 999 : w) + d.rides.length * 2.5;
                         return (!best || score < best.score) ? { d, score } : best;
                     }, null).d;
-                    target.rides.push({ ...r, expWait: Math.round(expectFor(r, target.date) || 0) });
+                    target.rides.push({ ...r });
                 });
 
-                // 4. Per-day totals, grouped by land for a sensible walking order.
+                // 4. TIMED RUNNING ORDER, simulated forward from the day's opening.
+                //    Rope-drop logic: the first hour of the day is by far the cheapest, so the
+                //    worst-queueing rides go first. Waits are read from the ride's own intraday
+                //    curve AT ITS ARRIVAL TIME, scaled by that date's crowd level and recent form.
+                const shapeAt = (r, mins, date) => {
+                    const curve = statCurve(r.parkId, r.name);
+                    const f = crowdFactorForDate(r.parkId, date) * rideFormFactor(r.parkId, r.name, globalTelemetryLog[r.id] || []);
+                    const h = Math.max(0, Math.min(23, mins / 60));
+                    let base = null;
+                    if (curve) {
+                        const h0 = Math.floor(h), h1 = Math.min(23, h0 + 1);
+                        const a = curve[h0], b = curve[h1];
+                        if (typeof a === 'number' && typeof b === 'number') base = a + (b - a) * (h - h0);
+                        else if (typeof a === 'number') base = a;
+                        else if (typeof b === 'number') base = b;
+                    }
+                    if (base == null) { const st = rideStat(r.parkId, r.name); base = st ? st.avg : 15; }
+                    return Math.max(0, base * f);
+                };
+                // Rope-drop discount. NOTE: this is a modelling assumption, not measured data -
+                // hourly averages smooth over the whole hour and understate how empty a park is in
+                // the first minutes after opening. Ramps back to normal over ~60 min.
+                const ropeDropMult = (minsAfterOpen) => 0.45 + 0.55 * Math.max(0, Math.min(1, minsAfterOpen / 60));
                 days.forEach(d => {
-                    d.rides.sort((a, b) => (a.landName || '').localeCompare(b.landName || '') || b.expWait - a.expWait);
-                    d.totalQueue = d.rides.reduce((s, r) => s + (r.expWait || 0), 0);
-                    d.lands = [];
-                    d.rides.forEach(r => {
-                        let z = d.lands.find(x => x.name === r.landName);
-                        if (!z) { z = { name: r.landName || 'Park', rides: [] }; d.lands.push(z); }
-                        z.rides.push(r);
-                    });
+                    const morning = d.rides.filter(r => r.parkId === d.parkId);
+                    const afternoon = d.hopParkId != null ? d.rides.filter(r => r.parkId === d.hopParkId) : [];
+                    // Worst queues first within each block - that's what rope drop is for.
+                    const byWorst = (a, b) => {
+                        const sa = rideStat(a.parkId, a.name), sb = rideStat(b.parkId, b.name);
+                        return ((sb ? sb.avg : 0) - (sa ? sa.avg : 0));
+                    };
+                    morning.sort(byWorst); afternoon.sort(byWorst);
+                    const sched = [];
+                    let clock = d.openMins, missed = 0;
+                    const runBlock = (list, blockOpen, hardStop) => {
+                        let lastLand = null;
+                        list.forEach(r => {
+                            const walk = lastLand && lastLand !== r.landName ? 6 : 2; // land change vs next door
+                            clock += walk;
+                            if (clock > hardStop) { sched.push({ ...r, missed: true }); missed++; return; }
+                            const raw = shapeAt(r, clock, d.date);
+                            const w = Math.max(0, Math.round(raw * ropeDropMult(clock - blockOpen)));
+                            sched.push({ ...r, at: clock, expWait: w, walk, missed: false });
+                            clock += w + (r.duration || 5);
+                            lastLand = r.landName;
+                        });
+                    };
+                    runBlock(morning, d.openMins, d.hopParkId != null ? d.hopAt : d.closeMins);
+                    if (d.hopParkId != null) {
+                        if (afternoon.length) {
+                            d.hopStart = Math.max(clock, d.hopAt);
+                            clock = d.hopStart + 25; // park-to-park transfer
+                            // Afternoon park is already open, so no rope-drop bonus applies.
+                            runBlock(afternoon, clock - 60, d.closeMins);
+                        }
+                    }
+                    d.schedule = sched;
+                    d.endMins = clock;
+                    d.missedCount = missed;
+                    d.totalQueue = sched.reduce((s, r) => s + (r.missed ? 0 : (r.expWait || 0)), 0);
                 });
                 const quietest = days.reduce((a, b) => (b.meanF < a.meanF ? b : a), days[0]);
                 const busiest = days.reduce((a, b) => (b.meanF > a.meanF ? b : a), days[0]);
                 return { days, quietest, busiest, unplaced, totalRides: picked.length };
-            }, [hStart, hEnd, hParks, hPicks, hMoves, rides, activeRegion, globalTelemetryLog, telemetryStats.isReady]);
+            }, [hStart, hEnd, hParks, hPicks, hMoves, hHop, hHopAt, hEmh, parkSchedules, rides, activeRegion, globalTelemetryLog, telemetryStats.isReady]);
+            const fmtMins = (m) => `${String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(Math.round(m) % 60).padStart(2, '0')}`;
             const memoizedData = useMemo(() => {
                 if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { walkMins: 0, totalSavedMins: 0, totalQueueTimeMins: 0 } };
                 const completedSequence = [];
@@ -3417,27 +3511,61 @@
                                                                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Est. queueing</p>
                                                                 <p className="text-sm font-black text-slate-800 dark:text-white">{Math.floor(d.totalQueue / 60)}h {d.totalQueue % 60}m</p>
                                                             </div>
-                                                            <button onClick={() => { setActivePark(String(d.parkId)); setBRides(new Set(d.rides.map(r => r.id))); setBAiText(''); setShowBuilder(true); setView('live'); }} disabled={d.rides.length === 0} className={`text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-lg transition-all ${d.rides.length === 0 ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-emerald-600 to-blue-600 text-white hover:from-emerald-500 hover:to-blue-500'}`}>Build this day</button>
+                                                            <button onClick={() => { setActivePark(String(d.parkId)); setBRides(new Set(d.rides.map(r => r.id))); setBAiText(''); setShowBuilder(true); setView('live'); }} disabled={d.rides.length === 0} className={`text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-lg transition-all ${d.rides.length === 0 ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-emerald-600 to-blue-600 text-white hover:from-emerald-500 hover:to-blue-500'}`}>Build live</button>
                                                         </div>
                                                     </div>
-                                                    {d.rides.length === 0 ? (
-                                                        <p className="px-4 py-6 text-center text-[11px] text-slate-400">No rides placed here yet — select must-dos above, or switch this day's park.</p>
+                                                    {/* Start time + hop controls */}
+                                                    <div className="flex flex-wrap items-center gap-3 px-4 py-2 bg-white dark:bg-[#0c111a] border-b border-slate-100 dark:border-slate-800/60">
+                                                        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Start</span>
+                                                        <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">{fmtMins(d.openMins)}</span>
+                                                        {d.emhAvailable ? (
+                                                            <button onClick={() => setHEmh(p => ({ ...p, [d.ds]: d.usingEmh ? false : true }))} className={`text-[9px] font-black px-2 py-1 rounded uppercase tracking-wider border transition-all ${d.usingEmh ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'}`}>
+                                                                {d.usingEmh ? '★ Extra Magic Time' : 'EMH off'}
+                                                            </button>
+                                                        ) : (
+                                                            <span className="text-[9px] font-mono text-slate-400">{d.scheduleKnown ? 'rope drop (no EMH listed)' : 'schedule not published yet — assuming 09:00'}</span>
+                                                        )}
+                                                        <span className="text-[9px] font-mono text-slate-400">→ close {fmtMins(d.closeMins)}</span>
+                                                        <div className="flex items-center gap-2 ml-auto">
+                                                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Hop to</span>
+                                                            <select value={d.hopParkId == null ? '' : d.hopParkId} onChange={e => setHHop(p => ({ ...p, [d.ds]: e.target.value === '' ? null : parseInt(e.target.value) }))} className="bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-[10px] font-bold text-slate-700 dark:text-slate-200">
+                                                                <option value="">No hop</option>
+                                                                {(GLOBAL_PARKS[activeRegion] || []).filter(p => p.id !== d.parkId).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                                            </select>
+                                                            {d.hopParkId != null && (
+                                                                <input type="time" value={fmtMins(d.hopAt)} onChange={e => { const m = /^(\d{1,2}):(\d{2})$/.exec(e.target.value); if (m) setHHopAt(p => ({ ...p, [d.ds]: (+m[1]) * 60 + (+m[2]) })); }} className="bg-slate-50 dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-[10px] font-mono text-slate-700 dark:text-slate-200" />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {d.schedule.length === 0 ? (
+                                                        <p className="px-4 py-6 text-center text-[11px] text-slate-400">No rides placed here yet — select must-dos below, or switch this day's park.</p>
                                                     ) : (
-                                                        <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                                                            {d.lands.map(z => (
-                                                                <div key={z.name} className="px-4 py-2">
-                                                                    <p className="text-[9px] font-mono uppercase tracking-widest text-slate-400 mb-1.5">{z.name}</p>
-                                                                    {z.rides.map(r => (
-                                                                        <div key={r.id} className="flex items-center gap-2 py-1">
-                                                                            <span className="text-xs text-slate-700 dark:text-slate-200 truncate flex-grow">{r.name}</span>
-                                                                            <span className={`text-xs font-black font-mono shrink-0 ${r.expWait <= 30 ? 'text-emerald-600 dark:text-emerald-400' : r.expWait <= 60 ? 'text-amber-500' : 'text-rose-500'}`}>{r.expWait}m</span>
+                                                        <div className="px-4 py-2">
+                                                            {d.schedule.map((r, idx) => {
+                                                                const hopHere = d.hopParkId != null && d.hopStart != null && idx > 0 && d.schedule[idx - 1].parkId === d.parkId && r.parkId === d.hopParkId;
+                                                                return (
+                                                                    <React.Fragment key={r.id}>
+                                                                        {hopHere && (
+                                                                            <div className="flex items-center gap-2 my-2 py-1.5 px-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20">
+                                                                                <span className="text-[10px] font-black font-mono text-blue-600 dark:text-blue-400">{fmtMins(d.hopStart)}</span>
+                                                                                <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Hop → {d.hopParkName} (~25m transfer)</span>
+                                                                            </div>
+                                                                        )}
+                                                                        <div className={`flex items-center gap-2 py-1.5 border-b border-slate-100 dark:border-slate-800/50 last:border-0 ${r.missed ? 'opacity-50' : ''}`}>
+                                                                            <span className={`text-[11px] font-black font-mono w-11 shrink-0 ${r.missed ? 'text-rose-500' : 'text-slate-500 dark:text-slate-400'}`}>{r.missed ? '--:--' : fmtMins(r.at)}</span>
+                                                                            <div className="min-w-0 flex-grow">
+                                                                                <p className="text-xs text-slate-700 dark:text-slate-200 truncate">{r.name}</p>
+                                                                                <p className="text-[9px] font-mono text-slate-400 truncate">{r.landName}{r.missed ? ' · past closing — move to another day' : ''}</p>
+                                                                            </div>
+                                                                            {!r.missed && <span className={`text-xs font-black font-mono shrink-0 ${r.expWait <= 20 ? 'text-emerald-600 dark:text-emerald-400' : r.expWait <= 45 ? 'text-amber-500' : 'text-rose-500'}`}>{r.expWait}m</span>}
                                                                             <select value={d.ds} onChange={e => setHMoves(p => ({ ...p, [r.id]: e.target.value }))} className="bg-transparent border border-slate-200 dark:border-slate-800 rounded px-1 py-0.5 text-[9px] font-mono text-slate-400 shrink-0" title="Move this ride to another day">
-                                                                                {holidayPlan.days.filter(x => x.parkId === r.parkId).map(x => <option key={x.ds} value={x.ds}>{x.dayName.slice(0, 3)} {x.date.getUTCDate()}</option>)}
+                                                                                {holidayPlan.days.filter(x => x.parkIdsToday.indexOf(r.parkId) !== -1).map(x => <option key={x.ds} value={x.ds}>{x.dayName.slice(0, 3)} {x.date.getUTCDate()}</option>)}
                                                                             </select>
                                                                         </div>
-                                                                    ))}
-                                                                </div>
-                                                            ))}
+                                                                    </React.Fragment>
+                                                                );
+                                                            })}
+                                                            <p className="text-[10px] font-mono text-slate-400 pt-2">Done about <strong className="text-slate-600 dark:text-slate-300">{fmtMins(d.endMins)}</strong> · {d.schedule.filter(r => !r.missed).length} rides{d.missedCount > 0 ? ` · ${d.missedCount} won't fit` : ''}</p>
                                                         </div>
                                                     )}
                                                 </div>
