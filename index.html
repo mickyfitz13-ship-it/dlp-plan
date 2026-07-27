@@ -862,6 +862,16 @@
             const [hParks, setHParks] = useState({});    // 'YYYY-MM-DD' -> parkId (manual override)
             const [hPicks, setHPicks] = useState(() => new Set()); // ride ids to fit into the trip
             const [hMoves, setHMoves] = useState({});    // rideId -> 'YYYY-MM-DD' (manual day override)
+            // Per-day planner settings, so "build my day" happens INSIDE the holiday day (planned
+            // from that date's opening) instead of bouncing you to the live view, which can only
+            // ever plan from the current time.
+            const H_DEFAULT_BREAKS = [
+                { key: 'lunch', label: 'Lunch', on: true, at: 13 * 60, mins: 60 },
+                { key: 'dinner', label: 'Dinner', on: true, at: 18 * 60 + 30, mins: 45 }
+            ];
+            const [hPace, setHPace] = useState({});     // ds -> 'relaxed' | 'balanced' | 'commando'
+            const [hBreaks, setHBreaks] = useState({}); // ds -> [{key,label,on,at,mins}]
+            const [hOpenDay, setHOpenDay] = useState(null); // ds whose settings panel is expanded
             const [hHop, setHHop] = useState({});       // 'YYYY-MM-DD' -> afternoon parkId (park hopping)
             const [hHopAt, setHHopAt] = useState({});   // 'YYYY-MM-DD' -> park-local minutes of the hop
             const [hEmh, setHEmh] = useState({});       // 'YYYY-MM-DD' -> false to opt OUT of Extra Magic Time
@@ -1597,18 +1607,37 @@
                     morning.sort(byWorst); afternoon.sort(byWorst);
                     const sched = [];
                     let clock = d.openMins, missed = 0;
+                    // Pace = how much slack you want around each ride (photos, snacks, toilets).
+                    const pace = hPace[d.ds] || 'balanced';
+                    d.pace = pace;
+                    const slack = pace === 'relaxed' ? 12 : pace === 'commando' ? 0 : 5;
+                    // Meals/breaks are taken the first time the clock reaches them.
+                    const brs = (hBreaks[d.ds] || H_DEFAULT_BREAKS).filter(b => b.on).slice().sort((a, b) => a.at - b.at);
+                    d.breaksList = hBreaks[d.ds] || H_DEFAULT_BREAKS;
+                    const takenB = {};
+                    const takeDueBreaks = () => {
+                        brs.forEach((b, i) => {
+                            if (!takenB[i] && clock >= b.at) {
+                                sched.push({ id: 'brk-' + d.ds + '-' + b.key, breakItem: true, label: b.label, at: clock, mins: b.mins });
+                                clock += b.mins;
+                                takenB[i] = true;
+                            }
+                        });
+                    };
                     const runBlock = (list, blockOpen, hardStop) => {
                         let lastLand = null;
                         list.forEach(r => {
+                            takeDueBreaks();
                             const walk = lastLand && lastLand !== r.landName ? 6 : 2; // land change vs next door
                             clock += walk;
                             if (clock > hardStop) { sched.push({ ...r, missed: true }); missed++; return; }
                             const raw = shapeAt(r, clock, d.date);
                             const w = Math.max(0, Math.round(raw * ropeDropMult(clock - blockOpen)));
                             sched.push({ ...r, at: clock, expWait: w, walk, missed: false });
-                            clock += w + (r.duration || 5);
+                            clock += w + (r.duration || 5) + slack;
                             lastLand = r.landName;
                         });
+                        takeDueBreaks();
                     };
                     runBlock(morning, d.openMins, d.hopParkId != null ? d.hopAt : d.closeMins);
                     if (d.hopParkId != null) {
@@ -1622,12 +1651,12 @@
                     d.schedule = sched;
                     d.endMins = clock;
                     d.missedCount = missed;
-                    d.totalQueue = sched.reduce((s, r) => s + (r.missed ? 0 : (r.expWait || 0)), 0);
+                    d.totalQueue = sched.reduce((s, r) => s + ((r.missed || r.breakItem) ? 0 : (r.expWait || 0)), 0);
                 });
                 const quietest = days.reduce((a, b) => (b.meanF < a.meanF ? b : a), days[0]);
                 const busiest = days.reduce((a, b) => (b.meanF > a.meanF ? b : a), days[0]);
                 return { days, quietest, busiest, unplaced, totalRides: picked.length };
-            }, [hStart, hEnd, hParks, hPicks, hMoves, hHop, hHopAt, hEmh, parkSchedules, rides, activeRegion, globalTelemetryLog, telemetryStats.isReady]);
+            }, [hStart, hEnd, hParks, hPicks, hMoves, hHop, hHopAt, hEmh, hPace, hBreaks, parkSchedules, rides, activeRegion, globalTelemetryLog, telemetryStats.isReady]);
             const fmtMins = (m) => `${String(Math.floor(((m % 1440) + 1440) % 1440 / 60)).padStart(2, '0')}:${String(Math.round(m) % 60).padStart(2, '0')}`;
             const memoizedData = useMemo(() => {
                 if (rides.length === 0) return { itinerary: [], masterSequence: [], completedSequence: [], minorSequence: [], closedSequence: [], metrics: { walkMins: 0, totalSavedMins: 0, totalQueueTimeMins: 0 } };
@@ -3511,9 +3540,56 @@
                                                                 <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Est. queueing</p>
                                                                 <p className="text-sm font-black text-slate-800 dark:text-white">{Math.floor(d.totalQueue / 60)}h {d.totalQueue % 60}m</p>
                                                             </div>
-                                                            <button onClick={() => { setActivePark(String(d.parkId)); setBRides(new Set(d.rides.map(r => r.id))); setBAiText(''); setShowBuilder(true); setView('live'); }} disabled={d.rides.length === 0} className={`text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-lg transition-all ${d.rides.length === 0 ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-emerald-600 to-blue-600 text-white hover:from-emerald-500 hover:to-blue-500'}`}>Build live</button>
+                                                            <button onClick={() => setHOpenDay(hOpenDay === d.ds ? null : d.ds)} className={`text-[10px] font-black uppercase tracking-wider px-3 py-2 rounded-lg transition-all ${hOpenDay === d.ds ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900' : 'bg-gradient-to-r from-emerald-600 to-blue-600 text-white hover:from-emerald-500 hover:to-blue-500'}`}>{hOpenDay === d.ds ? 'Close' : 'Build this day'}</button>
                                                         </div>
                                                     </div>
+                                                    {/* In-place day planner: pace, meals and ride picks for THIS date */}
+                                                    {hOpenDay === d.ds && (
+                                                        <div className="px-4 py-3 bg-slate-50 dark:bg-[#080b12] border-b border-slate-200 dark:border-slate-800 space-y-3">
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 w-14">Pace</span>
+                                                                {['relaxed', 'balanced', 'commando'].map(p => (
+                                                                    <button key={p} onClick={() => setHPace(x => ({ ...x, [d.ds]: p }))} className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border uppercase tracking-wider transition-all ${d.pace === p ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white dark:bg-[#05070a] border-slate-200 dark:border-slate-800 text-slate-500 hover:border-emerald-400'}`}>{p}</button>
+                                                                ))}
+                                                                <span className="text-[9px] font-mono text-slate-400">{d.pace === 'relaxed' ? '+12m slack per ride' : d.pace === 'commando' ? 'no slack — maximum rides' : '+5m slack per ride'}</span>
+                                                            </div>
+                                                            <div className="flex flex-wrap items-start gap-2">
+                                                                <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 w-14 pt-1.5">Meals</span>
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {d.breaksList.map((b, bi) => (
+                                                                        <div key={b.key} className="flex items-center gap-1.5 bg-white dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1">
+                                                                            <button onClick={() => setHBreaks(x => { const cur = (x[d.ds] || H_DEFAULT_BREAKS).map(y => ({ ...y })); cur[bi].on = !cur[bi].on; return { ...x, [d.ds]: cur }; })} className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${b.on ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 dark:border-slate-600'}`}>{b.on && <span className="text-white text-[8px] font-black">✓</span>}</button>
+                                                                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">{b.label}</span>
+                                                                            <input type="time" value={fmtMins(b.at)} onChange={e => { const m = /^(\d{1,2}):(\d{2})$/.exec(e.target.value); if (m) setHBreaks(x => { const cur = (x[d.ds] || H_DEFAULT_BREAKS).map(y => ({ ...y })); cur[bi].at = (+m[1]) * 60 + (+m[2]); return { ...x, [d.ds]: cur }; }); }} className="bg-transparent border-0 text-[10px] font-mono text-slate-500 w-14 p-0" />
+                                                                            <input type="number" min="15" max="180" step="15" value={b.mins} onChange={e => { const v = Math.max(15, Math.min(180, parseInt(e.target.value) || 60)); setHBreaks(x => { const cur = (x[d.ds] || H_DEFAULT_BREAKS).map(y => ({ ...y })); cur[bi].mins = v; return { ...x, [d.ds]: cur }; }); }} className="bg-transparent border-0 text-[10px] font-mono text-slate-500 w-9 p-0" />
+                                                                            <span className="text-[9px] text-slate-400">m</span>
+                                                                        </div>
+                                                                    ))}
+                                                                    <button onClick={() => setHBreaks(x => { const cur = (x[d.ds] || H_DEFAULT_BREAKS).map(y => ({ ...y })); cur.push({ key: 'b' + Date.now().toString(36), label: 'Break', on: true, at: 15 * 60 + 30, mins: 30 }); return { ...x, [d.ds]: cur }; })} className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-white dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-slate-500 hover:border-emerald-400 uppercase tracking-wider">+ Add</button>
+                                                                </div>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1.5">Rides on this day <span className="font-mono normal-case tracking-normal text-slate-400">— tick to add, untick to push back to the pool</span></p>
+                                                                <div className="max-h-44 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-[#05070a]">
+                                                                    {rides.filter(r => d.parkIdsToday.indexOf(r.parkId) !== -1 && !rideIsNonAttraction(r.name)).sort((a, b) => (b.isPriority ? 1 : 0) - (a.isPriority ? 1 : 0) || a.name.localeCompare(b.name)).map(r => {
+                                                                        const here = d.rides.some(x => x.id === r.id);
+                                                                        return (
+                                                                            <button key={r.id} onClick={() => { if (here) { setHPicks(prev => { const n = new Set(prev); n.delete(r.id); return n; }); } else { setHPicks(prev => new Set(prev).add(r.id)); setHMoves(p => ({ ...p, [r.id]: d.ds })); } }} className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left border-b border-slate-100 dark:border-slate-800/50 last:border-0 ${here ? 'bg-emerald-50 dark:bg-emerald-900/15' : 'hover:bg-slate-50 dark:hover:bg-[#0c111a]'}`}>
+                                                                                <span className={`w-3.5 h-3.5 rounded border shrink-0 flex items-center justify-center ${here ? 'bg-emerald-500 border-emerald-500' : 'border-slate-300 dark:border-slate-600'}`}>{here && <span className="text-white text-[8px] font-black">✓</span>}</span>
+                                                                                <span className="text-[11px] text-slate-700 dark:text-slate-200 truncate flex-grow">{r.name}</span>
+                                                                                <span className="text-[9px] font-mono text-slate-400 shrink-0">{r.landName}</span>
+                                                                                {r.isPriority && <span className="text-[8px] font-black text-emerald-500 shrink-0">★</span>}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Everything here is timed from this day's <strong>{fmtMins(d.openMins)}</strong> opening — it never uses the current clock.{d.ds === todayISO() ? ' Since this is today, you can also open the live planner for real-time queues.' : ''}</p>
+                                                            {d.ds === todayISO() && (
+                                                                <button onClick={() => { setActivePark(String(d.parkId)); setBRides(new Set(d.rides.map(r => r.id))); setBAiText(''); setShowBuilder(true); setView('live'); }} className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-white dark:bg-[#05070a] border border-slate-200 dark:border-slate-800 text-blue-500 hover:border-blue-400 uppercase tracking-wider">Open live planner for today →</button>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                     {/* Start time + hop controls */}
                                                     <div className="flex flex-wrap items-center gap-3 px-4 py-2 bg-white dark:bg-[#0c111a] border-b border-slate-100 dark:border-slate-800/60">
                                                         <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Start</span>
@@ -3542,7 +3618,15 @@
                                                     ) : (
                                                         <div className="px-4 py-2">
                                                             {d.schedule.map((r, idx) => {
-                                                                const hopHere = d.hopParkId != null && d.hopStart != null && idx > 0 && d.schedule[idx - 1].parkId === d.parkId && r.parkId === d.hopParkId;
+                                                                if (r.breakItem) return (
+                                                                    <div key={r.id} className="flex items-center gap-2 my-1.5 py-1.5 px-2 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
+                                                                        <span className="text-[11px] font-black font-mono text-amber-600 dark:text-amber-400 w-11 shrink-0">{fmtMins(r.at)}</span>
+                                                                        <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300 uppercase tracking-wider">{r.label}</span>
+                                                                        <span className="text-[10px] font-mono text-amber-500 ml-auto">{r.mins}m</span>
+                                                                    </div>
+                                                                );
+                                                                const prev = d.schedule[idx - 1];
+                                                                const hopHere = d.hopParkId != null && d.hopStart != null && idx > 0 && prev && prev.parkId === d.parkId && r.parkId === d.hopParkId;
                                                                 return (
                                                                     <React.Fragment key={r.id}>
                                                                         {hopHere && (
