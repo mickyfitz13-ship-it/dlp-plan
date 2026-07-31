@@ -4,12 +4,22 @@ const path = require('path');
 const FILE_PATH = path.join(__dirname, 'telemetry.json');
 const TARGET_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB Limit Ceiling
 
-// Helper to check the current byte size of the telemetry object
+// --- 1. REPLACE THIS WITH YOUR REAL SCRAPING / API LOGIC ---
+async function fetchLiveQueueData() {
+  // Example structure expected: { "queue_1": 12, "queue_2": 45 }
+  // Replace this placeholder object with your actual fetch/axios call:
+  return {
+    "queue_1": 12,
+    "queue_2": 45
+  };
+}
+
+// --- 2. HELPER TO CHECK JSON BYTE SIZE ---
 function getByteSize(data) {
   return Buffer.byteLength(JSON.stringify(data), 'utf8');
 }
 
-// --- TIME MACHINE RETENTION / DOWNSAMPLING LOGIC ---
+// --- 3. TIME MACHINE RETENTION LOGIC ---
 function pruneTelemetry(telemetryData) {
   const NOW = Date.now();
   const ONE_DAY_MS = 24 * 60 * 60 * 1000;
@@ -35,15 +45,15 @@ function pruneTelemetry(telemetryData) {
       const age = NOW - entry.t;
 
       if (age <= SEVEN_DAYS_MS) {
-        // 1. Keep full hourly resolution for the last 7 days
+        // Keep full hourly resolution for the last 7 days
         recentRaw.push(entry);
       } else if (age <= THIRTY_DAYS_MS) {
-        // 2. Group into daily buckets for days 8–30
+        // Group into daily buckets for days 8–30
         const dateKey = new Date(entry.t).toISOString().split('T')[0];
         if (!midTermDailyBucket[dateKey]) midTermDailyBucket[dateKey] = [];
         midTermDailyBucket[dateKey].push(entry);
       } else {
-        // 3. Group into weekly buckets for everything older than 30 days
+        // Group into weekly buckets for everything older than 30 days
         const d = new Date(entry.t);
         const year = d.getUTCFullYear();
         const firstJan = new Date(Date.UTC(year, 0, 1));
@@ -55,7 +65,7 @@ function pruneTelemetry(telemetryData) {
       }
     }
 
-    // Pick the median wait time from a bucket of points
+    // Reduce a bucket of data points into a single median point
     const reduceBucket = (bucket) => {
       return Object.values(bucket).map(group => {
         if (group.length === 1) return group[0];
@@ -84,24 +94,24 @@ function pruneTelemetry(telemetryData) {
   return prunedData;
 }
 
-// Check size ceiling and decide whether to prune
+// --- 4. ENFORCE 20 MB CEILING ---
 function enforceSizeCap(telemetryData) {
   const currentSize = getByteSize(telemetryData);
 
-  // If under 20 MB, keep 100% of raw data untouched
+  // If under 20 MB, keep 100% raw data
   if (currentSize < TARGET_SIZE_BYTES) {
     return telemetryData;
   }
 
-  console.log(`Telemetry size (${(currentSize / (1024 * 1024)).toFixed(2)} MB) approaching 20 MB ceiling. Running Time Machine pruning...`);
+  console.log(`Telemetry size (${(currentSize / (1024 * 1024)).toFixed(2)} MB) reached 20 MB ceiling. Running Time Machine pruning...`);
   return pruneTelemetry(telemetryData);
 }
 
-// --- MAIN SWEEP LOGIC ---
+// --- 5. MAIN SWEEP EXECUTION ---
 async function runSweep() {
   console.log('Starting telemetry sweep...');
 
-  // 1. Load existing telemetry.json
+  // Load existing telemetry file if available
   let telemetry = {};
   if (fs.existsSync(FILE_PATH)) {
     try {
@@ -112,28 +122,23 @@ async function runSweep() {
     }
   }
 
-  // 2. FETCH YOUR LIVE QUEUE DATA
-  // Replace this placeholder object with your actual API fetch logic
-  const newQueueData = {
-    "1": 5,
-    "2": 10,
-    "3": 15
-  };
+  // Fetch new data
+  const newQueueData = await fetchLiveQueueData();
 
-  // 3. Append current timestamped values
+  // Append new timestamped entries
   const timestamp = Date.now();
   Object.keys(newQueueData).forEach(qId => {
     if (!telemetry[qId]) telemetry[qId] = [];
     telemetry[qId].push({ t: timestamp, w: newQueueData[qId] });
   });
 
-  // 4. Check 20 MB limit ceiling and prune if necessary
+  // Apply size enforcement / pruning
   const finalTelemetry = enforceSizeCap(telemetry);
 
-  // 5. Save final file
+  // Save to file
   const finalSizeMB = (getByteSize(finalTelemetry) / (1024 * 1024)).toFixed(2);
   fs.writeFileSync(FILE_PATH, JSON.stringify(finalTelemetry), 'utf8');
-  console.log(`Telemetry updated successfully. File size: ${finalSizeMB} MB`);
+  console.log(`Telemetry updated successfully. Current file size: ${finalSizeMB} MB`);
 }
 
 runSweep().catch(console.error);
