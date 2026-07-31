@@ -2,75 +2,143 @@ const fs = require('fs');
 const path = require('path');
 
 const FILE_PATH = path.join(__dirname, 'telemetry.json');
-const PARKS = [4, 28, 6, 5, 7, 8, 16, 17, 274, 275, 31, 30];
-const RETENTION_MS = 14 * 86400000; // keep 14 days of history per ride
+const TARGET_SIZE_BYTES = 20 * 1024 * 1024; // 20 MB Limit Ceiling
 
-// Small fetch helper with retry + backoff for transient network/rate-limit blips.
-async function fetchJson(url, tries = 3) {
-    let lastErr;
-    for (let i = 0; i < tries; i++) {
-        try {
-            const res = await fetch(url, { headers: { 'User-Agent': 'dlp-plan-telemetry' } });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return await res.json();
-        } catch (e) {
-            lastErr = e;
-            if (i < tries - 1) await new Promise(r => setTimeout(r, 1500 * (i + 1)));
-        }
-    }
-    throw lastErr;
+// --- 1. REPLACE THIS WITH YOUR REAL SCRAPING / API LOGIC ---
+async function fetchLiveQueueData() {
+  // Example structure expected: { "queue_1": 12, "queue_2": 45 }
+  // Replace this placeholder object with your actual fetch/axios call:
+  return {
+    "queue_1": 12,
+    "queue_2": 45
+  };
 }
 
-async function updateData() {
-    let history = {};
-    if (fs.existsSync(FILE_PATH)) {
-        try {
-            history = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8')) || {};
-        } catch (e) {
-            console.error('Existing telemetry unreadable — starting fresh.');
-            history = {};
-        }
-    }
-
-    // GitHub-hosted runners are NTP-synced, so the local clock is reliable. (The old build
-    // called worldtimeapi.org, which is frequently down and only ever fell back to this anyway.)
-    const now = Date.now();
-    const cutoff = now - RETENTION_MS;
-    let parksOk = 0, samples = 0;
-
-    for (const parkId of PARKS) {
-        try {
-            const data = await fetchJson(`https://queue-times.com/parks/${parkId}/queue_times.json?t=${Date.now()}`);
-            const rides = Array.isArray(data.rides) ? [...data.rides] : [];
-            if (Array.isArray(data.lands)) {
-                data.lands.forEach(land => {
-                    if (land && Array.isArray(land.rides)) rides.push(...land.rides);
-                });
-            }
-            rides.forEach(ride => {
-                if (!ride || ride.id == null) return;
-                const w = Number(ride.wait_time);
-                if (!Number.isFinite(w)) return;
-                if (!history[ride.id]) history[ride.id] = [];
-                history[ride.id].push({ t: now, w });
-                history[ride.id] = history[ride.id].filter(item => item && item.t > cutoff);
-                samples++;
-            });
-            parksOk++;
-        } catch (err) {
-            console.error(`Failed to fetch park ${parkId}: ${err.message}`);
-        }
-    }
-
-    // Safety net: if every park failed this run, leave the good file untouched rather than
-    // risk clobbering weeks of history with a partial/empty write.
-    if (parksOk === 0) {
-        console.error('All parks failed this run — telemetry.json left untouched.');
-        process.exit(0);
-    }
-
-    fs.writeFileSync(FILE_PATH, JSON.stringify(history));
-    console.log(`Telemetry updated: ${parksOk}/${PARKS.length} parks, ${samples} samples, ${Object.keys(history).length} rides tracked.`);
+// --- 2. HELPER TO CHECK JSON BYTE SIZE ---
+function getByteSize(data) {
+  return Buffer.byteLength(JSON.stringify(data), 'utf8');
 }
 
-updateData().catch(err => { console.error('Fatal:', err); process.exit(1); });
+// --- 3. TIME MACHINE RETENTION LOGIC ---
+function pruneTelemetry(telemetryData) {
+  const NOW = Date.now();
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+  const SEVEN_DAYS_MS = 7 * ONE_DAY_MS;
+  const THIRTY_DAYS_MS = 30 * ONE_DAY_MS;
+
+  const prunedData = {};
+
+  for (const [queueId, entries] of Object.entries(telemetryData)) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+      prunedData[queueId] = [];
+      continue;
+    }
+
+    // Sort entries chronologically
+    const sorted = [...entries].sort((a, b) => a.t - b.t);
+
+    const recentRaw = [];
+    const midTermDailyBucket = {};   // Key: 'YYYY-MM-DD'
+    const longTermWeeklyBucket = {}; // Key: 'YYYY-Www'
+
+    for (const entry of sorted) {
+      const age = NOW - entry.t;
+
+      if (age <= SEVEN_DAYS_MS) {
+        // Keep full hourly resolution for the last 7 days
+        recentRaw.push(entry);
+      } else if (age <= THIRTY_DAYS_MS) {
+        // Group into daily buckets for days 8–30
+        const dateKey = new Date(entry.t).toISOString().split('T')[0];
+        if (!midTermDailyBucket[dateKey]) midTermDailyBucket[dateKey] = [];
+        midTermDailyBucket[dateKey].push(entry);
+      } else {
+        // Group into weekly buckets for everything older than 30 days
+        const d = new Date(entry.t);
+        const year = d.getUTCFullYear();
+        const firstJan = new Date(Date.UTC(year, 0, 1));
+        const weekNum = Math.ceil((((d - firstJan) / 86400000) + firstJan.getUTCDay() + 1) / 7);
+        const weekKey = `${year}-W${String(weekNum).padStart(2, '0')}`;
+
+        if (!longTermWeeklyBucket[weekKey]) longTermWeeklyBucket[weekKey] = [];
+        longTermWeeklyBucket[weekKey].push(entry);
+      }
+    }
+
+    // Reduce a bucket of data points into a single median point
+    const reduceBucket = (bucket) => {
+      return Object.values(bucket).map(group => {
+        if (group.length === 1) return group[0];
+        
+        const sortedGroup = [...group].sort((a, b) => a.w - b.w);
+        const mid = Math.floor(sortedGroup.length / 2);
+        const medianWait = sortedGroup.length % 2 !== 0 
+          ? sortedGroup[mid].w 
+          : Math.round((sortedGroup[mid - 1].w + sortedGroup[mid].w) / 2);
+
+        return {
+          t: group[0].t,
+          w: medianWait
+        };
+      });
+    };
+
+    const aggregatedDaily = reduceBucket(midTermDailyBucket);
+    const aggregatedWeekly = reduceBucket(longTermWeeklyBucket);
+
+    // Combine and sort final output
+    prunedData[queueId] = [...aggregatedWeekly, ...aggregatedDaily, ...recentRaw]
+      .sort((a, b) => a.t - b.t);
+  }
+
+  return prunedData;
+}
+
+// --- 4. ENFORCE 20 MB CEILING ---
+function enforceSizeCap(telemetryData) {
+  const currentSize = getByteSize(telemetryData);
+
+  // If under 20 MB, keep 100% raw data
+  if (currentSize < TARGET_SIZE_BYTES) {
+    return telemetryData;
+  }
+
+  console.log(`Telemetry size (${(currentSize / (1024 * 1024)).toFixed(2)} MB) reached 20 MB ceiling. Running Time Machine pruning...`);
+  return pruneTelemetry(telemetryData);
+}
+
+// --- 5. MAIN SWEEP EXECUTION ---
+async function runSweep() {
+  console.log('Starting telemetry sweep...');
+
+  // Load existing telemetry file if available
+  let telemetry = {};
+  if (fs.existsSync(FILE_PATH)) {
+    try {
+      telemetry = JSON.parse(fs.readFileSync(FILE_PATH, 'utf8'));
+    } catch (err) {
+      console.error('Error reading telemetry.json, starting fresh:', err);
+      telemetry = {};
+    }
+  }
+
+  // Fetch new data
+  const newQueueData = await fetchLiveQueueData();
+
+  // Append new timestamped entries
+  const timestamp = Date.now();
+  Object.keys(newQueueData).forEach(qId => {
+    if (!telemetry[qId]) telemetry[qId] = [];
+    telemetry[qId].push({ t: timestamp, w: newQueueData[qId] });
+  });
+
+  // Apply size enforcement / pruning
+  const finalTelemetry = enforceSizeCap(telemetry);
+
+  // Save to file
+  const finalSizeMB = (getByteSize(finalTelemetry) / (1024 * 1024)).toFixed(2);
+  fs.writeFileSync(FILE_PATH, JSON.stringify(finalTelemetry), 'utf8');
+  console.log(`Telemetry updated successfully. Current file size: ${finalSizeMB} MB`);
+}
+
+runSweep().catch(console.error);
