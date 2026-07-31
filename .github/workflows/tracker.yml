@@ -1,25 +1,20 @@
 name: Telemetry Tracker
-
 on:
   schedule:
     - cron: '0 * * * *'
   workflow_dispatch:
-
 jobs:
   update-data:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - name: Run telemetry sweep
         run: node update_telemetry.js
-
       - name: Commit and push changes
         run: |
           git config --global user.name "github-actions[bot]"
